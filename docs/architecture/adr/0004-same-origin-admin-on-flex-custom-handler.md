@@ -32,5 +32,5 @@ If the catch-all route or cookie passthrough fails on Flex, move the CMS to Azur
 
 ## Consequences
 
-- `/purge` is reachable from the internet as well as from the timer, because the host cannot attach a secret to timer invocations. Purging only removes Events that are overdue, and a purge runs at most once every 10 minutes per instance (extra calls are no-ops), so a call is harmless.
+- `/purge` is reachable from the internet as well as from the timer, because the host cannot attach a secret to timer invocations. Purging only removes Events that are overdue, and a purge runs at most once every 10 minutes per instance (one minute after a failure; extra calls are no-ops), so a call is harmless. A public call shortly before the timer can make the timer skip; an Event that became overdue in between is then purged up to a day late.
 - Scale-to-zero costs a 1–2 s first request, acceptable for an admin UI.
