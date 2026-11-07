@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
@@ -180,7 +181,9 @@ func (s *Server) dataDeletion(w http.ResponseWriter, _ *http.Request) {
 // purgeInterval is the least time between two purges started via /purge.
 // The Functions host cannot attach a secret to timer invocations, and the
 // catch-all HTTP route makes /purge public; purging only removes overdue
-// Bin items, so the only risk is load, which this bounds.
+// Bin items, so the only risk is load, which this bounds. A skipped call can
+// never starve purging: every call that sets lastPurge runs a complete purge
+// itself, so nothing overdue survives longer than purgeInterval after one.
 const purgeInterval = 10 * time.Minute
 
 func (s *Server) timerPurge(w http.ResponseWriter, r *http.Request) {
@@ -195,10 +198,15 @@ func (s *Server) timerPurge(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"Outputs": map[string]any{}, "Logs": []string{"purge skipped: ran recently"}, "ReturnValue": nil})
 		return
 	}
-	n, err := s.App.PurgeBin(r.Context())
+	// Detached from the caller: a client hanging up must not cut a purge short.
+	n, err := s.App.PurgeBin(context.WithoutCancel(r.Context()))
 	if err != nil {
 		s.Log.Error("purge", "err", err)
 		logs = append(logs, "purge error: "+err.Error())
+		// A failed run must not suppress the next attempt.
+		s.purgeMu.Lock()
+		s.lastPurge = time.Time{}
+		s.purgeMu.Unlock()
 	}
 	s.Log.Info("purge", "purged", n)
 	// Custom handler invocation response format.
