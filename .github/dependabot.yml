@@ -1,0 +1,8 @@
+# Only GitHub Actions are updated by Dependabot. Go modules are vendored and
+# reviewed by hand; Bun, Go and TypeScript are pinned in tools/ and package.json.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

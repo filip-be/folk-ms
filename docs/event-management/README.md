@@ -31,7 +31,8 @@ An Event is single, Multi-day or Recurring. A Recurrence is weekly, every second
 
 ### Content and validation
 
-- Polish is required, English optional; Sites apply the Translation fallback.
+- Polish is required, English optional; Sites apply the Translation fallback. A Draft may be incomplete; Publish validates everything and the editor lists what is missing.
+- Two Moderators editing the same Event cannot overwrite each other: a save carries the version the editor loaded and conflicts otherwise.
 - Price is free bilingual text with an optional tickets or registration link.
 - The Permalink is `/<lang>/events/<shortId>-<slug>`. The `shortId` is generated at creation (`crypto/rand`, base32, 8 characters, collision-checked per Organization) and never changes; the slug is editable and cosmetic, and must be unique per Organization.
 
@@ -41,18 +42,21 @@ Venues are a reusable list per Organization. Published Events reference a Venue 
 
 ### Images
 
-An Event has a landscape Cover Image and an optional Social Image (1:1 or 4:5) for Instagram. The CMS decodes JPEG, PNG and WebP (`golang.org/x/image`), enforces size and pixel limits against decompression bombs, resizes, and re-encodes JPEG variants, because Instagram requires JPEG at a public URL. HEIC is rejected with a clear error. Variants go to `pub` under immutable, content-hashed names.
+An Event has a landscape Cover Image and an optional Social Image (1:1 or 4:5) for Instagram. The CMS decodes JPEG, PNG and WebP (`golang.org/x/image`), enforces limits against decompression bombs (15 MB, 50 Mpx, checked from the header before decoding), resizes, and re-encodes JPEG variants, because Instagram requires JPEG at a public URL. HEIC is rejected with a clear error. The Cover gets widths 480, 960 and 1600 (never upscaled) plus an Instagram crop within 4:5–1.91:1; a Social Image is center-cropped to 1:1 or 4:5. Variants go to `pub/media/<org>/` under immutable, content-hashed names; the editor previews both crops.
 
 ## Where it lives
 
 | What | Path |
 | --- | --- |
-| Event aggregate, Recurrence, Occurrence expansion, Publish rules | `cms/internal/domain/` |
-| Use cases and per-Organization authorization | `cms/internal/app/` |
-| Image processing | `cms/internal/adapters/img/` |
-| Event editor and lists | `cms/admin/` |
+| Event aggregate, Publish rules | [`cms/internal/domain/event.go`](../../cms/internal/domain/event.go) |
+| Recurrence and Occurrence expansion | [`cms/internal/domain/schedule.go`](../../cms/internal/domain/schedule.go) |
+| Venues and frozen copies | [`cms/internal/domain/venue.go`](../../cms/internal/domain/venue.go), [`cms/internal/app/venues.go`](../../cms/internal/app/venues.go) |
+| Use cases and per-Organization authorization | [`cms/internal/app/events.go`](../../cms/internal/app/events.go) |
+| Image processing | [`cms/internal/adapters/img/`](../../cms/internal/adapters/img/) |
+| Event editor and lists | [`cms/admin/src/views/`](../../cms/admin/src/views/) |
 
 ## Read next
 
 - [Site delivery](../site-delivery/README.md): what Publish produces
+- [ADR 0002](../architecture/adr/0002-blob-json-documents-with-etag.md): how Events are stored
 - [CONTEXT.md](../../CONTEXT.md#event-management): the terms this capability uses

@@ -1,0 +1,44 @@
+name: deploy-infra
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [infra/azure/**, config/sites.json]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency: deploy-infra
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: .github/scripts/az-login.sh
+      - name: Deploy main.bicep
+        env:
+          SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          TOKEN_ENC_KEY: ${{ secrets.TOKEN_ENC_KEY }}
+          SESSION_KEY: ${{ secrets.SESSION_KEY }}
+        run: |
+          site_ids=$(jq -c '[.organizations[].site.id]' config/sites.json)
+          origins=$(jq -c '[.organizations[].site.origins[]] | unique' config/sites.json)
+          az deployment group create \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file infra/azure/main.bicep \
+            --parameters siteIds="$site_ids" siteOrigins="$origins" \
+              cmsBaseUrl="${{ vars.CMS_BASE_URL }}" \
+              googleClientId="${{ vars.GOOGLE_CLIENT_ID }}" metaAppId="${{ vars.META_APP_ID }}" \
+              superAdminEmail="$SUPER_ADMIN_EMAIL" googleClientSecret="$GOOGLE_CLIENT_SECRET" \
+              metaAppSecret="$META_APP_SECRET" tokenEncKey="$TOKEN_ENC_KEY" sessionKey="$SESSION_KEY" \
+            --output none

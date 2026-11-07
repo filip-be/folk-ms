@@ -1,0 +1,58 @@
+name: deploy-site
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [sites/**, contract/client/**, config/sites.json]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  sites:
+    runs-on: ubuntu-24.04
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: ids
+        run: echo "ids=$(jq -c '[.organizations[].site.id]' config/sites.json)" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    needs: sites
+    runs-on: ubuntu-24.04
+    environment: production
+    strategy:
+      fail-fast: false
+      matrix:
+        site: ${{ fromJSON(needs.sites.outputs.ids) }}
+    concurrency: deploy-site-${{ matrix.site }}
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Bun (checksum-verified)
+        run: tools/fetch.sh bun && echo "$PWD/.tools/bun" >> "$GITHUB_PATH"
+      - name: Test routes against config/sites.json
+        run: bun test sites
+      - name: Build
+        env:
+          SNAPSHOT_URL: ${{ vars.STORAGE_PUBLIC_URL }}/sites/${{ matrix.site }}/events.json
+        run: bun sites/build.ts "${{ matrix.site }}"
+      - run: .github/scripts/az-login.sh
+      - name: Deploy to Static Web Apps
+        run: |
+          rg="${{ vars.AZURE_RESOURCE_GROUP }}"
+          # The app is found by the tag main.bicep sets, not by name.
+          name=$(az staticwebapp list --resource-group "$rg" \
+            --query "[?tags.\"folkms-site\"=='${{ matrix.site }}'].name | [0]" -o tsv)
+          test -n "$name" || { echo "no Static Web App tagged folkms-site=${{ matrix.site }}"; exit 1; }
+          token=$(az staticwebapp secrets list --name "$name" --resource-group "$rg" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          # Deploy-time tool only, pinned to an exact version (see ADR 0003).
+          npx --yes @azure/static-web-apps-cli@2.1.0 deploy "sites/${{ matrix.site }}/dist" \
+            --deployment-token "$token" --env production

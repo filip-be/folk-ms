@@ -1,1 +1,9 @@
 .agents/PLAN.md
+.tools/
+node_modules/
+/cms/admin/dist/*
+!/cms/admin/dist/.gitkeep
+/sites/*/dist/
+/.data/
+*.exe
+/cms/deploy/out/

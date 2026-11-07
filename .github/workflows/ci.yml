@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    services:
+      azurite:
+        # Pinned by digest; see docs/platform.
+        image: mcr.microsoft.com/azure-storage/azurite@sha256:830430c1da1a2d537e08f3e6764dd1f5ae00cf0346bcaf625b968ec3f0971fd5
+        ports: ["10000:10000"]
+    env:
+      AZURITE_BLOB_URL: http://127.0.0.1:10000/devstoreaccount1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchain (checksum-verified)
+        run: tools/fetch.sh go && echo "$PWD/.tools/go/bin" >> "$GITHUB_PATH"
+      - name: Vendor is complete and tidy
+        working-directory: cms
+        run: |
+          go mod tidy
+          go mod vendor
+          git diff --exit-code -- go.mod go.sum vendor
+      - name: Vet
+        working-directory: cms
+        run: go vet ./... && go vet -tags dev ./...
+      - name: Test (incl. contract fixtures and Azurite adapter tests)
+        working-directory: cms
+        run: go test -race -count=1 ./...
+      - name: govulncheck
+        working-directory: cms
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+      - name: Production build has no dev sign-in
+        working-directory: cms
+        run: |
+          go build -o /tmp/cms ./cmd/cms
+          ! go tool nm /tmp/cms | grep -q devoidc
+
+  ts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Bun (checksum-verified)
+        run: tools/fetch.sh bun && echo "$PWD/.tools/bun" >> "$GITHUB_PATH"
+      - name: TypeScript type-checker (the only npm package)
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx tsc -b tsconfig.json
+      - name: Tests (contract reader, Site routes vs config/sites.json)
+        run: bun test contract sites
+      - name: Build admin SPA and Sites
+        run: |
+          bun cms/admin/build.ts
+          for s in $(jq -r '.organizations[].site.id' config/sites.json); do bun sites/build.ts "$s"; done
+
+  bicep:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: az bicep build --file infra/azure/main.bicep --stdout > /dev/null

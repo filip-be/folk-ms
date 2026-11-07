@@ -1,0 +1,11 @@
+{
+  "name": "folk-ms",
+  "private": true,
+  "description": "Dev-only: the TypeScript type-checker. No runtime npm dependencies anywhere in this repository.",
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "7.0.2"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "version": "2.0",
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.*, 5.0.0)"
+  },
+  "customHandler": {
+    "description": {
+      "defaultExecutablePath": "cms",
+      "workingDirectory": "",
+      "arguments": []
+    },
+    "enableForwardingHttpRequest": true,
+    "enableProxyingHttpRequest": true
+  },
+  "extensions": {
+    "http": {
+      "routePrefix": ""
+    }
+  },
+  "functionTimeout": "00:02:00",
+  "logging": {
+    "logLevel": {
+      "default": "Warning",
+      "Function": "Information"
+    }
+  }
+}

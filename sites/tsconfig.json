@@ -1,0 +1,5 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": { "composite": true, "rootDir": "..", "emitDeclarationOnly": true, "noEmit": false, "outDir": "../node_modules/.tsbuild/sites" },
+  "include": ["*.ts", "shared/**/*.ts", "*/src/**/*.ts", "../contract/client/src/**/*.ts", "../types/*.d.ts"]
+}

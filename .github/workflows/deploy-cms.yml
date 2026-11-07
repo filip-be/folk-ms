@@ -1,0 +1,43 @@
+name: deploy-cms
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [cms/**, config/sites.json, contract/**]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency: deploy-cms
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Toolchains (checksum-verified)
+        run: |
+          tools/fetch.sh go bun
+          echo "$PWD/.tools/go/bin" >> "$GITHUB_PATH"
+          echo "$PWD/.tools/bun" >> "$GITHUB_PATH"
+      - name: Test
+        working-directory: cms
+        run: go test -count=1 ./...
+      - name: Package
+        run: cms/deploy/package.sh
+      - run: .github/scripts/az-login.sh
+      - name: Deploy to Flex Consumption
+        run: |
+          az functionapp deployment source config-zip \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --name "${{ vars.CMS_FUNCTION_APP }}" \
+            --src cms/deploy/out/cms.zip --output none
+      - name: Smoke test
+        run: curl -fsS --retry 10 --retry-delay 6 --retry-all-errors "${{ vars.CMS_BASE_URL }}/healthz"
