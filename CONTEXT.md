@@ -1,14 +1,13 @@
 # folk-ms — Domain Context
 
-Glossary for the CMS serving bal folk organizations' websites. Terms only; no implementation.
+Glossary for the CMS serving bal folk organizations' websites. Terms only; no implementation. Sections follow the capabilities in [docs/README.md](docs/README.md).
 
-## Terms
+## Organizations
 
 **Organization**
 An association or group that organizes dance events (e.g. Bal Folk Poznań, Celtycki Wrocław). Owns its Events.
 
-**Site**
-A public website of one Organization. The set of Sites is fixed and declared together with the CMS. Each Site is bilingual (Polish and English).
+## Event management
 
 **Event**
 Something an Organization organizes and announces: a bal, jam session, concert, workshop, festival. Belongs to exactly one Organization; is not shared between Organizations. Has bilingual content and may have a Cover Image. May be single, multi-day, or recurring.
@@ -41,32 +40,30 @@ The landscape image representing an Event on Sites and in Facebook Social Posts.
 **Social Image**
 An optional square/portrait image (e.g. a poster) used for Instagram Social Posts. When absent, a crop of the Cover Image is used.
 
-**Permalink**
-The stable address of an Event on its Site, based on an identifier that never changes (the readable part may change without breaking it). Addresses the whole Event; a Recurring Event's Permalink lists its Occurrences. Social Posts link to it, so only Published Events can get Social Posts.
-
 **Draft**
 The editable state of an Event. Changes to a Draft are invisible to Sites.
 
 **Publish**
 A Moderator's explicit action that makes an Event's current Draft the version shown on its Organization's Site. Re-publishing replaces the shown version; Unpublish removes the Event from the Site.
 
-**Translation fallback**
-An Event is authored in Polish; English is optional. Where English is missing, Sites show Polish.
-
-**Super Admin**
-The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization.
-
-**Moderator**
-A person allowed to manage the Events of the Organizations they were granted. Access is scoped per Organization.
-
-**Invitation**
-A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
-
 **Unpublish**
 Removing a Published Event from its Site. The Event stays in the CMS as a Draft.
 
 **Bin**
 Where deleted Events go. Deleting a Published Event also Unpublishes it. The Super Admin can restore Events from the Bin for 30 days, after which the Event and its Social Post records are gone; the Audit Log still remembers them. Deleting never removes anything from Facebook or Instagram.
+
+## Site delivery
+
+**Site**
+A public website of one Organization. The set of Sites is fixed and declared together with the CMS. Each Site is bilingual (Polish and English).
+
+**Permalink**
+The stable address of an Event on its Site, based on an identifier that never changes (the readable part may change without breaking it). Addresses the whole Event; a Recurring Event's Permalink lists its Occurrences. Social Posts link to it, so only Published Events can get Social Posts.
+
+**Translation fallback**
+An Event is authored in Polish; English is optional. Where English is missing, Sites show Polish.
+
+## Social posting
 
 **Social Post**
 An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event (which is created by hand outside the CMS). Posted manually by a Moderator, separately per platform; the CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
@@ -76,6 +73,17 @@ The text of a Social Post. Generated from the Event's fields and Permalink, then
 
 **Social Account Connection**
 The link between an Organization and its Facebook Page and Instagram account. Belongs to the Organization, not to the person who made it. Established by a Moderator who administers that Page and was given a role on the CMS's Meta app by the Super Admin. Any of the Organization's Moderators can disconnect or reconnect it. Without it, the Organization cannot post Social Posts.
+
+## Access
+
+**Super Admin**
+The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization.
+
+**Moderator**
+A person allowed to manage the Events of the Organizations they were granted. Access is scoped per Organization.
+
+**Invitation**
+A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
 
 **Audit Log**
 An append-only record of who did what and when: Event changes, Publish/Unpublish, Social Posts, access grants. Readable by the Super Admin.
