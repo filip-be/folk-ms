@@ -177,9 +177,25 @@ func (s *Server) dataDeletion(w http.ResponseWriter, _ *http.Request) {
 	}})
 }
 
+// purgeInterval is the least time between two purges started via /purge.
+// The Functions host cannot attach a secret to timer invocations, and the
+// catch-all HTTP route makes /purge public; purging only removes overdue
+// Bin items, so the only risk is load, which this bounds.
+const purgeInterval = 10 * time.Minute
+
 func (s *Server) timerPurge(w http.ResponseWriter, r *http.Request) {
-	n, err := s.App.PurgeBin(r.Context())
 	logs := []string{}
+	s.purgeMu.Lock()
+	skip := time.Since(s.lastPurge) < purgeInterval
+	if !skip {
+		s.lastPurge = time.Now()
+	}
+	s.purgeMu.Unlock()
+	if skip {
+		writeJSON(w, http.StatusOK, map[string]any{"Outputs": map[string]any{}, "Logs": []string{"purge skipped: ran recently"}, "ReturnValue": nil})
+		return
+	}
+	n, err := s.App.PurgeBin(r.Context())
 	if err != nil {
 		s.Log.Error("purge", "err", err)
 		logs = append(logs, "purge error: "+err.Error())

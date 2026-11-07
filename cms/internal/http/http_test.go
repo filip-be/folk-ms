@@ -206,6 +206,9 @@ func TestStaticAndTimer(t *testing.T) {
 	if resp.StatusCode != 200 || !strings.Contains(body, `"Outputs"`) {
 		t.Fatalf("timer: %d %s", resp.StatusCode, body)
 	}
+	if _, body = h.do(t, c, "POST", "/purge", "{}", nil); !strings.Contains(body, "skipped") {
+		t.Fatalf("a second purge right away must be skipped: %s", body)
+	}
 }
 
 func TestSessionTampering(t *testing.T) {

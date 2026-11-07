@@ -41,6 +41,9 @@ type Server struct {
 	sign    signer
 	limiter *limiter
 	static  *staticFS
+
+	purgeMu   sync.Mutex
+	lastPurge time.Time
 }
 
 // NewServer validates the configuration.

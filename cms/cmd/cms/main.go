@@ -53,9 +53,11 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
-	mode := env("FOLKMS_ENV", "local")
+	// No default: a production app missing the setting must not silently
+	// fall back to local disk storage.
+	mode := os.Getenv("FOLKMS_ENV")
 	if mode != "local" && mode != "azure" {
-		return fmt.Errorf("FOLKMS_ENV must be local or azure")
+		return fmt.Errorf("FOLKMS_ENV must be set to local or azure")
 	}
 	port, underFunctions := os.LookupEnv("FUNCTIONS_CUSTOMHANDLER_PORT")
 	if !underFunctions {
@@ -110,11 +112,12 @@ func run(log *slog.Logger) error {
 
 	if id := os.Getenv("META_APP_ID"); id != "" {
 		a.Social = meta.New(id, os.Getenv("META_APP_SECRET"), os.Getenv("META_GRAPH_VERSION"))
-	} else if mode == "local" {
+	} else if mode == "local" && devIdentity != nil {
+		// Dev builds only: fake successes must never reach a real deployment.
 		a.Social = &meta.Recorder{}
 		log.Warn("META_APP_ID not set: Social Posts are recorded, not sent")
 	} else {
-		return errors.New("META_APP_ID is required")
+		return errors.New("META_APP_ID is required (or build with -tags dev to record posts locally)")
 	}
 
 	if _, err := httpapi.NewServer(srv, sessionKey); err != nil {

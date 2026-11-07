@@ -83,3 +83,19 @@ func TestGraphFlow(t *testing.T) {
 		t.Fatalf("graph error: %v", err)
 	}
 }
+
+func TestErrorsDoNotLeakSecrets(t *testing.T) {
+	c := New("app", "very-secret", "")
+	c.GraphURL = "http://127.0.0.1:1" // nothing listens: the request fails
+	_, err := c.Pages(context.Background(), "code", "https://cms/cb")
+	if err == nil {
+		t.Fatal("want error")
+	}
+	if strings.Contains(err.Error(), "very-secret") || strings.Contains(err.Error(), "client_secret") {
+		t.Fatalf("error leaks the app secret: %v", err)
+	}
+	_, err = c.PostFacebookPhoto(context.Background(), "p1", "page-token-xyz", "https://img", "Hi")
+	if err == nil || strings.Contains(err.Error(), "page-token-xyz") {
+		t.Fatalf("error leaks the page token: %v", err)
+	}
+}

@@ -29,12 +29,12 @@ The `dev` tag adds the local sign-in stub; production builds leave it out. Build
 
 | Variable | Meaning |
 | --- | --- |
-| `FOLKMS_ENV` | `local` (filesystem in `DATA_DIR`, default) or `azure` |
+| `FOLKMS_ENV` | Required: `local` (filesystem in `DATA_DIR`) or `azure` |
 | `BASE_URL` | Public origin of the CMS |
 | `SITES_CONFIG` | Path of `sites.json` (default: next to the binary, or `../config/sites.json`) |
 | `SUPER_ADMIN_EMAIL` | The Super Admin's Google email |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth client (without them a `dev` build uses the stub) |
-| `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION` | Meta app (without them, local runs record posts) |
+| `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION` | Meta app (without them, only a `dev` build runs, recording posts instead of sending them) |
 | `TOKEN_ENC_KEY` | Base64 32-byte AES key for Meta tokens (local: generated in `DATA_DIR`) |
 | `SESSION_KEY` | Base64 key of 32+ bytes for cookies (azure only; local: generated) |
 | `STORAGE_BLOB_URL` | Blob endpoint; with it, local runs use blob storage too |

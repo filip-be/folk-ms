@@ -91,7 +91,13 @@ func (c *Client) call(ctx context.Context, method, path string, params url.Value
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return err
+		// A *url.Error quotes the full URL, whose query carries tokens and
+		// the app secret: never let it reach logs or stored records.
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err
+		}
+		return fmt.Errorf("meta: %s %s: %w", method, path, err)
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))

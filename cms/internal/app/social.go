@@ -364,13 +364,16 @@ func (a *App) Post(ctx context.Context, p domain.Principal, org, id string, plat
 	imageURL := a.Pub.URL(imgPath)
 	var res ports.PostResult
 	var postErr error
-	if platform == domain.Facebook {
-		res, postErr = a.Social.PostFacebookPhoto(ctx, conn.PageID, token, imageURL, caption)
-	} else {
-		res, postErr = a.Social.PostInstagramImage(ctx, conn.IGUserID, token, imageURL, caption)
-	}
-	// Record the outcome even if the request context was cancelled.
+	// Once the pending record exists, the Graph call and the recording of its
+	// outcome run to completion even if the Moderator's request is cancelled:
+	// a cancelled call would be recorded as failed although Meta may have
+	// published it, inviting a duplicate. The Graph client has its own timeout.
 	rctx := context.WithoutCancel(ctx)
+	if platform == domain.Facebook {
+		res, postErr = a.Social.PostFacebookPhoto(rctx, conn.PageID, token, imageURL, caption)
+	} else {
+		res, postErr = a.Social.PostInstagramImage(rctx, conn.IGUserID, token, imageURL, caption)
+	}
 	ep, _, err := mutate(rctx, a.Docs, key, func(ep *domain.EventPosts) error {
 		sp := ep.Find(postID)
 		if sp == nil {
