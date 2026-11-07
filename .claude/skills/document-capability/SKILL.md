@@ -74,17 +74,30 @@ A diagram helps when a flow crosses several components, but only if a person and
 
 A rule that binds files in different folders is written once, as one row of a `## Change together` table: the rule, the files it binds, and what breaks when only one side changes. When a rule spans two capabilities, it lives in the one that owns the producing side and the other links to it.
 
-The `AGENTS.md` nearest each of the bound files carries a one-line pointer to that heading, for example:
+An agent editing a bound file has no reason to open the capability article, so decide for each rule whether it also needs a pointer:
+
+1. **Enforce it in code first.** Prefer a shared type or constant, a contract test or a lint rule. When the build or the tests catch a mismatch, the row is enough: add no pointer.
+2. **Point to it when it breaks silently.** When the rule cannot be enforced and breaking it fails without a build or test error, add a pointer in the same change. This is the one planned exception to step 4: the rule is known to be invisible from the code, so do not wait for an agent to break it.
+3. **Keep the pointer small.** One line per rule in the `AGENTS.md` nearest the bound files, not one per file, for example:
 
 ```markdown
 - `src/runName.ts` is bound to the event management: see [Event management, Change together](../../docs/event-management/README.md#change-together).
 ```
 
-Create a nested `AGENTS.md` only where none exists and a pointer is needed. Never create a `CLAUDE.md`: one in a directory or above makes Claude Code ignore `AGENTS.md`.
+When a rule becomes enforced in code, remove its pointer. When you add, move or rename a bound file, update the row and its pointer in the same change. When a change touches a file named in a table, check the other files in its row before you finish.
 
-When you add, move or rename a bound file, update the row and every pointer in the same change. When a change touches a file named in a table, check the other files in its row before you finish.
+## 4. Keep `AGENTS.md` short
 
-## 4. Link the glossary and the decisions
+Every line of an `AGENTS.md` is loaded into every agent session in its folder, so each line costs context and dilutes the others. `AGENTS.md` is the last resort, not a place to document:
+
+- Add a line only when agents have struggled with the same issue more than once, and the documentation in its proper home did not prevent it. The only exception is a pointer to a silently breaking change-together rule (step 3).
+- Write the smallest line that fixes the issue: a pointer to the home, not a copy of its content.
+- Keep a line only while it is proven to improve the workflow. Remove it when the issue no longer occurs, or when it has not helped.
+- Create a nested `AGENTS.md` only when such a line is needed and none exists. Never create a `CLAUDE.md`: one in a directory or above makes Claude Code ignore `AGENTS.md`.
+
+When in doubt, leave `AGENTS.md` unchanged.
+
+## 5. Link the glossary and the decisions
 
 - Add or adjust terms in `CONTEXT.md`, in the section of the capability. Terms only: no implementation detail.
 - A decision with real alternatives gets an ADR, following the organization's `adr-template` and `adr-process` ECIs. Take the next free number on `main`.
@@ -95,6 +108,7 @@ When you add, move or rename a bound file, update the row and every pointer in t
 - [ ] The content sits in its one home; no flow or reason is repeated in a component README.
 - [ ] The main article follows the template and stays short.
 - [ ] Each diagram is Mermaid, shows one flow and stays small.
-- [ ] Every cross-folder rule touched is in exactly one `## Change together` table, and each bound file's nearest `AGENTS.md` points to it.
+- [ ] Every cross-folder rule touched is in exactly one `## Change together` table, and is either enforced by the build or tests, or has a one-line pointer in the nearest `AGENTS.md`.
+- [ ] Otherwise, `AGENTS.md` grew only for an issue agents have hit repeatedly, by the smallest possible line.
 - [ ] `CONTEXT.md` and the ADRs are linked from `## Read next`.
 - [ ] Every relative link resolves and every file ends with a newline.
