@@ -3,11 +3,14 @@ package meta
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
 func TestGraphFlow(t *testing.T) {
@@ -26,13 +29,21 @@ func TestGraphFlow(t *testing.T) {
 		case r.URL.Path == "/v24.0/oauth/access_token" && r.Form.Get("code") != "":
 			out["access_token"] = "short"
 		case r.URL.Path == "/v24.0/oauth/access_token":
-			if r.Form.Get("fb_exchange_token") != "short" {
-				t.Error("long-lived exchange")
-			}
-			out["access_token"] = "long"
+			t.Error("the user token must not be exchanged for a long-lived one")
 		case r.URL.Path == "/v24.0/me/accounts":
-			out["data"] = []any{map[string]any{"id": "p1", "name": "Page", "access_token": "pt",
+			if strings.Contains(r.Form.Get("fields"), "access_token") {
+				t.Error("listing Pages must not fetch their tokens")
+			}
+			out["data"] = []any{map[string]any{"id": "p1", "name": "Page",
 				"instagram_business_account": map[string]string{"id": "ig1", "username": "bal"}}}
+		case r.URL.Path == "/v24.0/p1" && r.Form.Get("access_token") == "short":
+			out["id"], out["name"], out["access_token"] = "p1", "Page", "pt"
+			out["instagram_business_account"] = map[string]string{"id": "ig1", "username": "bal"}
+		case r.URL.Path == "/v24.0/p2":
+			out["id"], out["name"] = "p2", "Not mine" // visible, but no role: no token
+		case r.URL.Path == "/v24.0/p3":
+			w.WriteHeader(400)
+			out["error"] = map[string]any{"message": "Unsupported get request", "code": 100}
 		case r.URL.Path == "/v24.0/p1/photos":
 			if r.Form.Get("url") != "https://img/x.jpg" || r.Form.Get("message") != "Hi" {
 				t.Errorf("photo form %v", r.Form)
@@ -59,12 +70,25 @@ func TestGraphFlow(t *testing.T) {
 	c := New("app", "sec", "")
 	c.GraphURL, c.PollDelay = srv.URL, time.Millisecond
 	ctx := context.Background()
-	if u := c.LoginURL("st", "https://cms/auth/meta/callback"); !strings.Contains(u, "pages_manage_posts") || !strings.Contains(u, "state=st") {
+	if u := c.LoginURL("st", "https://cms/auth/meta/callback"); !strings.Contains(u, "pages_manage_posts") || !strings.Contains(u, "state=st") || !strings.Contains(u, "auth_type=rerequest") {
 		t.Fatal(u)
 	}
-	pages, err := c.Pages(ctx, "code", "https://cms/auth/meta/callback")
-	if err != nil || len(pages) != 1 || pages[0].IGUserID != "ig1" || pages[0].AccessToken != "pt" {
+	ut, err := c.UserToken(ctx, "code", "https://cms/auth/meta/callback")
+	if err != nil || ut != "short" {
+		t.Fatalf("%q %v", ut, err)
+	}
+	pages, err := c.Pages(ctx, ut)
+	if err != nil || len(pages) != 1 || pages[0].IGUserID != "ig1" {
 		t.Fatalf("%+v %v", pages, err)
+	}
+	pt, page, err := c.PageToken(ctx, ut, "p1")
+	if err != nil || pt != "pt" || page.IGUserID != "ig1" || page.IGUsername != "bal" {
+		t.Fatalf("%q %+v %v", pt, page, err)
+	}
+	for _, id := range []string{"p2", "p3"} {
+		if _, _, err := c.PageToken(ctx, ut, id); !errors.Is(err, ports.ErrNoPageAccess) {
+			t.Fatalf("%s: want ErrNoPageAccess, got %v", id, err)
+		}
 	}
 	fb, err := c.PostFacebookPhoto(ctx, "p1", "pt", "https://img/x.jpg", "Hi")
 	if err != nil || fb.URL != "https://www.facebook.com/p1_99" {
@@ -87,12 +111,16 @@ func TestGraphFlow(t *testing.T) {
 func TestErrorsDoNotLeakSecrets(t *testing.T) {
 	c := New("app", "very-secret", "")
 	c.GraphURL = "http://127.0.0.1:1" // nothing listens: the request fails
-	_, err := c.Pages(context.Background(), "code", "https://cms/cb")
+	_, err := c.UserToken(context.Background(), "code", "https://cms/cb")
 	if err == nil {
 		t.Fatal("want error")
 	}
 	if strings.Contains(err.Error(), "very-secret") || strings.Contains(err.Error(), "client_secret") {
 		t.Fatalf("error leaks the app secret: %v", err)
+	}
+	_, _, err = c.PageToken(context.Background(), "user-token-xyz", "p1")
+	if err == nil || strings.Contains(err.Error(), "user-token-xyz") {
+		t.Fatalf("error leaks the user token: %v", err)
 	}
 	_, err = c.PostFacebookPhoto(context.Background(), "p1", "page-token-xyz", "https://img", "Hi")
 	if err == nil || strings.Contains(err.Error(), "page-token-xyz") {

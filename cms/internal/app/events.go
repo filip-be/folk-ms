@@ -435,6 +435,9 @@ func (a *App) PurgeBin(ctx context.Context) (int, error) {
 			a.audit(ctx, system, "event.purged", o.ID, e.ID, details)
 			purged++
 		}
+		if err := a.purgeSocial(ctx, o.ID, now); err != nil {
+			errs = append(errs, err)
+		}
 	}
 	return purged, errors.Join(errs...)
 }

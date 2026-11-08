@@ -91,7 +91,6 @@ table.audit td.small { word-break: break-word; max-width: 30rem; }
 
 .banner { padding: .7rem 1rem; border-radius: 8px; margin: .8rem 0; }
 .banner.warn { background: var(--warn-soft); color: var(--warn); }
-#banner .banner { max-width: 1100px; margin: .8rem auto 0; }
 .problems { background: var(--danger-soft); color: var(--danger); border-radius: 8px; padding: .7rem 1rem; margin-bottom: 1rem; }
 .problems ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 .hint { color: var(--warn); margin: 0 0 .5rem; padding-left: 1.2rem; }
@@ -126,6 +125,8 @@ ol.occurrences details summary { cursor: pointer; color: var(--accent); font-siz
 figcaption { font-size: .8rem; color: var(--muted); }
 
 .post-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: 1rem; }
+.post-card h2 label { font: inherit; display: flex; align-items: center; gap: .5rem; margin: 0; cursor: pointer; }
+.post-card h2 input { width: 1.1rem; height: 1.1rem; margin: 0; }
 .post-image { max-width: 100%; border-radius: 6px; border: 1px solid var(--line); margin-bottom: .8rem; }
 .post-image.instagram { max-width: 260px; }
 .row { display: flex; justify-content: space-between; align-items: center; margin-top: .3rem; }
@@ -149,6 +150,7 @@ dl.facts dt { color: var(--muted); } dl.facts dd { margin: 0; }
 .toast { position: fixed; right: 1rem; bottom: 1rem; max-width: 26rem; padding: .7rem 1rem; border-radius: 8px;
   background: var(--ok); color: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.2); z-index: 100; animation: in .2s ease-out; }
 .toast.error { background: var(--danger); }
+.toast { white-space: pre-line; }
 @media (prefers-color-scheme: dark) { .toast { color: #111; } }
 @keyframes in { from { transform: translateY(8px); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

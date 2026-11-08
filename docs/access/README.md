@@ -20,7 +20,7 @@ flowchart LR
 
 - The **Super Admin** is configured by the app setting `SUPER_ADMIN_EMAIL`, set at deploy from a GitHub secret (secrets are masked in logs, variables are not). It works as a permanent Invitation, bound to the Google `sub` on first sign-in, and can act as a Moderator of every Organization.
 - A **Moderator** is invited by email for chosen Organizations. The Invitation is bound to the Google `sub` on first sign-in, because an email can change and `sub` cannot. It expires after 14 days if unused and can be revoked while pending. The CMS sends no email: the Super Admin passes the link on.
-- The Super Admin can change a Moderator's Organizations or revoke all access. Removing an Organization from the person who created its Social Account Connection flags that connection for reconnection.
+- The Super Admin can change a Moderator's Organizations or revoke all access.
 - Every use case checks the user's access to the Organization it touches.
 
 ### Sessions and request security
@@ -34,7 +34,7 @@ flowchart LR
 
 The admin SPA and the CMS's own pages (sign-in errors, privacy, data deletion) are in Polish or English. The language comes from the user's browser settings: the first of Polish or English among the browser's preferred languages (`navigator.languages` in the SPA, `Accept-Language` on the server), else English. The switch in the header overrides it for a year in the `folkms-lang` cookie, which the SPA sets and the server reads, and reloads the page in that language.
 
-The API does not depend on the language: every message it returns (errors, validation problems, the reconnection note) carries both Polish and English, and the SPA shows the one it uses. This is independent of Event content, which is authored in Polish with optional English for Sites.
+The API does not depend on the language: every message it returns (errors, validation problems) carries both Polish and English, and the SPA shows the one it uses. This is independent of Event content, which is authored in Polish with optional English for Sites.
 
 ### Audit Log
 

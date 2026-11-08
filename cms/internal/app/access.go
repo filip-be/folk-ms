@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"sort"
 	"time"
 
@@ -93,8 +92,7 @@ func (a *App) RevokeInvitation(ctx context.Context, p domain.Principal, id strin
 	return inv, nil
 }
 
-// SetUserOrgs changes a Moderator's Organizations. Removing an Organization
-// flags its Social Account Connection if this user created it.
+// SetUserOrgs changes a Moderator's Organizations.
 func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string, orgs []string) (*domain.User, error) {
 	if err := requireSuperAdmin(p); err != nil {
 		return nil, err
@@ -116,7 +114,7 @@ func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string
 		return nil, err
 	}
 	a.audit(ctx, p, "user.orgs_changed", "", userID, map[string]any{"email": u.Email, "orgs": u.Orgs, "removed": removed})
-	return u, a.flagConnections(ctx, p, u, removed)
+	return u, nil
 }
 
 // RevokeUser removes all of a Moderator's access, effective on their next
@@ -137,29 +135,7 @@ func (a *App) RevokeUser(ctx context.Context, p domain.Principal, userID string)
 		return nil, err
 	}
 	a.audit(ctx, p, "user.revoked", "", userID, map[string]any{"email": u.Email, "removed": removed})
-	return u, a.flagConnections(ctx, p, u, removed)
-}
-
-func (a *App) flagConnections(ctx context.Context, p domain.Principal, u *domain.User, orgs []string) error {
-	var errs []error
-	for _, org := range orgs {
-		flagged := false
-		_, _, err := mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
-			flagged = c.FlagIfCreatedBy(u.ID, u.Email)
-			return nil
-		})
-		if errors.Is(err, domain.ErrNotFound) {
-			continue
-		}
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if flagged {
-			a.audit(ctx, p, "social.needs_reconnect", org, u.ID, map[string]any{"email": u.Email})
-		}
-	}
-	return errors.Join(errs...)
+	return u, nil
 }
 
 // AuditDays lists the days that have Audit Log entries (Super Admin only).

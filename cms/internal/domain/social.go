@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -71,13 +72,8 @@ func (ep *EventPosts) Find(id string) *SocialPost {
 	return nil
 }
 
-// Begin records a pending attempt, enforcing the confirmed-retry rule: when
-// the platform already has a post (pending with an unknown outcome, failed,
-// or posted), the Moderator must confirm that posting again is intended.
-func (ep *EventPosts) Begin(id string, p Platform, caption, imagePath, by string, confirmed bool, now time.Time) (*SocialPost, error) {
-	if !ValidPlatform(p) {
-		return nil, fmt.Errorf("%w: unknown platform", ErrInvalidState)
-	}
+// validCaption trims a Caption and checks its length.
+func validCaption(caption string) (string, error) {
 	caption = strings.TrimSpace(caption)
 	var pr problems
 	if caption == "" {
@@ -85,11 +81,30 @@ func (ep *EventPosts) Begin(id string, p Platform, caption, imagePath, by string
 	} else if len([]rune(caption)) > MaxCaptionLen {
 		pr.add("caption", "treść posta może mieć najwyżej %d znaków", "the post text can have at most %d characters", MaxCaptionLen)
 	}
-	if err := pr.err(); err != nil {
+	return caption, pr.err()
+}
+
+// CheckRetry enforces the confirmed-retry rule: when the platform already
+// has a post (pending with an unknown outcome, failed, or posted), the
+// Moderator must confirm that posting again is intended.
+func (ep *EventPosts) CheckRetry(p Platform, confirmed bool) error {
+	if last := ep.Latest(p); last != nil && !confirmed {
+		return fmt.Errorf("%w: %s already has a %s post", ErrNeedsConfirm, p, last.Status)
+	}
+	return nil
+}
+
+// Begin records a pending attempt, enforcing the confirmed-retry rule.
+func (ep *EventPosts) Begin(id string, p Platform, caption, imagePath, by string, confirmed bool, now time.Time) (*SocialPost, error) {
+	if !ValidPlatform(p) {
+		return nil, fmt.Errorf("%w: unknown platform", ErrInvalidState)
+	}
+	caption, err := validCaption(caption)
+	if err != nil {
 		return nil, err
 	}
-	if last := ep.Latest(p); last != nil && !confirmed {
-		return nil, fmt.Errorf("%w: %s already has a %s post", ErrNeedsConfirm, p, last.Status)
+	if err := ep.CheckRetry(p, confirmed); err != nil {
+		return nil, err
 	}
 	ep.Posts = append(ep.Posts, SocialPost{
 		ID: id, Platform: p, Status: PostPending, Caption: caption, ImagePath: imagePath,
@@ -108,50 +123,71 @@ func (sp *SocialPost) Fail(msg string, now time.Time) {
 	sp.Status, sp.Error, sp.FinishedAt = PostFailed, msg, &now
 }
 
-// Connection is an Organization's Social Account Connection. The Page token
-// is stored encrypted; the domain never sees it in clear.
+// Connection is an Organization's Social Account Connection: which Facebook
+// Page and Instagram account it posts to. It holds no token: every Social
+// Post is sent with the posting Moderator's own Meta sign-in.
 type Connection struct {
 	OrgID          string    `json:"orgId"`
 	PageID         string    `json:"pageId"`
 	PageName       string    `json:"pageName"`
 	IGUserID       string    `json:"igUserId,omitempty"`
 	IGUsername     string    `json:"igUsername,omitempty"`
-	TokenEnc       string    `json:"tokenEnc"`
 	CreatedBy      string    `json:"createdBy"`
 	CreatedByEmail string    `json:"createdByEmail"`
 	CreatedAt      time.Time `json:"createdAt"`
-	NeedsReconnect bool      `json:"needsReconnect,omitempty"`
-	// ReconnectBy is the email of the creator who lost access.
-	ReconnectBy string `json:"reconnectBy,omitempty"`
-	// ReconnectNote is the Polish-only note of connections flagged before
-	// ReconnectBy existed; it is read, never written.
-	ReconnectNote string `json:"reconnectNote,omitempty"`
 }
 
-// ReconnectMessage explains to Moderators why the connection needs
-// reconnecting.
-func (c Connection) ReconnectMessage() Text {
-	switch {
-	case !c.NeedsReconnect:
-		return Text{}
-	case c.ReconnectBy != "":
-		return Text{
-			PL: "Osoba, która połączyła konto (" + c.ReconnectBy + "), straciła dostęp. Połącz konto ponownie.",
-			EN: "The person who connected the account (" + c.ReconnectBy + ") lost access. Reconnect the account.",
+// PostDraft is the Caption a Moderator chose for one platform.
+type PostDraft struct {
+	Platform Platform `json:"platform"`
+	Caption  string   `json:"caption"`
+}
+
+// PostRequestTTL is how long a Post Request waits for the Meta sign-in.
+const PostRequestTTL = 15 * time.Minute
+
+// PostRequest is a Moderator's request to post an Event on one or both
+// platforms, kept while they sign in with Meta. It holds no secret.
+type PostRequest struct {
+	ID        string      `json:"id"`
+	OrgID     string      `json:"orgId"`
+	EventID   string      `json:"eventId"`
+	UserID    string      `json:"userId"`
+	Drafts    []PostDraft `json:"drafts"`
+	Confirmed bool        `json:"confirmed"`
+	ExpiresAt time.Time   `json:"expiresAt"`
+}
+
+// NewPostRequest validates the drafts: at least one, each platform once,
+// each Caption valid.
+func NewPostRequest(id, org, eventID, userID string, drafts []PostDraft, confirmed bool, now time.Time) (*PostRequest, error) {
+	var pr problems
+	if len(drafts) == 0 {
+		pr.add("platform", "wybierz Facebook lub Instagram", "choose Facebook or Instagram")
+	}
+	seen := map[Platform]bool{}
+	out := make([]PostDraft, 0, len(drafts))
+	for _, d := range drafts {
+		if !ValidPlatform(d.Platform) || seen[d.Platform] {
+			pr.add("platform", "nieznana lub powtórzona platforma", "unknown or repeated platform")
+			continue
 		}
-	case c.ReconnectNote != "":
-		return Text{PL: c.ReconnectNote}
+		seen[d.Platform] = true
+		c, err := validCaption(d.Caption)
+		if err != nil {
+			var ve *ValidationError
+			if errors.As(err, &ve) {
+				pr = append(pr, ve.Problems...)
+			}
+			continue
+		}
+		out = append(out, PostDraft{Platform: d.Platform, Caption: c})
 	}
-	return Text{PL: "Połącz konto ponownie.", EN: "Reconnect the account."}
+	if err := pr.err(); err != nil {
+		return nil, err
+	}
+	return &PostRequest{ID: id, OrgID: org, EventID: eventID, UserID: userID, Drafts: out, Confirmed: confirmed, ExpiresAt: now.Add(PostRequestTTL)}, nil
 }
 
-// FlagIfCreatedBy marks the connection for reconnection when its creator
-// lost access. It reports whether it changed.
-func (c *Connection) FlagIfCreatedBy(userID, email string) bool {
-	if c.CreatedBy != userID || c.NeedsReconnect {
-		return false
-	}
-	c.NeedsReconnect = true
-	c.ReconnectBy = email
-	return true
-}
+// Expired reports whether the request can no longer be completed.
+func (r *PostRequest) Expired(now time.Time) bool { return now.After(r.ExpiresAt) }

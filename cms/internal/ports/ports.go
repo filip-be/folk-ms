@@ -8,12 +8,15 @@ import (
 	"time"
 )
 
-// Errors every store adapter returns.
+// Errors adapters return.
 var (
 	ErrNotFound = errors.New("store: not found")
 	// ErrPrecondition means the ETag did not match, or a create-only Put
 	// found an existing document.
 	ErrPrecondition = errors.New("store: precondition failed")
+	// ErrNoPageAccess means the signed-in Meta user has no role on the Page
+	// that would let them post.
+	ErrNoPageAccess = errors.New("social: no access to the Page")
 )
 
 // AnyETag makes Put unconditional.
@@ -77,13 +80,13 @@ type IdentityProvider interface {
 	Exchange(ctx context.Context, code, codeVerifier, redirectURI, nonce string) (Identity, error)
 }
 
-// SocialPage is a Facebook Page the signed-in Meta user administers.
+// SocialPage is a Facebook Page the signed-in Meta user has a role on, with
+// its linked Instagram professional account if any. It carries no token.
 type SocialPage struct {
-	ID          string
-	Name        string
-	AccessToken string
-	IGUserID    string
-	IGUsername  string
+	ID         string
+	Name       string
+	IGUserID   string
+	IGUsername string
 }
 
 // PostResult identifies a published Social Post.
@@ -92,12 +95,17 @@ type PostResult struct {
 	URL string
 }
 
-// SocialPublisher talks to Meta.
+// SocialPublisher talks to Meta. Tokens it returns are short-lived and are
+// kept in memory for one request only: the CMS never stores them.
 type SocialPublisher interface {
 	LoginURL(state, redirectURI string) string
-	// Pages exchanges the login code and lists the Pages the user
-	// administers, each with a long-lived Page token.
-	Pages(ctx context.Context, code, redirectURI string) ([]SocialPage, error)
+	// UserToken redeems a login code for a short-lived user token.
+	UserToken(ctx context.Context, code, redirectURI string) (string, error)
+	// Pages lists the Pages the user has a role on.
+	Pages(ctx context.Context, userToken string) ([]SocialPage, error)
+	// PageToken returns a token for one Page the user has a role on, and
+	// the Page as that user sees it (its linked Instagram account included).
+	PageToken(ctx context.Context, userToken, pageID string) (string, SocialPage, error)
 	PostFacebookPhoto(ctx context.Context, pageID, pageToken, imageURL, caption string) (PostResult, error)
 	PostInstagramImage(ctx context.Context, igUserID, pageToken, imageURL, caption string) (PostResult, error)
 	// InstagramQuota returns posts used and allowed in the current window.
@@ -106,12 +114,6 @@ type SocialPublisher interface {
 
 // Clock tells the time.
 type Clock interface{ Now() time.Time }
-
-// Cipher encrypts secrets at rest. aad binds a ciphertext to its use.
-type Cipher interface {
-	Encrypt(plaintext, aad []byte) ([]byte, error)
-	Decrypt(ciphertext, aad []byte) ([]byte, error)
-}
 
 // ImageKind is what an uploaded image is for.
 type ImageKind string

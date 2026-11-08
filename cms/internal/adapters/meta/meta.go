@@ -1,6 +1,7 @@
 // Package meta implements ports.SocialPublisher on the Meta Graph API:
-// Facebook Login, long-lived user token to Page tokens, Instagram account
-// lookup, Page photo posts and Instagram image posts.
+// Facebook Login to a short-lived user token, the Page token and linked
+// Instagram account of one Page, Page photo posts and Instagram image posts.
+// No token outlives the request that obtained it.
 package meta
 
 import (
@@ -117,61 +118,87 @@ func (c *Client) call(ctx context.Context, method, path string, params url.Value
 	return json.Unmarshal(data, out)
 }
 
-// LoginURL implements ports.SocialPublisher.
+// LoginURL implements ports.SocialPublisher. auth_type=rerequest asks
+// again for permissions the user declined before.
 func (c *Client) LoginURL(state, redirectURI string) string {
 	q := url.Values{
 		"client_id": {c.AppID}, "redirect_uri": {redirectURI}, "state": {state},
-		"response_type": {"code"}, "scope": {strings.Join(Scopes, ",")},
+		"response_type": {"code"}, "scope": {strings.Join(Scopes, ",")}, "auth_type": {"rerequest"},
 	}
 	return c.DialogURL + "/" + c.Version + "/dialog/oauth?" + q.Encode()
 }
 
-// Pages implements ports.SocialPublisher: code → user token → long-lived
-// user token → Pages with their (non-expiring) Page tokens and linked
-// Instagram accounts.
-func (c *Client) Pages(ctx context.Context, code, redirectURI string) ([]ports.SocialPage, error) {
-	var short struct {
+// UserToken implements ports.SocialPublisher: the login code becomes a
+// short-lived user token (about an hour). It is never exchanged for a
+// long-lived one.
+func (c *Client) UserToken(ctx context.Context, code, redirectURI string) (string, error) {
+	var r struct {
 		AccessToken string `json:"access_token"`
 	}
 	if err := c.call(ctx, http.MethodGet, "/oauth/access_token", url.Values{
 		"client_id": {c.AppID}, "client_secret": {c.AppSecret}, "redirect_uri": {redirectURI}, "code": {code},
-	}, "", &short); err != nil {
-		return nil, err
+	}, "", &r); err != nil {
+		return "", err
 	}
-	var long struct {
-		AccessToken string `json:"access_token"`
+	if r.AccessToken == "" {
+		return "", errors.New("meta: no access token in the login answer")
 	}
-	if err := c.call(ctx, http.MethodGet, "/oauth/access_token", url.Values{
-		"grant_type": {"fb_exchange_token"}, "client_id": {c.AppID}, "client_secret": {c.AppSecret},
-		"fb_exchange_token": {short.AccessToken},
-	}, "", &long); err != nil {
-		return nil, err
+	return r.AccessToken, nil
+}
+
+type graphPage struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	AccessToken string `json:"access_token"`
+	IG          *struct {
+		ID       string `json:"id"`
+		Username string `json:"username"`
+	} `json:"instagram_business_account"`
+}
+
+func (g graphPage) page() ports.SocialPage {
+	p := ports.SocialPage{ID: g.ID, Name: g.Name}
+	if g.IG != nil {
+		p.IGUserID, p.IGUsername = g.IG.ID, g.IG.Username
 	}
+	return p
+}
+
+// Pages implements ports.SocialPublisher. Page tokens are not requested.
+func (c *Client) Pages(ctx context.Context, userToken string) ([]ports.SocialPage, error) {
 	var accounts struct {
-		Data []struct {
-			ID          string `json:"id"`
-			Name        string `json:"name"`
-			AccessToken string `json:"access_token"`
-			IG          *struct {
-				ID       string `json:"id"`
-				Username string `json:"username"`
-			} `json:"instagram_business_account"`
-		} `json:"data"`
+		Data []graphPage `json:"data"`
 	}
 	if err := c.call(ctx, http.MethodGet, "/me/accounts", url.Values{
-		"fields": {"id,name,access_token,instagram_business_account{id,username}"}, "limit": {"100"},
-	}, long.AccessToken, &accounts); err != nil {
+		"fields": {"id,name,instagram_business_account{id,username}"}, "limit": {"100"},
+	}, userToken, &accounts); err != nil {
 		return nil, err
 	}
-	var pages []ports.SocialPage
+	pages := []ports.SocialPage{}
 	for _, a := range accounts.Data {
-		p := ports.SocialPage{ID: a.ID, Name: a.Name, AccessToken: a.AccessToken}
-		if a.IG != nil {
-			p.IGUserID, p.IGUsername = a.IG.ID, a.IG.Username
-		}
-		pages = append(pages, p)
+		pages = append(pages, a.page())
 	}
 	return pages, nil
+}
+
+// PageToken implements ports.SocialPublisher. Graph answers a Page the user
+// has no role on without a token, or with a permission error.
+func (c *Client) PageToken(ctx context.Context, userToken, pageID string) (string, ports.SocialPage, error) {
+	var g graphPage
+	err := c.call(ctx, http.MethodGet, "/"+url.PathEscape(pageID), url.Values{
+		"fields": {"id,name,access_token,instagram_business_account{id,username}"},
+	}, userToken, &g)
+	var ge *GraphError
+	if errors.As(err, &ge) && (ge.Code == 10 || ge.Code == 100 || ge.Code == 200 || ge.Status == http.StatusForbidden) {
+		return "", ports.SocialPage{}, fmt.Errorf("%w: %v", ports.ErrNoPageAccess, err)
+	}
+	if err != nil {
+		return "", ports.SocialPage{}, err
+	}
+	if g.AccessToken == "" {
+		return "", ports.SocialPage{}, ports.ErrNoPageAccess
+	}
+	return g.AccessToken, g.page(), nil
 }
 
 // PostFacebookPhoto implements ports.SocialPublisher.
@@ -266,8 +293,12 @@ func (c *Client) InstagramQuota(ctx context.Context, igUserID, token string) (in
 type Recorder struct {
 	Posts   []RecordedPost
 	PagesFn func() []ports.SocialPage
-	FailFB  error
-	FailIG  error
+	// Tokens counts the user tokens issued, one per Meta sign-in.
+	Tokens int
+	// NoAccess makes PageToken refuse every Page.
+	NoAccess bool
+	FailFB   error
+	FailIG   error
 }
 
 // RecordedPost is one call to the Recorder.
@@ -279,11 +310,31 @@ func (r *Recorder) LoginURL(state, redirectURI string) string {
 	return redirectURI + "?" + url.Values{"code": {"fake-code"}, "state": {state}}.Encode()
 }
 
-func (r *Recorder) Pages(context.Context, string, string) ([]ports.SocialPage, error) {
+func (r *Recorder) UserToken(context.Context, string, string) (string, error) {
+	r.Tokens++
+	return fmt.Sprintf("user-token-%d", r.Tokens), nil
+}
+
+func (r *Recorder) pages() []ports.SocialPage {
 	if r.PagesFn != nil {
-		return r.PagesFn(), nil
+		return r.PagesFn()
 	}
-	return []ports.SocialPage{{ID: "1001", Name: "Strona testowa", AccessToken: "page-token", IGUserID: "2002", IGUsername: "test_ig"}}, nil
+	return []ports.SocialPage{{ID: "1001", Name: "Strona testowa", IGUserID: "2002", IGUsername: "test_ig"}}
+}
+
+func (r *Recorder) Pages(context.Context, string) ([]ports.SocialPage, error) {
+	return r.pages(), nil
+}
+
+func (r *Recorder) PageToken(_ context.Context, _, pageID string) (string, ports.SocialPage, error) {
+	if !r.NoAccess {
+		for _, p := range r.pages() {
+			if p.ID == pageID {
+				return "page-token-" + p.ID, p, nil
+			}
+		}
+	}
+	return "", ports.SocialPage{}, ports.ErrNoPageAccess
 }
 
 func (r *Recorder) PostFacebookPhoto(_ context.Context, pageID, _, imageURL, caption string) (ports.PostResult, error) {

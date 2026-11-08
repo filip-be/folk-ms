@@ -35,7 +35,6 @@ The `dev` tag adds the local sign-in stub; production builds leave it out. Build
 | `SUPER_ADMIN_EMAIL` | The Super Admin's Google email |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth client (without them a `dev` build uses the stub) |
 | `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION` | Meta app (without them, only a `dev` build runs, recording posts instead of sending them) |
-| `TOKEN_ENC_KEY` | Base64 32-byte AES key for Meta tokens (local: generated in `DATA_DIR`) |
 | `SESSION_KEY` | Base64 key of 32+ bytes for cookies (azure only; local: generated) |
 | `STORAGE_BLOB_URL` | Blob endpoint; with it, local runs use blob storage too |
 | `STORAGE_ACCOUNT_KEY`, `STORAGE_ACCOUNT_NAME` | SharedKey for Azurite; without it the managed identity is used |

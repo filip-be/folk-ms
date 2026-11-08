@@ -24,7 +24,6 @@ type App struct {
 	Pub    ports.PublicStore
 	Audit  ports.AppendLog
 	Social ports.SocialPublisher
-	Cipher ports.Cipher
 	Images ports.ImageProcessor
 	Clock  ports.Clock
 	Rand   io.Reader
@@ -168,18 +167,21 @@ func loadAll[T any](ctx context.Context, s ports.DocumentStore, prefix string) (
 }
 
 // Keys of the documents in the private store.
-func eventKey(org, id string) string      { return "orgs/" + org + "/events/" + id + ".json" }
-func eventsPrefix(org string) string      { return "orgs/" + org + "/events/" }
-func shortIDKey(org, sid string) string   { return "orgs/" + org + "/shortids/" + sid + ".json" }
-func venueKey(org, id string) string      { return "orgs/" + org + "/venues/" + id + ".json" }
-func venuesPrefix(org string) string      { return "orgs/" + org + "/venues/" }
-func postsKey(org, eventID string) string { return "orgs/" + org + "/posts/" + eventID + ".json" }
-func connectionKey(org string) string     { return "orgs/" + org + "/social/connection.json" }
+func eventKey(org, id string) string       { return "orgs/" + org + "/events/" + id + ".json" }
+func eventsPrefix(org string) string       { return "orgs/" + org + "/events/" }
+func shortIDKey(org, sid string) string    { return "orgs/" + org + "/shortids/" + sid + ".json" }
+func venueKey(org, id string) string       { return "orgs/" + org + "/venues/" + id + ".json" }
+func venuesPrefix(org string) string       { return "orgs/" + org + "/venues/" }
+func postsKey(org, eventID string) string  { return "orgs/" + org + "/posts/" + eventID + ".json" }
+func connectionKey(org string) string      { return "orgs/" + org + "/social/connection.json" }
+func pendingPagesPrefix(org string) string { return "orgs/" + org + "/social/pending-" }
 func pendingPagesKey(org, user string) string {
-	return "orgs/" + org + "/social/pending-" + user + ".json"
+	return pendingPagesPrefix(org) + user + ".json"
 }
-func userKey(id string) string       { return "users/" + id + ".json" }
-func invitationKey(id string) string { return "invitations/" + id + ".json" }
+func postRequestsPrefix(org string) string { return "orgs/" + org + "/social/requests/" }
+func postRequestKey(org, id string) string { return postRequestsPrefix(org) + id + ".json" }
+func userKey(id string) string             { return "users/" + id + ".json" }
+func invitationKey(id string) string       { return "invitations/" + id + ".json" }
 
 const superAdminKey = "system/superadmin.json"
 

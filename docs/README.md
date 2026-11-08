@@ -22,7 +22,7 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | --- | --- |
 | [Event management](event-management/README.md) | Authoring Events, Recurrences, Venues and images; Draft, Publish, Unpublish and the Bin |
 | [Site delivery](site-delivery/README.md) | The per-Site snapshot, its contract, and how Sites read it |
-| [Social posting](social-posting/README.md) | Social Account Connections and posting Published Events to Facebook and Instagram |
+| [Social posting](social-posting/README.md) | Social Account Connections and posting Published Events to Facebook and Instagram, with a Meta sign-in for every post |
 | [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log, the admin UI language |
 | [Platform](platform/README.md) | Hosting, ports and adapters, dependency policy, infrastructure, CI/CD, local development, cost, open risks |
 
@@ -32,5 +32,5 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post
 - [Root README](../README.md): local setup and operations runbooks

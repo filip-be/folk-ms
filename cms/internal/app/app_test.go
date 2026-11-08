@@ -3,7 +3,6 @@ package app_test
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"image"
@@ -12,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/filip-be/folk-ms/cms/internal/adapters/aesgcm"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/img"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/memory"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/meta"
@@ -46,13 +44,9 @@ func orgs() []*domain.Organization {
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	c, err := aesgcm.New(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32)))
-	if err != nil {
-		t.Fatal(err)
-	}
 	a := app.New(orgs())
 	e := &env{a: a, clock: &clock{time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)}, pub: memory.NewPublicStore("https://store.example/pub"), social: &meta.Recorder{}, ctx: context.Background()}
-	a.Docs, a.Pub, a.Audit, a.Social, a.Cipher, a.Images, a.Clock = memory.NewDocumentStore(), e.pub, memory.NewAppendLog(), e.social, c, img.Processor{}, e.clock
+	a.Docs, a.Pub, a.Audit, a.Social, a.Images, a.Clock = memory.NewDocumentStore(), e.pub, memory.NewAppendLog(), e.social, img.Processor{}, e.clock
 	a.SuperAdminEmail = "Admin@Example.org"
 	return e
 }
@@ -228,56 +222,149 @@ func TestSocialPosting(t *testing.T) {
 	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
 	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "m@example.org", []string{"org-a"}))
 	mod := must[domain.Principal](t)(e.signIn(t, "m", "m@example.org"))
+	const cb = "https://cms/auth/meta/callback"
+	fb := func(caption string) []domain.PostDraft {
+		return []domain.PostDraft{{Platform: domain.Facebook, Caption: caption}}
+	}
+	ig := func(caption string) []domain.PostDraft {
+		return []domain.PostDraft{{Platform: domain.Instagram, Caption: caption}}
+	}
 
 	v := must[app.VenueView](t)(e.a.CreateVenue(e.ctx, mod, "org-a", domain.Venue{Name: "Zamek", Address: "Św. Marcin 80"}))
 	c := publishable(v.ID)
 	c.Cover = must[*domain.Image](t)(e.a.UploadImage(e.ctx, mod, "org-a", ports.ImageCover, pngImage(1200, 600)))
 	ev := must[app.EventView](t)(e.a.CreateEvent(e.ctx, mod, "org-a", c))
+	id := ev.Event.ID
 
-	if _, err := e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Facebook, "Hi", false); !domain.IsValidation(err) {
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, fb("Hi"), false); !domain.IsValidation(err) {
 		t.Fatal("unpublished events cannot be posted")
 	}
-	must[app.EventView](t)(e.a.PublishEvent(e.ctx, mod, "org-a", ev.Event.ID))
-	if _, err := e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Facebook, "Hi", false); !domain.IsValidation(err) {
+	must[app.EventView](t)(e.a.PublishEvent(e.ctx, mod, "org-a", id))
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, fb("Hi"), false); !domain.IsValidation(err) {
 		t.Fatal("needs a connection")
 	}
-	pages := must[[]app.PageInfo](t)(e.a.CompleteSocialLogin(e.ctx, mod, "org-a", "code", "https://cms/auth/meta/callback"))
+	pages := must[[]app.PageInfo](t)(e.a.CompleteSocialLogin(e.ctx, mod, "org-a", "code", cb))
 	st := must[app.ConnectionStatus](t)(e.a.SelectPage(e.ctx, mod, "org-a", pages[0].ID))
 	if !st.Connected || st.IGUsername != "test_ig" {
 		t.Fatalf("%+v", st)
 	}
-	pv := must[app.PostsView](t)(e.a.EventPosts(e.ctx, mod, "org-a", ev.Event.ID))
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, nil, false); !domain.IsValidation(err) {
+		t.Fatal("at least one platform")
+	}
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, fb("  "), false); !domain.IsValidation(err) {
+		t.Fatal("a caption is required")
+	}
+
+	// One Meta sign-in posts on both platforms.
+	pv := must[app.PostsView](t)(e.a.EventPosts(e.ctx, mod, "org-a", id))
 	if !strings.Contains(pv.Captions[domain.PL], "Bal jesienny") || pv.Images[domain.Instagram] == "" {
 		t.Fatalf("%+v", pv)
 	}
-	sp := must[*domain.SocialPost](t)(e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Facebook, pv.Captions[domain.PL], false))
-	if sp.Status != domain.PostPosted || !strings.HasPrefix(sp.URL, "https://www.facebook.com/") {
-		t.Fatalf("%+v", sp)
+	both := []domain.PostDraft{{Platform: domain.Facebook, Caption: pv.Captions[domain.PL]}, {Platform: domain.Instagram, Caption: "IG"}}
+	req := must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, both, false))
+	tokens := e.social.Tokens
+	out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb))
+	if out.Refused != "" || len(out.Results) != 2 || out.Results[0].Status != "posted" || out.Results[1].Status != "posted" {
+		t.Fatalf("%+v", out)
+	}
+	if e.social.Tokens != tokens+1 {
+		t.Fatalf("one sign-in per Post Request, got %d", e.social.Tokens-tokens)
 	}
 	if !strings.HasSuffix(e.social.Posts[0].ImageURL, "-1600.jpg") && !strings.HasSuffix(e.social.Posts[0].ImageURL, "-960.jpg") {
 		t.Fatalf("fb image %s", e.social.Posts[0].ImageURL)
 	}
-	if _, err := e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Facebook, "again", false); !errors.Is(err, domain.ErrNeedsConfirm) {
-		t.Fatalf("re-post without confirmation: %v", err)
+	if e.social.Posts[1].Platform != "instagram" || !strings.HasSuffix(e.social.Posts[1].ImageURL, "-ig.jpg") {
+		t.Fatalf("%+v", e.social.Posts)
 	}
-	e.social.FailIG = errors.New("boom")
-	sp = must[*domain.SocialPost](t)(e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Instagram, "IG", false))
-	if sp.Status != domain.PostFailed || sp.Error == "" {
-		t.Fatalf("%+v", sp)
-	}
-	e.social.FailIG = nil
-	sp = must[*domain.SocialPost](t)(e.a.Post(e.ctx, mod, "org-a", ev.Event.ID, domain.Instagram, "IG", true))
-	if sp.Status != domain.PostPosted || !strings.HasSuffix(e.social.Posts[1].ImageURL, "-ig.jpg") {
-		t.Fatalf("%+v %+v", sp, e.social.Posts)
+	// A Post Request is used once.
+	if out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb)); out.Refused != app.RefusedExpired {
+		t.Fatalf("replayed request: %+v", out)
 	}
 
-	// Revoking the creator flags the connection.
-	must[*domain.User](t)(e.a.RevokeUser(e.ctx, sa, mod.User.ID))
-	st = must[app.ConnectionStatus](t)(e.a.SocialStatus(e.ctx, sa, "org-a"))
-	if !st.NeedsReconnect {
-		t.Fatal("connection should need reconnecting")
+	// The confirmed-retry rule applies before the sign-in.
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, fb("again"), false); !errors.Is(err, domain.ErrNeedsConfirm) {
+		t.Fatalf("re-post without confirmation: %v", err)
 	}
+
+	// A Meta account without a role on the Page posts nothing.
+	e.social.NoAccess = true
+	req = must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, fb("again"), true))
+	if out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb)); out.Refused != app.RefusedPage || len(e.social.Posts) != 2 {
+		t.Fatalf("%+v %d", out, len(e.social.Posts))
+	}
+	e.social.NoAccess = false
+
+	// A Meta account that cannot reach the connected Instagram account.
+	e.social.PagesFn = func() []ports.SocialPage { return []ports.SocialPage{{ID: "1001", Name: "Strona testowa"}} }
+	req = must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, ig("IG"), true))
+	out = must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb))
+	if len(out.Results) != 1 || out.Results[0].Status != "refused" || out.Results[0].Reason != app.RefusedInstagram {
+		t.Fatalf("%+v", out)
+	}
+	e.social.PagesFn = nil
+
+	// A Graph error is recorded as failed.
+	e.social.FailIG = errors.New("boom")
+	req = must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, ig("IG"), true))
+	out = must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb))
+	if out.Results[0].Status != "failed" {
+		t.Fatalf("%+v", out)
+	}
+	pv = must[app.PostsView](t)(e.a.EventPosts(e.ctx, mod, "org-a", id))
+	if last := pv.Posts[len(pv.Posts)-1]; last.Status != domain.PostFailed || last.Error == "" {
+		t.Fatalf("%+v", last)
+	}
+	e.social.FailIG = nil
+
+	// Only the Moderator who made a request can complete it, within its TTL.
+	req = must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, fb("x"), true))
+	if out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, sa, "org-a", req.ID, "code", cb)); out.Refused != app.RefusedExpired {
+		t.Fatalf("another user's request: %+v", out)
+	}
+	e.clock.t = e.clock.t.Add(domain.PostRequestTTL + time.Minute)
+	if out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb)); out.Refused != app.RefusedExpired {
+		t.Fatalf("expired request: %+v", out)
+	}
+
+	// A connection saved by an earlier version loses its stored token.
+	legacy := `{"orgId":"org-a","pageId":"1001","pageName":"Strona testowa","igUserId":"2002","igUsername":"test_ig","tokenEnc":"c2VjcmV0","createdBy":"x","createdByEmail":"x@example.org","createdAt":"2026-11-01T12:00:00Z","needsReconnect":true}`
+	if _, err := e.a.Docs.Put(e.ctx, "orgs/org-a/social/connection.json", []byte(legacy), ports.AnyETag); err != nil {
+		t.Fatal(err)
+	}
+
+	// Abandoned requests and Page lists are purged.
+	must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, fb("x"), true))
+	must[[]app.PageInfo](t)(e.a.CompleteSocialLogin(e.ctx, mod, "org-a", "code", cb))
+	e.clock.t = e.clock.t.Add(time.Hour)
+	if _, err := e.a.PurgeBin(e.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if keys, _ := e.a.Docs.List(e.ctx, "orgs/org-a/social/"); len(keys) != 1 || !strings.HasSuffix(keys[0], "/connection.json") {
+		t.Fatalf("left over: %v", keys)
+	}
+	if st := must[app.ConnectionStatus](t)(e.a.SocialStatus(e.ctx, mod, "org-a")); !st.Connected || st.PageID != "1001" {
+		t.Fatalf("legacy connection kept: %+v", st)
+	}
+
+	// Nothing the CMS stores holds a Meta token.
+	keys, err := e.a.Docs.List(e.ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, k := range keys {
+		d, err := e.a.Docs.Get(e.ctx, k)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if bytes.Contains(d.Data, []byte("token")) {
+			t.Fatalf("%s holds a token: %s", k, d.Data)
+		}
+	}
+
 	if err := e.a.Disconnect(e.ctx, sa, "org-a"); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := e.a.RequestPost(e.ctx, mod, "org-a", id, fb("x"), true); !domain.IsValidation(err) {
+		t.Fatal("disconnected")
 	}
 }

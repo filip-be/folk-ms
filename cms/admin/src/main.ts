@@ -80,7 +80,6 @@ function shell(): void {
       ${langSwitch()}
       <button id="logout" class="link">${L("Wyloguj", "Sign out")}</button>
     </header>
-    <div id="banner"></div>
     <main id="view"></main>`.value;
   document.getElementById("org-select")?.addEventListener("change", (e) => {
     const id = (e.target as HTMLSelectElement).value;
@@ -92,20 +91,6 @@ function shell(): void {
     await api.logout().catch(() => undefined);
     location.href = "/app/";
   });
-  if (org) void reconnectBanner(org);
-}
-
-async function reconnectBanner(org: string): Promise<void> {
-  try {
-    const st = await api.social(org);
-    const el = document.getElementById("banner");
-    if (el && st.needsReconnect) {
-      el.innerHTML = html`<div class="banner warn">${t(st.reconnectNote) || L("Połącz ponownie konto Facebook/Instagram.", "Reconnect the Facebook/Instagram account.")}
-        <a href="/app/orgs/${org}/social">${L("Przejdź do połączenia", "Go to the connection")}</a></div>`.value;
-    }
-  } catch {
-    /* the banner is best effort */
-  }
 }
 
 function route(): void {

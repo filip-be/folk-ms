@@ -33,9 +33,6 @@ param metaAppId string
 @secure()
 param metaAppSecret string
 param metaGraphVersion string = 'v24.0'
-@description('Base64 32-byte AES-256-GCM key for Meta tokens at rest.')
-@secure()
-param tokenEncKey string
 @description('Base64 key (32+ bytes) that signs session cookies.')
 @secure()
 param sessionKey string
@@ -167,7 +164,6 @@ resource app 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'META_APP_ID', value: metaAppId }
         { name: 'META_APP_SECRET', value: metaAppSecret }
         { name: 'META_GRAPH_VERSION', value: metaGraphVersion }
-        { name: 'TOKEN_ENC_KEY', value: tokenEncKey }
         { name: 'SESSION_KEY', value: sessionKey }
       ]
     }

@@ -19,7 +19,7 @@ flowchart LR
 
 - **CMS:** one Azure Functions Flex Consumption app running the Go binary as a custom handler. `host.json` sets `routePrefix: ""` and request forwarding, and one HTTP function with the route `{*path}` hands every request to the binary; a timer function `purge` runs the daily Bin purge as `POST /purge`. The admin SPA, the API and sign-in share one origin, so cookies are first-party (`SameSite=Lax`) and no CORS is needed. Same-origin also avoids the cross-site cookie problems of the `*.azurewebsites.net` public suffix. The free grant (100k GB-s, 250k executions) covers the admin traffic of a few Moderators. Scale-to-zero costs about 1–2 s on the first request, which is acceptable for an admin UI. See [ADR 0004](../architecture/adr/0004-same-origin-admin-on-flex-custom-handler.md) for what the local spike verified and what remains to check in Azure.
 - **Sites:** Azure Static Web Apps Free, one app per Site, with no functions and no SWA auth. The free tier gives 10 apps, 100 GB a month and free TLS on two custom domains each.
-- **Storage:** one storage account with shared-key access disabled. The private container `cms` holds JSON documents (Events, Venues, users, Invitations, encrypted Meta tokens) under `data/` and the Audit Log under `audit/`. The public container `pub` holds snapshots and media. Blob versioning and soft delete (30 days) are on; old versions expire after 90 days.
+- **Storage:** one storage account with shared-key access disabled. The private container `cms` holds JSON documents (Events, Venues, users, Invitations, Social Account Connections; no Meta token, see [Social posting](../social-posting/README.md)) under `data/` and the Audit Log under `audit/`. The public container `pub` holds snapshots and media. Blob versioning and soft delete (30 days) are on; old versions expire after 90 days.
 - **Data store:** JSON documents with optimistic concurrency through ETag and `If-Match`; see [ADR 0002](../architecture/adr/0002-blob-json-documents-with-etag.md).
 
 ### Ports and adapters
@@ -33,7 +33,6 @@ The domain and the use cases depend only on ports ([`cms/internal/ports`](../../
 | `AppendLog` (Audit Log) | append blobs, one per day | `O_APPEND` file per day | `memory` |
 | `IdentityProvider` | Google (`google`) | Google, or the dev OIDC stub (`devoidc`, build tag `dev`) | fake |
 | `SocialPublisher` | Meta Graph API (`meta`) | Meta Graph API, or the recorder when `META_APP_ID` is unset | recorder |
-| `Cipher` (AES-256-GCM) | key in app settings | key in `.data/token.key` | fixed key |
 | `ImageProcessor` | `img` (JPEG, PNG, WebP in; JPEG out) | same | same |
 
 All store adapters run one shared contract suite ([`storetest`](../../cms/internal/adapters/storetest/storetest.go)); the blob adapter runs it against Azurite.
@@ -48,7 +47,7 @@ See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md). In short:
 
 ### Infrastructure and CI/CD
 
-Bicep in [`infra/azure/main.bicep`](../../infra/azure/main.bicep) declares the storage account (containers, CORS on blobs for Site origins, versioning, soft delete, lifecycle), the Flex app with its system-assigned identity and `Storage Blob Data Owner` role (the Functions host keeps its leases in the same account, which needs Owner), and one Static Web App per Site. GitHub Actions deploys through OIDC federated credentials, so no Azure secret is stored. Secrets (token-encryption key, session key, Google and Meta client secrets, `SUPER_ADMIN_EMAIL`) are app settings set at deploy from GitHub environment secrets; none is in the repository.
+Bicep in [`infra/azure/main.bicep`](../../infra/azure/main.bicep) declares the storage account (containers, CORS on blobs for Site origins, versioning, soft delete, lifecycle), the Flex app with its system-assigned identity and `Storage Blob Data Owner` role (the Functions host keeps its leases in the same account, which needs Owner), and one Static Web App per Site. GitHub Actions deploys through OIDC federated credentials, so no Azure secret is stored. Secrets (session key, Google and Meta client secrets, `SUPER_ADMIN_EMAIL`) are app settings set at deploy from GitHub environment secrets; none is in the repository.
 
 Workflows in [`.github/workflows`](../../.github/workflows/):
 
@@ -85,7 +84,7 @@ Workflows in [`.github/workflows`](../../.github/workflows/):
 | --- | --- |
 | Composition root | [`cms/cmd/cms/`](../../cms/cmd/cms/) |
 | Ports | [`cms/internal/ports/`](../../cms/internal/ports/) |
-| Adapters | [`cms/internal/adapters/`](../../cms/internal/adapters/) (`azblob/`, `fs/`, `memory/`, `google/`, `devoidc/`, `meta/`, `img/`, `aesgcm/`, `storetest/`) |
+| Adapters | [`cms/internal/adapters/`](../../cms/internal/adapters/) (`azblob/`, `fs/`, `memory/`, `google/`, `devoidc/`, `meta/`, `img/`, `storetest/`) |
 | HTTP layer | [`cms/internal/http/`](../../cms/internal/http/) |
 | Functions package | [`cms/deploy/`](../../cms/deploy/) |
 | Vendored Go dependencies | `cms/vendor/` |

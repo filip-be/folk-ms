@@ -347,10 +347,6 @@ func TestAccess(t *testing.T) {
 	if len(removed) != 1 || (Principal{User: u}).CanManageOrg("a") {
 		t.Fatal("revoked")
 	}
-	c := &Connection{CreatedBy: "u"}
-	if !c.FlagIfCreatedBy("u", "x@y") || !c.NeedsReconnect || c.FlagIfCreatedBy("u", "x@y") {
-		t.Fatal("flag once")
-	}
 }
 
 func TestSocialRetryRule(t *testing.T) {

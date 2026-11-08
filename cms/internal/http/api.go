@@ -102,17 +102,22 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.EventPosts(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
 		return ok(w, v, err)
 	}))
+	// Posting starts a Post Request and answers the Meta sign-in URL; the
+	// posts are sent from /auth/meta/callback.
 	m.Handle("POST /api/orgs/{org}/events/{id}/posts", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		var in struct {
-			Platform domain.Platform `json:"platform"`
-			Caption  string          `json:"caption"`
-			Confirm  bool            `json:"confirm"`
+			Posts   []domain.PostDraft `json:"posts"`
+			Confirm bool               `json:"confirm"`
 		}
 		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.Post(r.Context(), p, r.PathValue("org"), r.PathValue("id"), in.Platform, in.Caption, in.Confirm)
-		return ok(w, v, err)
+		org, id := r.PathValue("org"), r.PathValue("id")
+		req, err := s.App.RequestPost(r.Context(), p, org, id, in.Posts, in.Confirm)
+		if err != nil {
+			return err
+		}
+		return s.startMetaLogin(w, p, metaState{Org: org, Request: req.ID, Event: id})
 	}))
 
 	// Venues.
@@ -165,7 +170,9 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.SocialStatus(r.Context(), p, r.PathValue("org"))
 		return ok(w, v, err)
 	}))
-	m.Handle("POST /api/orgs/{org}/social/connect", s.h(s.startMetaLogin))
+	m.Handle("POST /api/orgs/{org}/social/connect", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		return s.startMetaLogin(w, p, metaState{Org: r.PathValue("org")})
+	}))
 	m.Handle("POST /api/orgs/{org}/social/select", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		var in struct {
 			PageID string `json:"pageId"`

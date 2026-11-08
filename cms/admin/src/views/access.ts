@@ -78,7 +78,6 @@ class AccessView extends View {
                   <button type="button" class="link danger" data-revoke-user="${u.id}">${L("Odbierz dostęp", "Revoke access")}</button></form>`}
           </li>`,
         )}</ul>
-        <p class="muted small">${L("Odebranie organizacji osobie, która połączyła jej konto Facebook, pokaże moderatorom ostrzeżenie o ponownym połączeniu.", "Removing an organization from the person who connected its Facebook account shows its moderators a warning to reconnect.")}</p>
       </section>`);
   }
 

@@ -67,10 +67,15 @@ type oidcState struct {
 	Expires  int64  `json:"exp"`
 }
 
+// metaState binds a Meta sign-in to the CMS user who started it. With
+// Request set, the sign-in completes that Post Request; otherwise it
+// connects a Page.
 type metaState struct {
 	State   string `json:"s"`
 	Org     string `json:"o"`
 	UserID  string `json:"u"`
+	Request string `json:"r,omitempty"`
+	Event   string `json:"e,omitempty"`
 	Expires int64  `json:"exp"`
 }
 

@@ -8,9 +8,11 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
+	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/domain"
 )
 
@@ -97,14 +99,15 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// metaCallback finishes Facebook Login for a Social Account Connection.
+// metaCallback finishes a Meta sign-in: it connects a Page, or completes a
+// Post Request and posts.
 func (s *Server) metaCallback(w http.ResponseWriter, r *http.Request) {
 	var st metaState
 	err := s.readCookie(r, metaCookie, "meta", &st)
 	s.setCookie(w, metaCookie, "", -1)
 	q := r.URL.Query()
 	if err != nil || time.Now().Unix() > st.Expires || q.Get("state") != st.State || st.State == "" {
-		s.authError(w, r, msg("Sesja łączenia z Facebookiem wygasła. Spróbuj ponownie.", "The Facebook connection session expired. Try again."))
+		s.authError(w, r, msg("Sesja logowania do Meta wygasła. Spróbuj ponownie.", "The Meta sign-in session expired. Try again."))
 		return
 	}
 	p, err := s.principal(r)
@@ -112,7 +115,11 @@ func (s *Server) metaCallback(w http.ResponseWriter, r *http.Request) {
 		s.authError(w, r, msg("Zaloguj się do CMS i spróbuj ponownie.", "Sign in to the CMS and try again."))
 		return
 	}
-	back := "/app/orgs/" + st.Org + "/social"
+	if st.Request != "" {
+		s.completePost(w, r, p, st)
+		return
+	}
+	back := "/app/orgs/" + url.PathEscape(st.Org) + "/social"
 	if q.Get("error") != "" {
 		http.Redirect(w, r, back+"?error=cancelled", http.StatusSeeOther)
 		return
@@ -125,10 +132,41 @@ func (s *Server) metaCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, back+"?choose=1", http.StatusSeeOther)
 }
 
-func (s *Server) startMetaLogin(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-	org := r.PathValue("org")
-	st := metaState{State: randToken(), Org: org, UserID: p.ID(), Expires: time.Now().Add(10 * time.Minute).Unix()}
-	u, err := s.App.SocialLoginURL(p, org, st.State, s.BaseURL+"/auth/meta/callback")
+// completePost posts a Post Request and sends the Moderator back to the
+// Post dialog with the outcome in the query: refused=<reason>, or
+// <platform>=posted|failed|<reason> for each platform.
+func (s *Server) completePost(w http.ResponseWriter, r *http.Request, p domain.Principal, st metaState) {
+	back := "/app/orgs/" + url.PathEscape(st.Org) + "/events/" + url.PathEscape(st.Event) + "/post"
+	if r.URL.Query().Get("error") != "" {
+		s.App.CancelPost(r.Context(), p, st.Org, st.Request)
+		http.Redirect(w, r, back+"?refused="+app.RefusedCancelled, http.StatusSeeOther)
+		return
+	}
+	out, err := s.App.CompletePost(r.Context(), p, st.Org, st.Request, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
+	if err != nil {
+		s.Log.Error("complete post", "err", err)
+		http.Redirect(w, r, back+"?refused="+app.RefusedError, http.StatusSeeOther)
+		return
+	}
+	q := url.Values{}
+	if out.Refused != "" {
+		q.Set("refused", out.Refused)
+	}
+	for _, res := range out.Results {
+		v := res.Status
+		if res.Reason != "" {
+			v = res.Reason
+		}
+		q.Set(string(res.Platform), v)
+	}
+	http.Redirect(w, r, back+"?"+q.Encode(), http.StatusSeeOther)
+}
+
+// startMetaLogin answers the URL of the Meta sign-in and binds it, in a
+// signed cookie, to the user, the Organization and the Post Request if any.
+func (s *Server) startMetaLogin(w http.ResponseWriter, p domain.Principal, st metaState) error {
+	st.State, st.UserID, st.Expires = randToken(), p.ID(), time.Now().Add(10*time.Minute).Unix()
+	u, err := s.App.SocialLoginURL(p, st.Org, st.State, s.BaseURL+"/auth/meta/callback")
 	if err != nil {
 		return err
 	}
@@ -180,8 +218,8 @@ func (s *Server) privacy(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, r, 200, page{Title: msg("Polityka prywatności", "Privacy policy"), Paragraphs: []domain.Text{
 		msg("folk-ms to system do zarządzania wydarzeniami organizacji folkowych. Przetwarzamy wyłącznie dane osób, które zarządzają wydarzeniami (moderatorów): adres e-mail, imię i identyfikator konta Google, oraz dziennik ich działań.",
 			"folk-ms is a system for managing the events of folk organizations. We process only the data of the people who manage events (moderators): their email address, name and Google account identifier, and the log of their actions."),
-		msg("Po połączeniu strony na Facebooku przechowujemy zaszyfrowany token strony, służący wyłącznie do publikowania ogłoszeń wydarzeń na prośbę moderatora. Nie przetwarzamy danych odwiedzających strony ani fanów.",
-			"After a Facebook Page is connected we store an encrypted Page token, used only to publish event announcements at a moderator's request. We do not process data of Page visitors or fans."),
+		msg("Po połączeniu strony na Facebooku przechowujemy tylko jej nazwę i identyfikator oraz nazwę i identyfikator powiązanego konta Instagram. Moderator, który publikuje ogłoszenie wydarzenia, za każdym razem loguje się do Meta; token dostępu zwrócony przez Meta służy wyłącznie do opublikowania tego ogłoszenia i nie jest przechowywany. Nie przetwarzamy danych odwiedzających strony ani fanów.",
+			"When a Facebook Page is connected we store only its name and identifier, and those of its linked Instagram account. A moderator who publishes an event announcement signs in with Meta every time; the access token Meta returns is used only to publish that announcement and is not stored. We do not process data of Page visitors or fans."),
 		msg("Aby usunąć swoje dane, skontaktuj się z administratorem organizacji lub skorzystaj z instrukcji na stronie /data-deletion.",
 			"To delete your data, contact the organization's administrator or follow the instructions at /data-deletion."),
 	}})
@@ -189,8 +227,8 @@ func (s *Server) privacy(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) dataDeletion(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, r, 200, page{Title: msg("Usuwanie danych", "Data deletion"), Paragraphs: []domain.Text{
-		msg("Aby usunąć połączenie z Facebookiem i Instagramem: zaloguj się do CMS, otwórz „Media społecznościowe” i kliknij „Rozłącz”. Token strony zostanie natychmiast usunięty. Możesz też usunąć aplikację w ustawieniach Facebooka (Ustawienia → Aplikacje i witryny).",
-			"To remove the Facebook and Instagram connection: sign in to the CMS, open “Social media” and click “Disconnect”. The Page token is deleted immediately. You can also remove the app in your Facebook settings (Settings → Apps and websites)."),
+		msg("CMS nie przechowuje tokenów dostępu Meta. Aby usunąć powiązanie organizacji ze stroną na Facebooku i kontem Instagram: zaloguj się do CMS, otwórz „Media społecznościowe” i kliknij „Rozłącz”. Możesz też usunąć aplikację w ustawieniach Facebooka (Ustawienia → Aplikacje i witryny).",
+			"The CMS does not store Meta access tokens. To remove the link between an organization and its Facebook Page and Instagram account: sign in to the CMS, open “Social media” and click “Disconnect”. You can also remove the app in your Facebook settings (Settings → Apps and websites)."),
 		msg("Aby usunąć swoje konto moderatora, poproś administratora CMS o odebranie dostępu; wpisy w dzienniku zmian są przechowywane jako zapis historii wydarzeń.",
 			"To delete your moderator account, ask the CMS administrator to revoke your access; audit log entries are kept as a record of the events' history."),
 	}})

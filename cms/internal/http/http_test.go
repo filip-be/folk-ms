@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/png"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -16,7 +18,6 @@ import (
 	"testing/fstest"
 	"time"
 
-	"github.com/filip-be/folk-ms/cms/internal/adapters/aesgcm"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/img"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/memory"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/meta"
@@ -37,8 +38,10 @@ func (f *fakeIdP) Exchange(context.Context, string, string, string, string) (por
 }
 
 type harness struct {
-	ts  *httptest.Server
-	idp *fakeIdP
+	ts     *httptest.Server
+	idp    *fakeIdP
+	app    *app.App
+	social *meta.Recorder
 }
 
 func newHarness(t *testing.T) *harness {
@@ -46,10 +49,10 @@ func newHarness(t *testing.T) *harness {
 	o := &domain.Organization{ID: "org-a", Name: domain.Text{PL: "A"}, Timezone: "Europe/Warsaw",
 		Site: domain.Site{ID: "org-a", BaseURL: "https://a.example", PermalinkTemplate: "/{lang}/events/{shortId}-{slug}"}}
 	a := app.New([]*domain.Organization{o})
-	c, _ := aesgcm.New(base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32)))
-	a.Docs, a.Pub, a.Audit, a.Social, a.Cipher, a.Images = memory.NewDocumentStore(), memory.NewPublicStore("http://x/pub"), memory.NewAppendLog(), &meta.Recorder{}, c, img.Processor{}
+	rec := &meta.Recorder{}
+	a.Docs, a.Pub, a.Audit, a.Social, a.Images = memory.NewDocumentStore(), memory.NewPublicStore("http://x/pub"), memory.NewAppendLog(), rec, img.Processor{}
 	a.SuperAdminEmail = "admin@example.org"
-	h := &harness{idp: &fakeIdP{email: "admin@example.org"}}
+	h := &harness{idp: &fakeIdP{email: "admin@example.org"}, app: a, social: rec}
 	h.ts = httptest.NewUnstartedServer(nil)
 	h.ts.Start()
 	srv, err := NewServer(&Server{
@@ -148,6 +151,10 @@ func TestAuthAndAPI(t *testing.T) {
 	}
 }
 
+func pngEncode(w io.Writer, width, height int) error {
+	return png.Encode(w, image.NewRGBA(image.Rect(0, 0, width, height)))
+}
+
 func TestCSRF(t *testing.T) {
 	h := newHarness(t)
 	c := h.client(t)
@@ -191,6 +198,88 @@ func TestStrangerAndBadState(t *testing.T) {
 	// Open redirect is not possible.
 	if safeReturn("//evil.example/app/") != "/app/" || safeReturn("https://evil") != "/app/" || safeReturn("/app/x") != "/app/x" {
 		t.Fatal("safeReturn")
+	}
+}
+
+func TestPostWithMetaSignIn(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	ctx := context.Background()
+	u, err := h.app.SignIn(ctx, ports.Identity{Issuer: "test", Subject: "admin@example.org", Email: "admin@example.org", EmailVerified: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := h.app.Principal(ctx, u.ID, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, err := h.app.CreateVenue(ctx, p, "org-a", domain.Venue{Name: "Zamek", Address: "Św. Marcin 80"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var png bytes.Buffer
+	_ = pngEncode(&png, 1200, 600)
+	cover, err := h.app.UploadImage(ctx, p, "org-a", ports.ImageCover, png.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev, err := h.app.CreateEvent(ctx, p, "org-a", domain.Content{Title: domain.Text{PL: "Bal"}, VenueID: v.ID, Cover: cover,
+		Schedule: domain.Schedule{Kind: domain.KindSingle, StartDate: "2030-10-01", StartTime: "19:00", EndTime: "22:00"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.app.PublishEvent(ctx, p, "org-a", ev.Event.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.app.CompleteSocialLogin(ctx, p, "org-a", "code", h.ts.URL+"/auth/meta/callback"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.app.SelectPage(ctx, p, "org-a", "1001"); err != nil {
+		t.Fatal(err)
+	}
+	same := map[string]string{"Origin": h.ts.URL}
+	posts := "/api/orgs/org-a/events/" + ev.Event.ID + "/posts"
+	start := func() string {
+		t.Helper()
+		resp, body := h.do(t, c, "POST", posts, `{"posts":[{"platform":"facebook","caption":"Hi"},{"platform":"instagram","caption":"IG"}],"confirm":true}`, same)
+		var out struct{ URL string }
+		if resp.StatusCode != 200 || json.Unmarshal([]byte(body), &out) != nil || out.URL == "" {
+			t.Fatalf("request post: %d %s", resp.StatusCode, body)
+		}
+		return out.URL
+	}
+
+	// The Meta sign-in comes back to the callback, which posts on both
+	// platforms and returns to the Post dialog.
+	login := start()
+	resp, _ := h.do(t, c, "GET", strings.TrimPrefix(login, h.ts.URL), "", nil)
+	if got := resp.Request.URL; got.Path != "/app/orgs/org-a/events/"+ev.Event.ID+"/post" || got.Query().Get("facebook") != "posted" || got.Query().Get("instagram") != "posted" {
+		t.Fatalf("landed on %s", got)
+	}
+	if len(h.social.Posts) != 2 {
+		t.Fatalf("%+v", h.social.Posts)
+	}
+	// The state cookie is used once.
+	if resp, _ := h.do(t, c, "GET", strings.TrimPrefix(login, h.ts.URL), "", nil); resp.StatusCode != 403 || len(h.social.Posts) != 2 {
+		t.Fatalf("replayed callback: %d, %d posts", resp.StatusCode, len(h.social.Posts))
+	}
+
+	// Cancelling the Meta sign-in posts nothing and drops the request.
+	login = start()
+	lu, _ := url.Parse(login)
+	resp, _ = h.do(t, c, "GET", "/auth/meta/callback?error=access_denied&state="+lu.Query().Get("state"), "", nil)
+	if resp.Request.URL.Query().Get("refused") != app.RefusedCancelled || len(h.social.Posts) != 2 {
+		t.Fatalf("cancelled: %s", resp.Request.URL)
+	}
+	if keys, _ := h.app.Docs.List(ctx, "orgs/org-a/social/requests/"); len(keys) != 0 {
+		t.Fatalf("request left: %v", keys)
+	}
+
+	// Another browser, without the state cookie, cannot complete it.
+	login = start()
+	if resp, _ := h.do(t, h.client(t), "GET", strings.TrimPrefix(login, h.ts.URL), "", nil); resp.StatusCode != 403 || len(h.social.Posts) != 2 {
+		t.Fatalf("foreign callback: %d", resp.StatusCode)
 	}
 }
 
@@ -296,5 +385,22 @@ func TestLangCookieMatchesAdmin(t *testing.T) {
 	}
 	if !strings.Contains(string(src), `const COOKIE = "`+langCookie+`";`) {
 		t.Fatalf("cms/admin/src/i18n.ts does not use the cookie %q", langCookie)
+	}
+}
+
+// The Meta callback reports outcomes in the query of the Post dialog, which
+// shows a message for each; RefusedError falls to its default message.
+func TestPostOutcomesMatchAdmin(t *testing.T) {
+	src, err := os.ReadFile("../../admin/src/views/post.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, code := range []string{
+		app.RefusedCancelled, app.RefusedExpired, app.RefusedLogin, app.RefusedPage, app.RefusedInvalid,
+		app.RefusedInstagram, app.RefusedQuota, app.RefusedConfirm, string(domain.PostPosted), string(domain.PostFailed),
+	} {
+		if !strings.Contains(string(src), `case "`+code+`":`) {
+			t.Errorf("cms/admin/src/views/post.ts has no message for the outcome %q", code)
+		}
 	}
 }

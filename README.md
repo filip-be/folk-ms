@@ -71,7 +71,7 @@ scripts/azurite.sh
 ### First deployment
 
 1. Create a resource group and an Entra app registration with a federated credential for this repository's `production` environment; grant it `Contributor` and `User Access Administrator` (for the role assignment) on the resource group.
-2. In the GitHub `production` environment set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, `CMS_BASE_URL` (e.g. `https://<app>.azurewebsites.net`), and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `TOKEN_ENC_KEY`, `SESSION_KEY` (`openssl rand -base64 32` each for the last two). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs.
+2. In the GitHub `production` environment set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, `CMS_BASE_URL` (e.g. `https://<app>.azurewebsites.net`), and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs.
 3. Run `deploy-infra`, then set `CMS_FUNCTION_APP` and `STORAGE_PUBLIC_URL` (`https://<account>.blob.core.windows.net/pub`) from its outputs, then run `deploy-cms` and `deploy-site`.
 4. Add each Site's custom domain to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
 
@@ -87,12 +87,14 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 
 1. At developers.facebook.com create a *Business* app, add *Facebook Login for Business* and the Instagram Graph API.
 2. Valid OAuth redirect URI: `<CMS_BASE_URL>/auth/meta/callback`. Privacy policy URL: `<CMS_BASE_URL>/privacy`. Data deletion instructions URL: `<CMS_BASE_URL>/data-deletion`.
-3. Keep the app in Standard Access. For every Moderator who will connect a Page: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. They must administer the Organization's Page, and the Page must be linked to an Instagram professional account for Instagram posts.
+3. Keep the app in Standard Access. For every Moderator who will post Social Posts or connect a Page: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Page that allows posting, and access to its Instagram account; the Page must be linked to an Instagram professional account for Instagram posts.
 4. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
 
-### Reconnecting a Social Account Connection
+### Who can post Social Posts
 
-The CMS shows a "reconnect" warning when the person who connected an Organization's Page lost CMS access, and posting fails with a token error when Meta revoked the Page token (password change, role removed, app removed). Any Moderator of the Organization who administers the Page and is a Tester on the Meta app opens *Media społecznościowe → Połącz ponownie*, signs in to Facebook and chooses the Page. The Super Admin can disconnect at once from the same screen. Rotating `TOKEN_ENC_KEY` makes all stored tokens unreadable: every Organization must reconnect.
+The CMS stores no Meta token: a Moderator signs in with Meta every time they post, and the CMS posts with that sign-in only. So a Moderator can post only while they are a Tester on the Meta app and have a role on the Page (and access to its Instagram account). To stop someone posting, remove their CMS access, their Page role or their Tester role; nothing in the CMS needs reconnecting. Changing the Organization's Page or disconnecting it is done under *Media społecznościowe*, by any of its Moderators or the Super Admin.
+
+Upgrading from a version that stored Page tokens: the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
 
 ### Backup and restore
 

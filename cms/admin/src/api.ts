@@ -139,11 +139,13 @@ export interface ConnectionStatus {
   igUsername?: string;
   createdByEmail?: string;
   createdAt?: string;
-  needsReconnect: boolean;
-  reconnectNote?: Text;
   pendingPages?: PageInfo[];
 }
 export type Platform = "facebook" | "instagram";
+export interface PostDraft {
+  platform: Platform;
+  caption: string;
+}
 export interface SocialPost {
   id: string;
   platform: Platform;
@@ -237,8 +239,9 @@ export const api = {
     request<Image>("POST", `${o(org)}/images?kind=${kind}`, file, { "Content-Type": file.type || "application/octet-stream" }),
 
   posts: (org: string, id: string) => request<PostsView>("GET", `${o(org)}/events/${id}/posts`),
-  post: (org: string, id: string, platform: Platform, caption: string, confirm: boolean) =>
-    request<SocialPost>("POST", `${o(org)}/events/${id}/posts`, { platform, caption, confirm }),
+  /** Starts a Post Request; the answer is the Meta sign-in to send the browser to. */
+  requestPost: (org: string, id: string, posts: PostDraft[], confirm: boolean) =>
+    request<{ url: string }>("POST", `${o(org)}/events/${id}/posts`, { posts, confirm }),
 
   venues: (org: string) => request<Venue[]>("GET", `${o(org)}/venues`),
   createVenue: (org: string, v: Partial<Venue>) => request<Venue>("POST", `${o(org)}/venues`, v),

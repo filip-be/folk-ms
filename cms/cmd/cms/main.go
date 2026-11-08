@@ -21,7 +21,6 @@ import (
 	_ "time/tzdata" // Europe/Warsaw must not depend on the host image
 
 	"github.com/filip-be/folk-ms/cms/admin"
-	"github.com/filip-be/folk-ms/cms/internal/adapters/aesgcm"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/azblob"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/fs"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/google"
@@ -191,19 +190,6 @@ func localKey(path string) ([]byte, error) {
 }
 
 func wireLocal(a *app.App, srv *httpapi.Server, dataDir, baseURL string) error {
-	encKey := os.Getenv("TOKEN_ENC_KEY")
-	if encKey == "" {
-		k, err := localKey(filepath.Join(dataDir, "token.key"))
-		if err != nil {
-			return err
-		}
-		encKey = base64.StdEncoding.EncodeToString(k)
-	}
-	c, err := aesgcm.New(encKey)
-	if err != nil {
-		return err
-	}
-	a.Cipher = c
 	if blobURL := os.Getenv("STORAGE_BLOB_URL"); blobURL != "" {
 		// Local run against Azurite.
 		return wireBlob(a, srv, blobURL)
@@ -217,11 +203,6 @@ func wireLocal(a *app.App, srv *httpapi.Server, dataDir, baseURL string) error {
 }
 
 func wireAzure(a *app.App, srv *httpapi.Server) error {
-	c, err := aesgcm.New(os.Getenv("TOKEN_ENC_KEY"))
-	if err != nil {
-		return fmt.Errorf("TOKEN_ENC_KEY: %w", err)
-	}
-	a.Cipher = c
 	blobURL := os.Getenv("STORAGE_BLOB_URL")
 	if blobURL == "" {
 		return errors.New("STORAGE_BLOB_URL is required")

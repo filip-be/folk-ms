@@ -66,13 +66,16 @@ An Event is authored in Polish; English is optional. Where English is missing, S
 ## Social posting
 
 **Social Post**
-An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event (which is created by hand outside the CMS). Posted manually by a Moderator, separately per platform; the CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
+An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event (which is created by hand outside the CMS). Posted manually by a Moderator, who signs in with Meta every time; each platform gets its own Social Post, and one sign-in can post on both. The CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
 
 **Caption**
 The text of a Social Post. Generated from the Event's fields and Permalink, then edited by the Moderator before posting.
 
 **Social Account Connection**
-The link between an Organization and its Facebook Page and Instagram account. Belongs to the Organization, not to the person who made it. Established by a Moderator who administers that Page and was given a role on the CMS's Meta app by the Super Admin. Any of the Organization's Moderators can disconnect or reconnect it. Without it, the Organization cannot post Social Posts.
+Which Facebook Page and Instagram account an Organization posts to. Belongs to the Organization, not to the person who made it, and grants no access by itself: every Social Post is sent with the posting Moderator's own Meta sign-in. Established by a Moderator who signs in with Meta and chooses the Page. Any of the Organization's Moderators can change or disconnect it. Without it, the Organization cannot post Social Posts.
+
+**Post Request**
+A Moderator's request to post an Event on Facebook, Instagram or both, with its Captions, kept for a few minutes while they sign in with Meta. Used once; nothing is posted until the sign-in completes it.
 
 ## Access
 
