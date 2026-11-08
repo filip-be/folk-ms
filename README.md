@@ -56,10 +56,10 @@ bun test contract sites
 npm ci --ignore-scripts && npx tsc -b tsconfig.json
 ```
 
-Blob adapter tests against Azurite (the digest is the one pinned in `.github/workflows/ci.yml`):
+Blob adapter tests against Azurite (the digest is the one pinned in `.github/workflows/ci.yml`; the script also starts `dockerd` when no daemon is running, as in a Claude Code cloud session):
 
 ```bash
-docker run -d --rm --name azurite -p 10000:10000 mcr.microsoft.com/azure-storage/azurite@sha256:830430c1da1a2d537e08f3e6764dd1f5ae00cf0346bcaf625b968ec3f0971fd5
+scripts/azurite.sh
 ```
 
 ```bash
