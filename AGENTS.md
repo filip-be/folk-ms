@@ -1,4 +1,4 @@
-# Claude memory for folk-ms
+# Agent memory for folk-ms
 
 ## Adversarial review
 
@@ -13,3 +13,8 @@ The GitHub Copilot CLI (`copilot`) is not available to the user. When running th
   sending your response to each Finding by number.
 - Everything else in the skill applies unchanged: Findings, the 3-round limit,
   `VERDICT: CLEAN` / `VERDICT: FINDINGS`, and the final report to the user.
+
+## Memory files
+
+Repository memory lives in this `AGENTS.md`. Never create a `CLAUDE.md` anywhere in
+this repository.
