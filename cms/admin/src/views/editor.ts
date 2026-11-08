@@ -183,7 +183,18 @@ class EditorView extends View {
             <select id="f-venue" name="venueId"><option value="">${L("— wybierz —", "— choose —")}</option>
               ${activeVenues.map((x) => html`<option value="${x.id}" ${c.venueId === x.id ? "selected" : ""}>${x.name} – ${x.address}${x.archived ? L(" (zarchiwizowane)", " (archived)") : ""}</option>`)}
             </select>
-            <p class="muted small"><a href="/app/orgs/${this.org}/venues">${L("Zarządzaj miejscami", "Manage venues")}</a></p></div>
+            <p class="muted small"><button type="button" class="link" data-new-venue>${L("+ Nowe miejsce", "+ New venue")}</button>
+              · <a href="/app/orgs/${this.org}/venues">${L("Zarządzaj miejscami", "Manage venues")}</a></p></div>
+          <div class="new-venue" hidden>
+            <h3>${L("Nowe miejsce", "New venue")}</h3>
+            <div class="grid">
+              <div class="field"><label for="nv-name">${L("Nazwa", "Name")}</label><input id="nv-name" data-nv="name" maxlength="200"></div>
+              <div class="field"><label for="nv-address">${L("Adres", "Address")}</label><input id="nv-address" data-nv="address" maxlength="500"></div>
+              <div class="field"><label for="nv-map">${L("Link do mapy (opcjonalnie)", "Map link (optional)")}</label><input id="nv-map" data-nv="mapUrl" type="url" placeholder="https://"></div>
+            </div>
+            <button type="button" class="primary" data-nv-add>${L("Dodaj i wybierz", "Add and select")}</button>
+            <button type="button" data-nv-cancel>${L("Anuluj", "Cancel")}</button>
+          </div>
           ${this.textFields("price", L("Cena / wstęp", "Price / admission"), c.price?.text, "input", 500)}
           <div class="field"><label for="f-priceUrl">${L("Link do biletów lub zapisów", "Tickets or registration link")}</label><input type="url" id="f-priceUrl" name="priceUrl" value="${c.price?.url ?? ""}" placeholder="https://"></div>
         </section>
@@ -325,6 +336,42 @@ class EditorView extends View {
     });
   }
 
+  /** Shows or hides the inline New venue panel; it is outside the event's content. */
+  private toggleNewVenue(open: boolean): void {
+    const panel = this.$<HTMLElement>(".new-venue");
+    panel.hidden = !open;
+    panel.querySelectorAll<HTMLInputElement>("[data-nv]").forEach((i) => (i.value = ""));
+    if (open) panel.querySelector<HTMLInputElement>("[data-nv=name]")!.focus();
+  }
+
+  /** Creates a Venue from the inline panel and selects it for this event. */
+  private async addVenue(btn: HTMLButtonElement): Promise<void> {
+    const panel = this.$<HTMLElement>(".new-venue");
+    const inputs = [...panel.querySelectorAll<HTMLInputElement>("[data-nv]")];
+    const data = Object.fromEntries(inputs.map((i) => [i.dataset.nv!, i.value.trim()]));
+    const missing = inputs.find((i) => i.dataset.nv !== "mapUrl" && !i.value.trim());
+    if (missing) {
+      missing.focus();
+      toast(L("Podaj nazwę i adres miejsca.", "Enter the venue's name and address."), "error");
+      return;
+    }
+    await busy(btn, async () => {
+      try {
+        const v = await api.createVenue(this.org, data);
+        this.collect();
+        this.venues = [...this.venues, v];
+        this.content.venueId = v.id;
+        this.dirty = true;
+        this.render();
+        this.schedulePreview();
+        this.$<HTMLSelectElement>("#f-venue").focus();
+        toast(L("Dodano miejsce i wybrano je dla wydarzenia", "Venue added and selected for the event"));
+      } catch (err) {
+        showError(err);
+      }
+    });
+  }
+
   private async upload(kind: "cover" | "social", input: HTMLInputElement): Promise<void> {
     const file = input.files?.[0];
     if (!file) return;
@@ -365,6 +412,17 @@ class EditorView extends View {
       this.$("#editor").dataset.lang = this.editLang;
       this.querySelectorAll("[role=tab]").forEach((t) => t.setAttribute("aria-selected", String((t as HTMLElement).dataset.lang === this.editLang)));
     });
+    this.on("[data-new-venue]", "click", () => this.toggleNewVenue(true));
+    this.on("[data-nv-cancel]", "click", () => this.toggleNewVenue(false));
+    this.on("[data-nv-add]", "click", (_e, el) => void this.addVenue(el as HTMLButtonElement));
+    this.on("[data-nv]", "keydown", (e) => {
+      const k = e as KeyboardEvent;
+      if (k.key === "Enter") {
+        // Enter would submit the editor (Save draft); add the venue instead.
+        e.preventDefault();
+        void this.addVenue(this.$<HTMLButtonElement>("[data-nv-add]"));
+      } else if (k.key === "Escape") this.toggleNewVenue(false);
+    });
     this.on("[data-upload]", "change", (_e, el) => void this.upload(el.dataset.upload as "cover", el as HTMLInputElement));
     this.on("[data-remove-image]", "click", (_e, el) => {
       this.collect();
@@ -397,7 +455,7 @@ class EditorView extends View {
     });
     this.addEventListener("input", (e) => {
       const t = e.target as HTMLInputElement;
-      if (t.dataset.ex || t.type === "file") return;
+      if (t.dataset.ex || t.dataset.nv || t.type === "file") return;
       this.dirty = true;
       if (t.closest(".schedule") || t.name === "venueId") this.schedulePreview();
     });

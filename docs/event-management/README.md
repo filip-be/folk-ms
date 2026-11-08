@@ -40,6 +40,8 @@ An Event is single, Multi-day or Recurring. A Recurrence is weekly, every second
 
 Venues are a reusable list per Organization. Published Events reference a Venue by id, so editing a Venue immediately applies to every not-yet-happened Occurrence, single or recurring, and rebuilds the affected snapshots. Before the edit is applied, past Occurrences of affected Events get a frozen copy of the Venue as it was. Venues are archived, never deleted.
 
+A Moderator adds a Venue from the event editor itself: **+ New venue** under the Venue field opens a short form (name, address, optional map link) that creates the Venue and selects it for the Event, keeping the unsaved edits. The Venues page is for editing and archiving.
+
 ### Images
 
 An Event has a landscape Cover Image and an optional Social Image (1:1 or 4:5) for Instagram. The CMS decodes JPEG, PNG and WebP (`golang.org/x/image`), enforces limits against decompression bombs (15 MB, 50 Mpx, checked from the header before decoding), resizes, and re-encodes JPEG variants, because Instagram requires JPEG at a public URL. HEIC is rejected with a clear error. The Cover gets widths 480, 960 and 1600 (never upscaled) plus an Instagram crop within 4:5–1.91:1; a Social Image is center-cropped to 1:1 or 4:5. Variants go to `pub/media/<org>/` under immutable, content-hashed names; the editor previews both crops.

@@ -136,6 +136,8 @@ ul.history li { padding: .3rem 0; border-bottom: 1px solid var(--line); }
 ul.venues, ul.users, ul.pages { list-style: none; padding: 0; margin: 0 0 1rem; }
 .venue { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
 .venue.archived { opacity: .65; }
+.new-venue { border: 1px dashed var(--line); border-radius: var(--radius); padding: .8rem 1rem; margin-bottom: .8rem; background: var(--bg); }
+.new-venue h3 { margin-top: 0; }
 ul.users li { padding: .7rem 0; border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: .5rem; }
 ul.users li.revoked { opacity: .6; }
 ul.pages li { display: flex; align-items: center; gap: .8rem; padding: .5rem 0; border-bottom: 1px solid var(--line); }
