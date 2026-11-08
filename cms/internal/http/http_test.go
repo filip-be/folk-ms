@@ -10,6 +10,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -171,13 +172,15 @@ func TestStrangerAndBadState(t *testing.T) {
 	h := newHarness(t)
 	h.idp.email = "stranger@example.org"
 	c := h.client(t)
-	resp, err := c.Get(h.ts.URL + "/auth/login")
+	req, _ := http.NewRequest("GET", h.ts.URL+"/auth/login", nil)
+	req.Header.Set("Accept-Language", "pl-PL,pl;q=0.9,en;q=0.8")
+	resp, err := c.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	b, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
-	if resp.StatusCode != 403 || !strings.Contains(string(b), "nie ma dostępu") {
+	if resp.StatusCode != 403 || !strings.Contains(string(b), "nie ma dostępu") || !strings.Contains(string(b), `lang="pl"`) {
 		t.Fatalf("stranger: %d %s", resp.StatusCode, b)
 	}
 	// Callback without the state cookie.
@@ -224,5 +227,74 @@ func TestSessionTampering(t *testing.T) {
 	forged := base64.RawURLEncoding.EncodeToString([]byte(`{"u":"admin","iat":1,"exp":9999999999}`)) + v[strings.Index(v, "."):]
 	if err := s.open("session", forged, &sd); err == nil {
 		t.Fatal("forged payload accepted")
+	}
+}
+
+func TestPageLanguage(t *testing.T) {
+	h := newHarness(t)
+	for _, tc := range []struct {
+		name, accept, cookie, want string
+	}{
+		{"no preference", "", "", "Privacy policy"},
+		{"browser prefers Polish", "pl-PL,pl;q=0.9,en;q=0.8", "", "Polityka prywatności"},
+		{"English ranked above Polish", "de-DE,en;q=0.8,pl;q=0.5", "", "Privacy policy"},
+		{"only unsupported languages", "de-DE,fr;q=0.8", "", "Privacy policy"},
+		{"cookie overrides the browser", "pl-PL", "en", "Privacy policy"},
+		{"cookie chooses Polish", "en-US", "pl", "Polityka prywatności"},
+		{"unknown cookie is ignored", "pl", "xx", "Polityka prywatności"},
+	} {
+		req, _ := http.NewRequest("GET", h.ts.URL+"/privacy", nil)
+		if tc.accept != "" {
+			req.Header.Set("Accept-Language", tc.accept)
+		}
+		if tc.cookie != "" {
+			req.AddCookie(&http.Cookie{Name: langCookie, Value: tc.cookie})
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if !strings.Contains(string(b), "<h1>"+tc.want+"</h1>") {
+			t.Errorf("%s: want %q in %s", tc.name, tc.want, b)
+		}
+	}
+}
+
+func TestErrorMessagesAreBilingual(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/venues", `{"name":""}`, map[string]string{"Sec-Fetch-Site": "same-origin"})
+	if resp.StatusCode != 422 {
+		t.Fatalf("want 422, got %d %s", resp.StatusCode, body)
+	}
+	var e struct {
+		Message  domain.Text
+		Problems []domain.FieldError
+	}
+	if err := json.Unmarshal([]byte(body), &e); err != nil {
+		t.Fatal(err)
+	}
+	if e.Message.PL == "" || e.Message.EN == "" || len(e.Problems) == 0 {
+		t.Fatalf("message %+v", e)
+	}
+	for _, p := range e.Problems {
+		if p.Message.PL == "" || p.Message.EN == "" {
+			t.Errorf("problem %s lacks a language: %+v", p.Field, p.Message)
+		}
+	}
+}
+
+// TestLangCookieMatchesAdmin keeps the cookie name shared with the admin SPA,
+// which sets it.
+func TestLangCookieMatchesAdmin(t *testing.T) {
+	src, err := os.ReadFile("../../admin/src/i18n.ts")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(src), `const COOKIE = "`+langCookie+`";`) {
+		t.Fatalf("cms/admin/src/i18n.ts does not use the cookie %q", langCookie)
 	}
 }

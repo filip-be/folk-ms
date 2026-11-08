@@ -10,15 +10,16 @@ import {
   type Text,
   type Venue,
 } from "../api.ts";
-import { badge, busy, fmtDateTime, html, navigate, problemsHtml, showError, toast, WEEKDAYS } from "../ui.ts";
+import { badge, busy, fmtDateTime, html, navigate, problemsHtml, showError, t, toast, WEEKDAYS } from "../ui.ts";
 import { View } from "../view.ts";
+import { inLang, L, lang } from "../i18n.ts";
 
 const NTH = [
-  [1, "pierwszy"],
-  [2, "drugi"],
-  [3, "trzeci"],
-  [4, "czwarty"],
-  [-1, "ostatni"],
+  [1, L("pierwszy", "first")],
+  [2, L("drugi", "second")],
+  [3, L("trzeci", "third")],
+  [4, L("czwarty", "fourth")],
+  [-1, L("ostatni", "last")],
 ] as const;
 
 function emptyContent(): Content {
@@ -72,25 +73,25 @@ class EditorView extends View {
         kind === "input"
           ? html`<input id="${id}" name="${name}.${l}" value="${v}" maxlength="${max}" ${l === "pl" && name === "title" ? "required" : ""}>`
           : html`<textarea id="${id}" name="${name}.${l}" rows="${kind === "short" ? 2 : 8}" maxlength="${max}">${v}</textarea>`;
-      return html`<div class="field lang-${l}"><label for="${id}">${label} ${l === "en" ? html`<span class="muted">(EN, opcjonalnie)</span>` : ""}</label>${field}</div>`;
+      return html`<div class="field lang-${l}"><label for="${id}">${label} ${l === "en" ? html`<span class="muted">${L("(EN, opcjonalnie)", "(EN, optional)")}</span>` : ""}</label>${field}</div>`;
     })}`;
   }
 
   private imageBlock(kind: "cover" | "social", img: Image | undefined): ReturnType<typeof html> {
-    const label = kind === "cover" ? "Zdjęcie główne (poziome)" : "Obraz na Instagram (kwadrat lub 4:5, opcjonalny)";
+    const label = kind === "cover" ? L("Zdjęcie główne (poziome)", "Cover image (landscape)") : L("Obraz na Instagram (kwadrat lub 4:5, opcjonalny)", "Instagram image (square or 4:5, optional)");
     const preview = img?.variants[0];
     return html`<div class="image-block" data-kind="${kind}">
       <h3>${label}</h3>
       ${img
         ? html`<div class="previews">
-            ${preview ? html`<figure><img src="${this.publicUrl(preview.path)}" alt="" width="${preview.width}" height="${preview.height}"><figcaption>Strona</figcaption></figure>` : ""}
-            ${img.instagram ? html`<figure><img class="ig" src="${this.publicUrl(img.instagram.path)}" alt=""><figcaption>Kadr Instagram ${img.instagram.width}×${img.instagram.height}</figcaption></figure>` : ""}
+            ${preview ? html`<figure><img src="${this.publicUrl(preview.path)}" alt="" width="${preview.width}" height="${preview.height}"><figcaption>${L("Strona", "Site")}</figcaption></figure>` : ""}
+            ${img.instagram ? html`<figure><img class="ig" src="${this.publicUrl(img.instagram.path)}" alt=""><figcaption>${L("Kadr Instagram", "Instagram crop")} ${img.instagram.width}×${img.instagram.height}</figcaption></figure>` : ""}
           </div>
-          ${kind === "cover" ? this.textFields(`alt-${kind}`, "Tekst alternatywny", img.alt, "input", 200) : ""}
-          <button type="button" class="link danger" data-remove-image="${kind}">Usuń obraz</button>`
-        : html`<p class="muted small">Brak obrazu.</p>`}
-      <label class="button">Wybierz plik…<input type="file" accept="image/jpeg,image/png,image/webp" data-upload="${kind}" hidden></label>
-      <p class="muted small">JPEG, PNG lub WebP, do 15 MB. HEIC (iPhone) nie jest obsługiwany – zapisz zdjęcie jako JPEG.</p>
+          ${kind === "cover" ? this.textFields(`alt-${kind}`, L("Tekst alternatywny", "Alternative text"), img.alt, "input", 200) : ""}
+          <button type="button" class="link danger" data-remove-image="${kind}">${L("Usuń obraz", "Remove image")}</button>`
+        : html`<p class="muted small">${L("Brak obrazu.", "No image.")}</p>`}
+      <label class="button">${L("Wybierz plik…", "Choose file…")}<input type="file" accept="image/jpeg,image/png,image/webp" data-upload="${kind}" hidden></label>
+      <p class="muted small">${L("JPEG, PNG lub WebP, do 15 MB. HEIC (iPhone) nie jest obsługiwany – zapisz zdjęcie jako JPEG.", "JPEG, PNG or WebP, up to 15 MB. HEIC (iPhone) is not supported – save the photo as JPEG.")}</p>
     </div>`;
   }
 
@@ -106,89 +107,89 @@ class EditorView extends View {
       <form id="editor" class="editor" data-kind="${s.kind}" data-freq="${r.freq}" data-lang="${this.editLang}" novalidate>
         <div class="toolbar sticky">
           <div>
-            <a href="/app/orgs/${this.org}/events" class="muted small">← Wydarzenia</a>
-            <h1>${c.title.pl || (v ? "(bez tytułu)" : "Nowe wydarzenie")}</h1>
-            ${v ? html`<div>${badge(v.status, v.event.published && v.event.draftRevision !== v.event.publishedRevision ? "niepublikowane zmiany" : "")}
-              ${v.event.publishedAt ? html`<span class="muted small">opublikowano ${fmtDateTime(v.event.publishedAt)}</span>` : ""}</div>` : ""}
+            <a href="/app/orgs/${this.org}/events" class="muted small">← ${L("Wydarzenia", "Events")}</a>
+            <h1>${t(c.title) || (v ? L("(bez tytułu)", "(untitled)") : L("Nowe wydarzenie", "New event"))}</h1>
+            ${v ? html`<div>${badge(v.status, v.event.published && v.event.draftRevision !== v.event.publishedRevision ? L("niepublikowane zmiany", "unpublished changes") : "")}
+              ${v.event.publishedAt ? html`<span class="muted small">${L("opublikowano", "published")} ${fmtDateTime(v.event.publishedAt)}</span>` : ""}</div>` : ""}
           </div>
           <div class="actions">
             ${binned
-              ? this.me.superAdmin ? html`<button type="button" data-action="restore">Przywróć z kosza</button>` : ""
+              ? this.me.superAdmin ? html`<button type="button" data-action="restore">${L("Przywróć z kosza", "Restore from the bin")}</button>` : ""
               : html`
-                <button type="submit" class="primary" id="save">Zapisz szkic</button>
-                ${v ? html`<button type="button" class="primary publish" data-action="publish">${status !== "published" ? "Opublikuj" : v!.event.draftRevision !== v!.event.publishedRevision ? "Opublikuj zmiany" : "Opublikuj ponownie"}</button>` : ""}
-                ${status === "published" ? html`<a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/post">Ogłoś w mediach</a>` : ""}
-                ${v ? html`<details class="more"><summary class="button">Więcej</summary><div class="menu">
-                  ${status === "published" ? html`<button type="button" data-action="unpublish">Wycofaj ze strony</button>` : ""}
-                  ${v ? html`<button type="button" data-action="duplicate">Duplikuj</button>
-                    <button type="button" class="danger" data-action="delete">Przenieś do kosza</button>` : ""}
+                <button type="submit" class="primary" id="save">${L("Zapisz szkic", "Save draft")}</button>
+                ${v ? html`<button type="button" class="primary publish" data-action="publish">${status !== "published" ? L("Opublikuj", "Publish") : v!.event.draftRevision !== v!.event.publishedRevision ? L("Opublikuj zmiany", "Publish changes") : L("Opublikuj ponownie", "Publish again")}</button>` : ""}
+                ${status === "published" ? html`<a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/post">${L("Ogłoś w mediach", "Announce on social media")}</a>` : ""}
+                ${v ? html`<details class="more"><summary class="button">${L("Więcej", "More")}</summary><div class="menu">
+                  ${status === "published" ? html`<button type="button" data-action="unpublish">${L("Wycofaj ze strony", "Unpublish")}</button>` : ""}
+                  ${v ? html`<button type="button" data-action="duplicate">${L("Duplikuj", "Duplicate")}</button>
+                    <button type="button" class="danger" data-action="delete">${L("Przenieś do kosza", "Move to the bin")}</button>` : ""}
                 </div></details>` : ""}`}
           </div>
         </div>
         <div id="problems">${v ? problemsHtml(v.problems) : ""}</div>
-        ${v ? html`<p class="permalink muted small">Adres na stronie: <a href="${v.permalink.pl}" target="_blank" rel="noopener">${v.permalink.pl}</a></p>` : ""}
+        ${v ? html`<p class="permalink muted small">${L("Adres na stronie", "Address on the site")}: <a href="${v.permalink[lang]}" target="_blank" rel="noopener">${v.permalink[lang]}</a></p>` : ""}
 
         <section class="card">
-          <div class="section-head"><h2>Treść</h2>
+          <div class="section-head"><h2>${L("Treść", "Content")}</h2>
             <div class="lang-tabs" role="tablist">
               <button type="button" role="tab" data-lang="pl" aria-selected="${this.editLang === "pl"}">Polski</button>
               <button type="button" role="tab" data-lang="en" aria-selected="${this.editLang === "en"}">English</button>
             </div>
           </div>
-          <p class="muted small lang-en">Puste pola angielskie są na stronie zastępowane polskimi.</p>
-          ${this.textFields("title", "Tytuł", c.title, "input", 200)}
-          ${this.textFields("summary", "Krótki opis", c.summary, "short", 500)}
-          ${this.textFields("description", "Opis", c.description, "long", 10000)}
-          <div class="field"><label for="f-slug">Końcówka adresu</label>
-            <input id="f-slug" name="slug" value="${c.slug}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="tworzona z tytułu">
-            <p class="muted small">Można zmieniać – stare linki nadal działają dzięki stałemu identyfikatorowi ${v ? html`<code>${v.event.shortId}</code>` : ""}.</p></div>
+          <p class="muted small lang-en">${L("Puste pola angielskie są na stronie zastępowane polskimi.", "Empty English fields are replaced with Polish ones on the site.")}</p>
+          ${this.textFields("title", L("Tytuł", "Title"), c.title, "input", 200)}
+          ${this.textFields("summary", L("Krótki opis", "Summary"), c.summary, "short", 500)}
+          ${this.textFields("description", L("Opis", "Description"), c.description, "long", 10000)}
+          <div class="field"><label for="f-slug">${L("Końcówka adresu", "Address ending")}</label>
+            <input id="f-slug" name="slug" value="${c.slug}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="${L("tworzona z tytułu", "made from the title")}">
+            <p class="muted small">${L("Można zmieniać – stare linki nadal działają dzięki stałemu identyfikatorowi", "It can change – old links keep working thanks to the fixed identifier")} ${v ? html`<code>${v.event.shortId}</code>` : ""}.</p></div>
         </section>
 
         <section class="card schedule">
-          <h2>Termin</h2>
-          <fieldset class="kinds"><legend class="sr-only">Rodzaj</legend>
+          <h2>${L(L("Termin", "Date"), "Date")}</h2>
+          <fieldset class="kinds"><legend class="sr-only">${L("Rodzaj", "Type")}</legend>
             ${(
               [
-                ["single", "Jednorazowe"],
-                ["multiDay", "Wielodniowe"],
-                ["recurring", "Cykliczne"],
+                ["single", L("Jednorazowe", "Single")],
+                ["multiDay", L("Wielodniowe", "Multi-day")],
+                ["recurring", L("Cykliczne", "Recurring")],
               ] as [Kind, string][]
             ).map(([k, label]) => html`<label class="chip"><input type="radio" name="kind" value="${k}" ${s.kind === k ? "checked" : ""}> ${label}</label>`)}
           </fieldset>
           <div class="grid">
-            <div class="field"><label for="f-startDate">Data rozpoczęcia</label><input type="date" id="f-startDate" name="startDate" value="${s.startDate}"></div>
-            <div class="field"><label for="f-startTime">Początek</label><input type="time" id="f-startTime" name="startTime" value="${s.startTime}"></div>
-            <div class="field k-multiDay"><label for="f-endDate">Data końca</label><input type="date" id="f-endDate" name="endDate" value="${s.endDate ?? ""}"></div>
-            <div class="field"><label for="f-endTime">Koniec</label><input type="time" id="f-endTime" name="endTime" value="${s.endTime}"></div>
+            <div class="field"><label for="f-startDate">${L("Data rozpoczęcia", "Start date")}</label><input type="date" id="f-startDate" name="startDate" value="${s.startDate}"></div>
+            <div class="field"><label for="f-startTime">${L("Początek", "Start")}</label><input type="time" id="f-startTime" name="startTime" value="${s.startTime}"></div>
+            <div class="field k-multiDay"><label for="f-endDate">${L("Data końca", "End date")}</label><input type="date" id="f-endDate" name="endDate" value="${s.endDate ?? ""}"></div>
+            <div class="field"><label for="f-endTime">${L("Koniec", "End")}</label><input type="time" id="f-endTime" name="endTime" value="${s.endTime}"></div>
           </div>
-          <p class="muted small k-single">Godzina końca wcześniejsza niż początek oznacza zakończenie następnego dnia.</p>
+          <p class="muted small k-single">${L("Godzina końca wcześniejsza niż początek oznacza zakończenie następnego dnia.", "An end time earlier than the start time means it ends the next day.")}</p>
           <div class="grid k-recurring">
-            <div class="field"><label for="f-freq">Powtarzanie</label><select id="f-freq" name="freq">
-              <option value="weekly" ${r.freq === "weekly" ? "selected" : ""}>co tydzień</option>
-              <option value="biweekly" ${r.freq === "biweekly" ? "selected" : ""}>co dwa tygodnie</option>
-              <option value="monthly" ${r.freq === "monthly" ? "selected" : ""}>co miesiąc</option></select></div>
-            <div class="field nth"><label for="f-nth">Który</label><select id="f-nth" name="nth">
+            <div class="field"><label for="f-freq">${L("Powtarzanie", "Repeats")}</label><select id="f-freq" name="freq">
+              <option value="weekly" ${r.freq === "weekly" ? "selected" : ""}>${L("co tydzień", "weekly")}</option>
+              <option value="biweekly" ${r.freq === "biweekly" ? "selected" : ""}>${L("co dwa tygodnie", "every two weeks")}</option>
+              <option value="monthly" ${r.freq === "monthly" ? "selected" : ""}>${L("co miesiąc", "monthly")}</option></select></div>
+            <div class="field nth"><label for="f-nth">${L("Który", "Which")}</label><select id="f-nth" name="nth">
               ${NTH.map(([n, label]) => html`<option value="${n}" ${r.nth === n ? "selected" : ""}>${label}</option>`)}</select></div>
-            <div class="field"><label for="f-weekday">Dzień tygodnia</label><select id="f-weekday" name="weekday">
+            <div class="field"><label for="f-weekday">${L("Dzień tygodnia", "Weekday")}</label><select id="f-weekday" name="weekday">
               ${WEEKDAYS.map((d, i) => html`<option value="${i}" ${r.weekday === i ? "selected" : ""}>${d}</option>`)}</select></div>
-            <div class="field"><label for="f-until">Do dnia (najwyżej 24 miesiące)</label><input type="date" id="f-until" name="until" value="${r.endDate}"></div>
+            <div class="field"><label for="f-until">${L("Do dnia (najwyżej 24 miesiące)", "Until (at most 24 months)")}</label><input type="date" id="f-until" name="until" value="${r.endDate}"></div>
           </div>
           <div id="occurrences">${this.occurrencesHtml()}</div>
         </section>
 
         <section class="card">
-          <h2>Miejsce i cena</h2>
-          <div class="field"><label for="f-venue">Miejsce</label>
-            <select id="f-venue" name="venueId"><option value="">— wybierz —</option>
-              ${activeVenues.map((x) => html`<option value="${x.id}" ${c.venueId === x.id ? "selected" : ""}>${x.name} – ${x.address}${x.archived ? " (zarchiwizowane)" : ""}</option>`)}
+          <h2>${L("Miejsce i cena", "Venue and price")}</h2>
+          <div class="field"><label for="f-venue">${L("Miejsce", "Venue")}</label>
+            <select id="f-venue" name="venueId"><option value="">${L("— wybierz —", "— choose —")}</option>
+              ${activeVenues.map((x) => html`<option value="${x.id}" ${c.venueId === x.id ? "selected" : ""}>${x.name} – ${x.address}${x.archived ? L(" (zarchiwizowane)", " (archived)") : ""}</option>`)}
             </select>
-            <p class="muted small"><a href="/app/orgs/${this.org}/venues">Zarządzaj miejscami</a></p></div>
-          ${this.textFields("price", "Cena / wstęp", c.price?.text, "input", 500)}
-          <div class="field"><label for="f-priceUrl">Link do biletów lub zapisów</label><input type="url" id="f-priceUrl" name="priceUrl" value="${c.price?.url ?? ""}" placeholder="https://"></div>
+            <p class="muted small"><a href="/app/orgs/${this.org}/venues">${L("Zarządzaj miejscami", "Manage venues")}</a></p></div>
+          ${this.textFields("price", L("Cena / wstęp", "Price / admission"), c.price?.text, "input", 500)}
+          <div class="field"><label for="f-priceUrl">${L("Link do biletów lub zapisów", "Tickets or registration link")}</label><input type="url" id="f-priceUrl" name="priceUrl" value="${c.price?.url ?? ""}" placeholder="https://"></div>
         </section>
 
         <section class="card images">
-          <h2>Obrazy</h2>
+          <h2>${L("Obrazy", "Images")}</h2>
           ${this.imageBlock("cover", c.cover)}
           ${this.imageBlock("social", c.socialImage)}
         </section>
@@ -197,21 +198,21 @@ class EditorView extends View {
 
   private occurrencesHtml(): ReturnType<typeof html> {
     const occ = this.occurrences;
-    if (!occ.length) return html`<p class="muted small">Uzupełnij termin, aby zobaczyć daty.</p>`;
+    if (!occ.length) return html`<p class="muted small">${L("Uzupełnij termin, aby zobaczyć daty.", "Fill in the date to see the dates.")}</p>`;
     const recurring = this.content.schedule.kind === "recurring";
     const now = Date.now();
-    return html`<h3>${recurring ? `Terminy (${occ.length})` : "Termin"}</h3>
+    return html`<h3>${recurring ? L(`Terminy (${occ.length})`, `Dates (${occ.length})`) : L("Termin", "Date")}</h3>
       <ol class="occurrences">${occ.map((o) => {
         const ex = this.exceptions.get(o.key) ?? { date: o.key };
         const past = Date.parse(o.end) < now;
         return html`<li class="${o.cancelled ? "cancelled" : ""} ${past ? "past" : ""}" data-key="${o.key}">
           <span class="when">${fmtDateTime(o.start)} – ${fmtDateTime(o.end).split(", ").pop()}</span>
           ${recurring
-            ? html`<label class="inline"><input type="checkbox" data-ex="cancelled" ${ex.cancelled ? "checked" : ""}> odwołane</label>
-              <details ${ex.startTime || ex.endTime || ex.note?.pl ? "open" : ""}><summary>zmień</summary>
-                <label class="inline">od <input type="time" data-ex="startTime" value="${ex.startTime ?? ""}"></label>
-                <label class="inline">do <input type="time" data-ex="endTime" value="${ex.endTime ?? ""}"></label>
-                <label class="inline">uwaga <input data-ex="note" value="${ex.note?.pl ?? ""}" maxlength="200" placeholder="np. zmiana sali"></label>
+            ? html`<label class="inline"><input type="checkbox" data-ex="cancelled" ${ex.cancelled ? "checked" : ""}> ${L("odwołane", "cancelled")}</label>
+              <details ${ex.startTime || ex.endTime || ex.note?.pl ? "open" : ""}><summary>${L("zmień", "change")}</summary>
+                <label class="inline">${L("od", "from")} <input type="time" data-ex="startTime" value="${ex.startTime ?? ""}"></label>
+                <label class="inline">${L("do", "to")} <input type="time" data-ex="endTime" value="${ex.endTime ?? ""}"></label>
+                <label class="inline">${L("uwaga", "note")} <input data-ex="note" value="${ex.note?.pl ?? ""}" maxlength="200" placeholder="${L("np. zmiana sali", "e.g. different room")}"></label>
               </details>`
             : ""}
         </li>`;
@@ -261,7 +262,7 @@ class EditorView extends View {
         if (box) {
           box.innerHTML = this.occurrencesHtml().value;
           if (res.problems.length && this.content.schedule.startDate) {
-            box.insertAdjacentHTML("afterbegin", html`<ul class="hint">${res.problems.map((p) => html`<li>${p.message}</li>`)}</ul>`.value);
+            box.insertAdjacentHTML("afterbegin", html`<ul class="hint">${res.problems.map((p) => html`<li>${inLang(p.message)}</li>`)}</ul>`.value);
           }
         }
       } catch (err) {
@@ -277,17 +278,17 @@ class EditorView extends View {
       const v = this.view ? await api.updateEvent(this.org, this.view.event.id, this.view.etag, c) : await api.createEvent(this.org, c);
       this.dirty = false;
       if (!this.view) {
-        toast("Utworzono szkic");
+        toast(L("Utworzono szkic", "Draft created"));
         navigate(`/app/orgs/${this.org}/events/${v.event.id}`);
         return undefined;
       }
       this.setView(v);
       this.render();
-      toast("Zapisano szkic");
+      toast(L("Zapisano szkic", "Draft saved"));
       return v;
     } catch (err) {
       if (err instanceof ApiError && err.code === "conflict") {
-        toast("Ktoś inny zmienił to wydarzenie. Odśwież stronę, aby zobaczyć zmiany (Twoje zmiany nie zostały zapisane).", "error");
+        toast(L("Ktoś inny zmienił to wydarzenie. Odśwież stronę, aby zobaczyć zmiany (Twoje zmiany nie zostały zapisane).", "Someone else changed this event. Refresh the page to see the changes (your changes were not saved)."), "error");
         return undefined;
       }
       showError(err, problems as HTMLElement);
@@ -297,8 +298,8 @@ class EditorView extends View {
 
   private async action(name: "publish" | "unpublish" | "delete" | "restore" | "duplicate", btn: HTMLButtonElement): Promise<void> {
     const confirmText: Record<string, string> = {
-      unpublish: "Wycofać wydarzenie ze strony? Pozostanie w CMS jako szkic.",
-      delete: "Przenieść wydarzenie do kosza? Opublikowane zostanie wycofane ze strony. Posty na Facebooku i Instagramie pozostaną.",
+      unpublish: L("Wycofać wydarzenie ze strony? Pozostanie w CMS jako szkic.", "Unpublish the event from the site? It stays in the CMS as a draft."),
+      delete: L("Przenieść wydarzenie do kosza? Opublikowane zostanie wycofane ze strony. Posty na Facebooku i Instagramie pozostaną.", "Move the event to the bin? If published, it is removed from the site. Facebook and Instagram posts stay."),
     };
     if (confirmText[name] && !confirm(confirmText[name])) return;
     await busy(btn, async () => {
@@ -308,15 +309,15 @@ class EditorView extends View {
       try {
         const v = await api.eventAction(this.org, this.view!.event.id, name);
         if (name === "duplicate") {
-          toast("Utworzono kopię – uzupełnij daty");
+          toast(L("Utworzono kopię – uzupełnij daty", "Copy created – fill in the dates"));
           navigate(`/app/orgs/${this.org}/events/${v.event.id}`);
           return;
         }
         this.setView(v);
         this.render();
         toast(
-          { publish: "Opublikowano – strona zaktualizuje się w ciągu minuty", unpublish: "Wycofano ze strony", delete: "Przeniesiono do kosza", restore: "Przywrócono jako szkic" }[name] ??
-            "Gotowe",
+          { publish: L("Opublikowano – strona zaktualizuje się w ciągu minuty", "Published – the site updates within a minute"), unpublish: L("Wycofano ze strony", "Unpublished from the site"), delete: L("Przeniesiono do kosza", "Moved to the bin"), restore: L("Przywrócono jako szkic", "Restored as a draft") }[name] ??
+            L("Gotowe", "Done"),
         );
       } catch (err) {
         showError(err, this.querySelector("#problems") as HTMLElement);
@@ -328,7 +329,7 @@ class EditorView extends View {
     const file = input.files?.[0];
     if (!file) return;
     if (/\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type)) {
-      toast("Format HEIC nie jest obsługiwany – zapisz zdjęcie jako JPEG.", "error");
+      toast(L("Format HEIC nie jest obsługiwany – zapisz zdjęcie jako JPEG.", "HEIC is not supported – save the photo as JPEG."), "error");
       return;
     }
     this.collect();
@@ -340,7 +341,7 @@ class EditorView extends View {
       else this.content.socialImage = img;
       this.dirty = true;
       this.render();
-      toast("Wgrano obraz – zapisz szkic");
+      toast(L("Wgrano obraz – zapisz szkic", "Image uploaded – save the draft"));
     } catch (err) {
       showError(err);
     } finally {

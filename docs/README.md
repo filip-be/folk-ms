@@ -9,7 +9,7 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | Block | What it is | Path |
 | --- | --- | --- |
 | CMS | One Go binary: admin SPA under `/app/*`, JSON API under `/api/*`, sign-in under `/auth/*`, all on one origin | [`cms/`](../cms/) |
-| Admin SPA | TypeScript UI for Moderators, built with Bun and embedded into the CMS binary | [`cms/admin/`](../cms/admin/) |
+| Admin SPA | TypeScript UI for Moderators in Polish or English, built with Bun and embedded into the CMS binary | [`cms/admin/`](../cms/admin/) |
 | Storage | Private container `cms` for the CMS's documents; public container `pub` for snapshots and media | [`infra/azure/`](../infra/azure/) |
 | Contract | JSON Schema of the snapshot, shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
 | Sites | One static website per Organization, each with its own design | [`sites/`](../sites/) |
@@ -23,7 +23,7 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | [Event management](event-management/README.md) | Authoring Events, Recurrences, Venues and images; Draft, Publish, Unpublish and the Bin |
 | [Site delivery](site-delivery/README.md) | The per-Site snapshot, its contract, and how Sites read it |
 | [Social posting](social-posting/README.md) | Social Account Connections and posting Published Events to Facebook and Instagram |
-| [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log |
+| [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log, the admin UI language |
 | [Platform](platform/README.md) | Hosting, ports and adapters, dependency policy, infrastructure, CI/CD, local development, cost, open risks |
 
 **Event management** is the core: Moderators edit Drafts and Publish them. Every Publish feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Only Published Events can be announced through **Social posting**, because a Social Post links to the Event's Permalink. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.

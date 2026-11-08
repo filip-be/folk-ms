@@ -1,5 +1,6 @@
 import type { Me } from "./api.ts";
-import { showError, type Raw } from "./ui.ts";
+import { L } from "./i18n.ts";
+import { esc, showError, type Raw } from "./ui.ts";
 
 /** Base class of routed screens (light DOM, styled by app.css). */
 export abstract class View extends HTMLElement {
@@ -11,9 +12,9 @@ export abstract class View extends HTMLElement {
   }
 
   connectedCallback(): void {
-    this.innerHTML = `<p class="muted loading">Ładowanie…</p>`;
+    this.innerHTML = `<p class="muted loading">${esc(L("Ładowanie…", "Loading…"))}</p>`;
     this.load().catch((err) => {
-      this.innerHTML = `<div class="card"><p>Nie udało się wczytać danych.</p></div>`;
+      this.innerHTML = `<div class="card"><p>${esc(L("Nie udało się wczytać danych.", "The data could not be loaded."))}</p></div>`;
       showError(err);
     });
   }

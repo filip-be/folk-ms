@@ -31,17 +31,17 @@ func (v Venue) Normalize() Venue {
 func (v Venue) Validate() error {
 	var p problems
 	if v.Name == "" {
-		p.add("name", "nazwa jest wymagana")
+		p.add("name", "nazwa jest wymagana", "the name is required")
 	} else if len([]rune(v.Name)) > 200 {
-		p.add("name", "nazwa jest za długa")
+		p.add("name", "nazwa jest za długa", "the name is too long")
 	}
 	if v.Address == "" {
-		p.add("address", "adres jest wymagany")
+		p.add("address", "adres jest wymagany", "the address is required")
 	} else if len([]rune(v.Address)) > 500 {
-		p.add("address", "adres jest za długi")
+		p.add("address", "adres jest za długi", "the address is too long")
 	}
 	if v.MapURL != "" && !isHTTPURL(v.MapURL) {
-		p.add("mapUrl", "podaj adres zaczynający się od https://")
+		p.add("mapUrl", "podaj adres zaczynający się od https://", "enter an address starting with https://")
 	}
 	return p.err()
 }

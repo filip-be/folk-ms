@@ -81,9 +81,9 @@ func (ep *EventPosts) Begin(id string, p Platform, caption, imagePath, by string
 	caption = strings.TrimSpace(caption)
 	var pr problems
 	if caption == "" {
-		pr.add("caption", "treść posta jest wymagana")
+		pr.add("caption", "treść posta jest wymagana", "the post text is required")
 	} else if len([]rune(caption)) > MaxCaptionLen {
-		pr.add("caption", "treść posta może mieć najwyżej %d znaków", MaxCaptionLen)
+		pr.add("caption", "treść posta może mieć najwyżej %d znaków", "the post text can have at most %d characters", MaxCaptionLen)
 	}
 	if err := pr.err(); err != nil {
 		return nil, err
@@ -121,7 +121,28 @@ type Connection struct {
 	CreatedByEmail string    `json:"createdByEmail"`
 	CreatedAt      time.Time `json:"createdAt"`
 	NeedsReconnect bool      `json:"needsReconnect,omitempty"`
-	ReconnectNote  string    `json:"reconnectNote,omitempty"`
+	// ReconnectBy is the email of the creator who lost access.
+	ReconnectBy string `json:"reconnectBy,omitempty"`
+	// ReconnectNote is the Polish-only note of connections flagged before
+	// ReconnectBy existed; it is read, never written.
+	ReconnectNote string `json:"reconnectNote,omitempty"`
+}
+
+// ReconnectMessage explains to Moderators why the connection needs
+// reconnecting.
+func (c Connection) ReconnectMessage() Text {
+	switch {
+	case !c.NeedsReconnect:
+		return Text{}
+	case c.ReconnectBy != "":
+		return Text{
+			PL: "Osoba, która połączyła konto (" + c.ReconnectBy + "), straciła dostęp. Połącz konto ponownie.",
+			EN: "The person who connected the account (" + c.ReconnectBy + ") lost access. Reconnect the account.",
+		}
+	case c.ReconnectNote != "":
+		return Text{PL: c.ReconnectNote}
+	}
+	return Text{PL: "Połącz konto ponownie.", EN: "Reconnect the account."}
 }
 
 // FlagIfCreatedBy marks the connection for reconnection when its creator
@@ -131,6 +152,6 @@ func (c *Connection) FlagIfCreatedBy(userID, email string) bool {
 		return false
 	}
 	c.NeedsReconnect = true
-	c.ReconnectNote = "Osoba, która połączyła konto (" + email + "), straciła dostęp. Połącz konto ponownie."
+	c.ReconnectBy = email
 	return true
 }

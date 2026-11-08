@@ -105,14 +105,14 @@ func NewInvitation(id, email string, orgs []string, knownOrg func(string) bool, 
 	email = NormalizeEmail(email)
 	var p problems
 	if !ValidEmail(email) {
-		p.add("email", "podaj poprawny adres e-mail")
+		p.add("email", "podaj poprawny adres e-mail", "enter a valid email address")
 	}
 	if len(orgs) == 0 {
-		p.add("orgs", "wybierz co najmniej jedną organizację")
+		p.add("orgs", "wybierz co najmniej jedną organizację", "choose at least one organization")
 	}
 	for _, o := range orgs {
 		if !knownOrg(o) {
-			p.add("orgs", "nieznana organizacja %s", o)
+			p.add("orgs", "nieznana organizacja %s", "unknown organization %s", o)
 		}
 	}
 	if err := p.err(); err != nil {

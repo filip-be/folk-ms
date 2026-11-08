@@ -101,7 +101,7 @@ func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string
 	}
 	for _, o := range orgs {
 		if _, ok := a.orgByID[o]; !ok {
-			return nil, problem("orgs", "nieznana organizacja "+o)
+			return nil, problem("orgs", "nieznana organizacja "+o, "unknown organization "+o)
 		}
 	}
 	var removed []string
@@ -126,7 +126,7 @@ func (a *App) RevokeUser(ctx context.Context, p domain.Principal, userID string)
 		return nil, err
 	}
 	if userID == p.ID() {
-		return nil, problem("user", "nie można odebrać dostępu samemu sobie")
+		return nil, problem("user", "nie można odebrać dostępu samemu sobie", "you cannot revoke your own access")
 	}
 	var removed []string
 	u, _, err := mutate(ctx, a.Docs, userKey(userID), func(u *domain.User) error {
@@ -180,7 +180,7 @@ func (a *App) ReadAudit(ctx context.Context, p domain.Principal, day string) ([]
 		return nil, err
 	}
 	if _, err := time.Parse(time.DateOnly, day); err != nil {
-		return nil, problem("day", "nieprawidłowa data")
+		return nil, problem("day", "nieprawidłowa data", "invalid date")
 	}
 	data, err := a.Audit.Read(ctx, day)
 	if err != nil {

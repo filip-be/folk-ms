@@ -1,11 +1,15 @@
 import { api, ApiError, type Platform, type PostsView, type SocialPost } from "../api.ts";
-import { busy, fmtDateTime, html, showError, toast } from "../ui.ts";
+import { busy, fmtDateTime, html, showError, t, toast } from "../ui.ts";
 import { View } from "../view.ts";
+import { L } from "../i18n.ts";
 
 const NAME: Record<Platform, string> = { facebook: "Facebook", instagram: "Instagram" };
-/** Polish locative: "na Facebooku", "na Instagramie". */
-const ON: Record<Platform, string> = { facebook: "na Facebooku", instagram: "na Instagramie" };
-const STATUS: Record<string, string> = { pending: "wynik nieznany", posted: "opublikowano", failed: "błąd" };
+/** "on Facebook"; Polish uses the locative: "na Facebooku", "na Instagramie". */
+const ON: Record<Platform, string> = {
+  facebook: L("na Facebooku", "on Facebook"),
+  instagram: L("na Instagramie", "on Instagram"),
+};
+const STATUS: Record<string, string> = { pending: L("wynik nieznany", "outcome unknown"), posted: L("opublikowano", "posted"), failed: L("błąd", "failed") };
 
 class PostView extends View {
   private data!: PostsView;
@@ -17,7 +21,7 @@ class PostView extends View {
     this.on("[data-caption-lang]", "click", (_e, el) => {
       const pl = el.dataset.platform as Platform;
       const ta = this.$<HTMLTextAreaElement>(`#caption-${pl}`);
-      if (ta.value.trim() && !confirm("Zastąpić obecną treść wygenerowaną?")) return;
+      if (ta.value.trim() && !confirm(L("Zastąpić obecną treść wygenerowaną?", "Replace the current text with the generated one?"))) return;
       ta.value = this.data.captions[el.dataset.captionLang as "pl" | "en"];
       this.counter(pl);
     });
@@ -40,18 +44,18 @@ class PostView extends View {
 
   private render(): void {
     const d = this.data;
-    const back = html`<a href="/app/orgs/${this.org}/events/${this.params.id}" class="muted small">← Wróć do wydarzenia</a>`;
+    const back = html`<a href="/app/orgs/${this.org}/events/${this.params.id}" class="muted small">${L("← Wróć do wydarzenia", "← Back to the event")}</a>`;
     if (!d.published) {
-      this.set(html`${back}<div class="card"><h1>Ogłoś w mediach</h1><p>Ogłaszać można tylko opublikowane wydarzenia, bo post zawiera link do strony wydarzenia.</p></div>`);
+      this.set(html`${back}<div class="card"><h1>${L("Ogłoś w mediach", "Announce on social media")}</h1><p>${L("Ogłaszać można tylko opublikowane wydarzenia, bo post zawiera link do strony wydarzenia.", "Only published events can be announced, because the post links to the event's page.")}</p></div>`);
       return;
     }
     const conn = d.connection;
     this.set(html`${back}
-      <h1>Ogłoś w mediach</h1>
+      <h1>${L("Ogłoś w mediach", "Announce on social media")}</h1>
       ${!conn.connected
-        ? html`<div class="banner warn">Organizacja nie ma połączonego konta. <a href="/app/orgs/${this.org}/social">Połącz Facebook i Instagram</a></div>`
-        : html`<p class="muted">Strona: <strong>${conn.pageName}</strong>${conn.igUsername ? html` · Instagram: <strong>@${conn.igUsername}</strong>` : ""}</p>`}
-      ${conn.needsReconnect ? html`<div class="banner warn">${conn.reconnectNote}</div>` : ""}
+        ? html`<div class="banner warn">${L("Organizacja nie ma połączonego konta.", "The organization has no connected account.")} <a href="/app/orgs/${this.org}/social">${L("Połącz Facebook i Instagram", "Connect Facebook and Instagram")}</a></div>`
+        : html`<p class="muted">${L("Strona", "Page")}: <strong>${conn.pageName}</strong>${conn.igUsername ? html` · Instagram: <strong>@${conn.igUsername}</strong>` : ""}</p>`}
+      ${conn.needsReconnect ? html`<div class="banner warn">${t(conn.reconnectNote)}</div>` : ""}
       <div class="post-grid">${(["facebook", "instagram"] as Platform[]).map((pl) => {
         const hist = this.history(pl);
         const last = hist[0];
@@ -59,19 +63,19 @@ class PostView extends View {
         const disabled = !conn.connected || !img || (pl === "instagram" && !d.canInstagram);
         return html`<section class="card post-card">
           <h2>${NAME[pl]}</h2>
-          ${img ? html`<img class="post-image ${pl}" src="${img}" alt="Obraz posta">` : html`<p class="muted">Brak obrazu – dodaj zdjęcie główne i opublikuj wydarzenie ponownie.</p>`}
-          <div class="field"><label for="caption-${pl}">Treść posta</label>
+          ${img ? html`<img class="post-image ${pl}" src="${img}" alt="${L("Obraz posta", "Post image")}">` : html`<p class="muted">${L("Brak obrazu – dodaj zdjęcie główne i opublikuj wydarzenie ponownie.", "No image – add a cover image and publish the event again.")}</p>`}
+          <div class="field"><label for="caption-${pl}">${L("Treść posta", "Post text")}</label>
             <textarea id="caption-${pl}" data-platform="${pl}" rows="10">${last?.caption ?? d.captions.pl}</textarea>
             <div class="row"><span class="muted small" id="count-${pl}"></span>
-              <span><button type="button" class="link" data-platform="${pl}" data-caption-lang="pl">wygeneruj PL</button>
-              <button type="button" class="link" data-platform="${pl}" data-caption-lang="en">wygeneruj EN</button></span></div>
+              <span><button type="button" class="link" data-platform="${pl}" data-caption-lang="pl">${L("wygeneruj PL", "generate PL")}</button>
+              <button type="button" class="link" data-platform="${pl}" data-caption-lang="en">${L("wygeneruj EN", "generate EN")}</button></span></div>
           </div>
-          ${pl === "instagram" ? html`<p class="muted small">Linki w opisie na Instagramie nie są klikalne.</p>` : ""}
-          <button type="button" class="primary" data-post="${pl}" ${disabled ? "disabled" : ""}>Opublikuj ${ON[pl]}</button>
+          ${pl === "instagram" ? html`<p class="muted small">${L("Linki w opisie na Instagramie nie są klikalne.", "Links in an Instagram caption are not clickable.")}</p>` : ""}
+          <button type="button" class="primary" data-post="${pl}" ${disabled ? "disabled" : ""}>${L(`Opublikuj ${ON[pl]}`, `Post ${ON[pl]}`)}</button>
           ${hist.length
-            ? html`<h3>Historia</h3><ul class="history">${hist.map(
+            ? html`<h3>${L("Historia", "History")}</h3><ul class="history">${hist.map(
                 (p) => html`<li><span class="badge ${p.status}">${STATUS[p.status]}</span> ${fmtDateTime(p.attemptedAt)}
-                  ${p.url ? html` · <a href="${p.url}" target="_blank" rel="noopener">zobacz post</a>` : ""}
+                  ${p.url ? html` · <a href="${p.url}" target="_blank" rel="noopener">${L("zobacz post", "view post")}</a>` : ""}
                   ${p.error ? html`<div class="error small">${p.error}</div>` : ""}</li>`,
               )}</ul>`
             : ""}
@@ -87,17 +91,26 @@ class PostView extends View {
       for (;;) {
         try {
           const res = await api.post(this.org, this.params.id!, pl, caption, confirmRetry);
-          toast(res.status === "posted" ? `Opublikowano ${ON[pl]}` : `Nie udało się: ${res.error ?? ""}`, res.status === "posted" ? "ok" : "error");
+          toast(
+            res.status === "posted" ? L(`Opublikowano ${ON[pl]}`, `Posted ${ON[pl]}`) : L(`Nie udało się: ${res.error ?? ""}`, `Failed: ${res.error ?? ""}`),
+            res.status === "posted" ? "ok" : "error",
+          );
           break;
         } catch (err) {
           if (err instanceof ApiError && err.code === "needs_confirmation" && !confirmRetry) {
             const last = this.history(pl)[0];
             const msg =
               last?.status === "pending"
-                ? `Poprzednia próba publikacji ${ON[pl]} ma nieznany wynik. Sprawdź ${ON[pl]}, czy post się nie pojawił. Opublikować ponownie?`
+                ? L(
+                    `Poprzednia próba publikacji ${ON[pl]} ma nieznany wynik. Sprawdź ${ON[pl]}, czy post się nie pojawił. Opublikować ponownie?`,
+                    `The previous attempt to post ${ON[pl]} has an unknown outcome. Check ${ON[pl]} that the post did not appear. Post again?`,
+                  )
                 : last?.status === "posted"
-                  ? `To wydarzenie zostało już opublikowane ${ON[pl]}. Opublikować kolejny post?`
-                  : `Poprzednia próba się nie udała. Upewnij się, że post nie pojawił się ${ON[pl]}. Spróbować ponownie?`;
+                  ? L(`To wydarzenie zostało już opublikowane ${ON[pl]}. Opublikować kolejny post?`, `This event was already posted ${ON[pl]}. Post again?`)
+                  : L(
+                      `Poprzednia próba się nie udała. Upewnij się, że post nie pojawił się ${ON[pl]}. Spróbować ponownie?`,
+                      `The previous attempt failed. Make sure the post did not appear ${ON[pl]}. Try again?`,
+                    );
             if (!confirm(msg)) return;
             confirmRetry = true;
             continue;

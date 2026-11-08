@@ -4,7 +4,6 @@ package img
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -26,14 +25,22 @@ const (
 	Quality   = 82
 )
 
-// Errors with messages shown to Moderators (Polish).
+// Error is a problem with an upload, shown to Moderators in Polish or English.
+type Error struct{ PL, EN string }
+
+func (e *Error) Error() string { return e.EN }
+
+// Localized returns the Polish and English message.
+func (e *Error) Localized() (pl, en string) { return e.PL, e.EN }
+
+// Errors shown to Moderators.
 var (
-	ErrTooLarge     = errors.New("plik jest za duży (maks. 15 MB)")
-	ErrTooManyPx    = errors.New("obraz ma za dużo pikseli (maks. 50 Mpx)")
-	ErrHEIC         = errors.New("format HEIC nie jest obsługiwany: zapisz zdjęcie jako JPEG lub PNG")
-	ErrUnsupported  = errors.New("nieobsługiwany format obrazu: użyj JPEG, PNG lub WebP")
-	ErrTooSmall     = errors.New("obraz jest za mały (min. 400 px szerokości)")
-	ErrNotLandscape = errors.New("zdjęcie główne musi być poziome")
+	ErrTooLarge     = &Error{"plik jest za duży (maks. 15 MB)", "the file is too large (max. 15 MB)"}
+	ErrTooManyPx    = &Error{"obraz ma za dużo pikseli (maks. 50 Mpx)", "the image has too many pixels (max. 50 Mpx)"}
+	ErrHEIC         = &Error{"format HEIC nie jest obsługiwany: zapisz zdjęcie jako JPEG lub PNG", "HEIC is not supported: save the photo as JPEG or PNG"}
+	ErrUnsupported  = &Error{"nieobsługiwany format obrazu: użyj JPEG, PNG lub WebP", "unsupported image format: use JPEG, PNG or WebP"}
+	ErrTooSmall     = &Error{"obraz jest za mały (min. 400 px szerokości)", "the image is too small (min. 400 px wide)"}
+	ErrNotLandscape = &Error{"zdjęcie główne musi być poziome", "the cover image must be landscape"}
 )
 
 // Widths of the Cover Image variants shown on Sites.

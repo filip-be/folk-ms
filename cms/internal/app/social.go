@@ -24,11 +24,18 @@ func (a *App) UploadImage(ctx context.Context, p domain.Principal, org string, k
 		return nil, err
 	}
 	if kind != ports.ImageCover && kind != ports.ImageSocial {
-		return nil, &domain.ValidationError{Problems: []domain.FieldError{{Field: "kind", Message: "nieznany rodzaj obrazu"}}}
+		return nil, &domain.ValidationError{Problems: []domain.FieldError{{Field: "kind", Message: domain.Text{PL: "nieznany rodzaj obrazu", EN: "unknown image kind"}}}}
 	}
 	rends, err := a.Images.Process(data, kind)
 	if err != nil {
-		return nil, &domain.ValidationError{Problems: []domain.FieldError{{Field: "image", Message: err.Error()}}}
+		// Adapters describe a rejected upload with Localized; other errors
+		// are shown as they are.
+		var ue interface{ Localized() (pl, en string) }
+		if errors.As(err, &ue) {
+			pl, en := ue.Localized()
+			return nil, domain.Problem("image", pl, en)
+		}
+		return nil, domain.Problem("image", err.Error(), err.Error())
 	}
 	sum := sha256.Sum256(append([]byte(kind+"\x00"), data...))
 	hash := hex.EncodeToString(sum[:8])
@@ -51,15 +58,15 @@ func (a *App) UploadImage(ctx context.Context, p domain.Principal, org string, k
 
 // ConnectionStatus describes an Organization's Social Account Connection.
 type ConnectionStatus struct {
-	Connected      bool       `json:"connected"`
-	PageName       string     `json:"pageName,omitempty"`
-	PageID         string     `json:"pageId,omitempty"`
-	IGUsername     string     `json:"igUsername,omitempty"`
-	CreatedByEmail string     `json:"createdByEmail,omitempty"`
-	CreatedAt      *time.Time `json:"createdAt,omitempty"`
-	NeedsReconnect bool       `json:"needsReconnect"`
-	ReconnectNote  string     `json:"reconnectNote,omitempty"`
-	PendingPages   []PageInfo `json:"pendingPages,omitempty"`
+	Connected      bool         `json:"connected"`
+	PageName       string       `json:"pageName,omitempty"`
+	PageID         string       `json:"pageId,omitempty"`
+	IGUsername     string       `json:"igUsername,omitempty"`
+	CreatedByEmail string       `json:"createdByEmail,omitempty"`
+	CreatedAt      *time.Time   `json:"createdAt,omitempty"`
+	NeedsReconnect bool         `json:"needsReconnect"`
+	ReconnectNote  *domain.Text `json:"reconnectNote,omitempty"`
+	PendingPages   []PageInfo   `json:"pendingPages,omitempty"`
 }
 
 // PageInfo is a Facebook Page to choose from, without its token.
@@ -110,7 +117,11 @@ func (a *App) SocialStatus(ctx context.Context, p domain.Principal, org string) 
 	case err == nil:
 		st.Connected, st.PageName, st.PageID, st.IGUsername = true, c.PageName, c.PageID, c.IGUsername
 		st.CreatedByEmail, st.CreatedAt = c.CreatedByEmail, &c.CreatedAt
-		st.NeedsReconnect, st.ReconnectNote = c.NeedsReconnect, c.ReconnectNote
+		st.NeedsReconnect = c.NeedsReconnect
+		if c.NeedsReconnect {
+			note := c.ReconnectMessage()
+			st.ReconnectNote = &note
+		}
 	case !errors.Is(err, domain.ErrNotFound):
 		return st, err
 	}
@@ -293,8 +304,8 @@ func (a *App) EventPosts(ctx context.Context, p domain.Principal, org, id string
 	return v, nil
 }
 
-func problem(field, msg string) error {
-	return &domain.ValidationError{Problems: []domain.FieldError{{Field: field, Message: msg}}}
+func problem(field, pl, en string) error {
+	return domain.Problem(field, pl, en)
 }
 
 // Post publishes a Social Post of a Published Event on one platform. The
@@ -305,18 +316,18 @@ func (a *App) Post(ctx context.Context, p domain.Principal, org, id string, plat
 		return nil, err
 	}
 	if !domain.ValidPlatform(platform) {
-		return nil, problem("platform", "nieznana platforma")
+		return nil, problem("platform", "nieznana platforma", "unknown platform")
 	}
 	e, _, err := load[domain.Event](ctx, a.Docs, eventKey(org, id))
 	if err != nil {
 		return nil, err
 	}
 	if e.Published == nil || e.DeletedAt != nil {
-		return nil, problem("event", "tylko opublikowane wydarzenia można ogłaszać")
+		return nil, problem("event", "tylko opublikowane wydarzenia można ogłaszać", "only published events can be announced")
 	}
 	conn, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if errors.Is(err, domain.ErrNotFound) {
-		return nil, problem("connection", "połącz najpierw konto Facebook/Instagram")
+		return nil, problem("connection", "połącz najpierw konto Facebook/Instagram", "connect the Facebook/Instagram account first")
 	}
 	if err != nil {
 		return nil, err
@@ -324,13 +335,13 @@ func (a *App) Post(ctx context.Context, p domain.Principal, org, id string, plat
 	target := conn.PageID
 	if platform == domain.Instagram {
 		if conn.IGUserID == "" {
-			return nil, problem("connection", "strona nie ma połączonego konta Instagram")
+			return nil, problem("connection", "strona nie ma połączonego konta Instagram", "the Page has no connected Instagram account")
 		}
 		target = conn.IGUserID
 	}
 	imgPath := imageFor(e.Published, platform)
 	if imgPath == "" {
-		return nil, problem("image", "dodaj zdjęcie główne i opublikuj wydarzenie ponownie")
+		return nil, problem("image", "dodaj zdjęcie główne i opublikuj wydarzenie ponownie", "add a cover image and publish the event again")
 	}
 	var token string
 	if err := a.decrypt(conn.TokenEnc, connectionKey(org), &token); err != nil {
@@ -339,7 +350,8 @@ func (a *App) Post(ctx context.Context, p domain.Principal, org, id string, plat
 	if platform == domain.Instagram {
 		used, limit, err := a.Social.InstagramQuota(ctx, conn.IGUserID, token)
 		if err == nil && limit > 0 && used >= limit {
-			return nil, problem("instagram", fmt.Sprintf("wyczerpano dzienny limit publikacji na Instagramie (%d/%d)", used, limit))
+			return nil, problem("instagram", fmt.Sprintf("wyczerpano dzienny limit publikacji na Instagramie (%d/%d)", used, limit),
+				fmt.Sprintf("the daily Instagram publishing limit is used up (%d/%d)", used, limit))
 		}
 	}
 

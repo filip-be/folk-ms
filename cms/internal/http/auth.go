@@ -40,7 +40,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	u, err := s.IdP.AuthCodeURL(r.Context(), st.State, st.Nonce, challenge, s.BaseURL+"/auth/callback")
 	if err != nil {
 		s.Log.Error("auth url", "err", err)
-		s.authError(w, "Logowanie jest chwilowo niedostępne.")
+		s.authError(w, r, msg("Logowanie jest chwilowo niedostępne.", "Sign-in is temporarily unavailable."))
 		return
 	}
 	v, err := s.sign.seal("oidc", st)
@@ -58,27 +58,28 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	s.setCookie(w, oidcCookie, "", -1)
 	q := r.URL.Query()
 	if err != nil || time.Now().Unix() > st.Expires || q.Get("state") == "" || q.Get("state") != st.State {
-		s.authError(w, "Sesja logowania wygasła. Spróbuj ponownie.")
+		s.authError(w, r, msg("Sesja logowania wygasła. Spróbuj ponownie.", "The sign-in session expired. Try again."))
 		return
 	}
 	if q.Get("error") != "" {
-		s.authError(w, "Logowanie zostało przerwane.")
+		s.authError(w, r, msg("Logowanie zostało przerwane.", "Sign-in was cancelled."))
 		return
 	}
 	id, err := s.IdP.Exchange(r.Context(), q.Get("code"), st.Verifier, s.BaseURL+"/auth/callback", st.Nonce)
 	if err != nil {
 		s.Log.Warn("oidc exchange", "err", err)
-		s.authError(w, "Nie udało się potwierdzić tożsamości.")
+		s.authError(w, r, msg("Nie udało się potwierdzić tożsamości.", "Your identity could not be confirmed."))
 		return
 	}
 	u, err := s.App.SignIn(r.Context(), id)
 	if errors.Is(err, domain.ErrForbidden) {
-		s.authError(w, "Konto "+id.Email+" nie ma dostępu do CMS. Poproś administratora o zaproszenie.")
+		s.authError(w, r, msg("Konto "+id.Email+" nie ma dostępu do CMS. Poproś administratora o zaproszenie.",
+			"The account "+id.Email+" has no access to the CMS. Ask the administrator for an invitation."))
 		return
 	}
 	if err != nil {
 		s.Log.Error("sign in", "err", err)
-		s.authError(w, "Błąd logowania.")
+		s.authError(w, r, msg("Błąd logowania.", "Sign-in failed."))
 		return
 	}
 	now := time.Now()
@@ -103,12 +104,12 @@ func (s *Server) metaCallback(w http.ResponseWriter, r *http.Request) {
 	s.setCookie(w, metaCookie, "", -1)
 	q := r.URL.Query()
 	if err != nil || time.Now().Unix() > st.Expires || q.Get("state") != st.State || st.State == "" {
-		s.authError(w, "Sesja łączenia z Facebookiem wygasła. Spróbuj ponownie.")
+		s.authError(w, r, msg("Sesja łączenia z Facebookiem wygasła. Spróbuj ponownie.", "The Facebook connection session expired. Try again."))
 		return
 	}
 	p, err := s.principal(r)
 	if err != nil || p.ID() != st.UserID {
-		s.authError(w, "Zaloguj się do CMS i spróbuj ponownie.")
+		s.authError(w, r, msg("Zaloguj się do CMS i spróbuj ponownie.", "Sign in to the CMS and try again."))
 		return
 	}
 	back := "/app/orgs/" + st.Org + "/social"
@@ -141,40 +142,57 @@ func (s *Server) startMetaLogin(w http.ResponseWriter, r *http.Request, p domain
 }
 
 var pageTmpl = template.Must(template.New("p").Parse(`<!doctype html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<html lang="{{.Lang}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
 <title>{{.Title}}</title><link rel="stylesheet" href="/app/app.css"></head>
 <body><main class="card narrow"><h1>{{.Title}}</h1>{{range .Paragraphs}}<p>{{.}}</p>{{end}}
 {{if .Link}}<p><a class="button primary" href="{{.Link}}">{{.LinkText}}</a></p>{{end}}</main></body></html>`))
 
+// page is a server-rendered page with bilingual texts, shown in the
+// request's UI language.
 type page struct {
-	Title      string
-	Paragraphs []string
+	Title      domain.Text
+	Paragraphs []domain.Text
 	Link       string
-	LinkText   string
+	LinkText   domain.Text
 }
 
-func renderPage(w http.ResponseWriter, status int, p page) {
+func renderPage(w http.ResponseWriter, r *http.Request, status int, p page) {
+	l := requestLang(r)
+	paras := make([]string, len(p.Paragraphs))
+	for i, t := range p.Paragraphs {
+		paras[i] = t.In(l)
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Vary", "Accept-Language, Cookie")
 	w.WriteHeader(status)
-	_ = pageTmpl.Execute(w, p)
+	_ = pageTmpl.Execute(w, struct {
+		Lang, Title, Link, LinkText string
+		Paragraphs                  []string
+	}{string(l), p.Title.In(l), p.Link, p.LinkText.In(l), paras})
 }
 
-func (s *Server) authError(w http.ResponseWriter, msg string) {
-	renderPage(w, http.StatusForbidden, page{Title: "Logowanie", Paragraphs: []string{msg}, Link: "/auth/login", LinkText: "Zaloguj ponownie"})
+func (s *Server) authError(w http.ResponseWriter, r *http.Request, m domain.Text) {
+	renderPage(w, r, http.StatusForbidden, page{Title: msg("Logowanie", "Sign-in"), Paragraphs: []domain.Text{m},
+		Link: "/auth/login", LinkText: msg("Zaloguj ponownie", "Sign in again")})
 }
 
-func (s *Server) privacy(w http.ResponseWriter, _ *http.Request) {
-	renderPage(w, 200, page{Title: "Polityka prywatności", Paragraphs: []string{
-		"folk-ms to system do zarządzania wydarzeniami organizacji folkowych. Przetwarzamy wyłącznie dane osób, które zarządzają wydarzeniami (moderatorów): adres e-mail, imię i identyfikator konta Google, oraz dziennik ich działań.",
-		"Po połączeniu strony na Facebooku przechowujemy zaszyfrowany token strony, służący wyłącznie do publikowania ogłoszeń wydarzeń na prośbę moderatora. Nie przetwarzamy danych odwiedzających strony ani fanów.",
-		"Aby usunąć swoje dane, skontaktuj się z administratorem organizacji lub skorzystaj z instrukcji na stronie /data-deletion.",
+func (s *Server) privacy(w http.ResponseWriter, r *http.Request) {
+	renderPage(w, r, 200, page{Title: msg("Polityka prywatności", "Privacy policy"), Paragraphs: []domain.Text{
+		msg("folk-ms to system do zarządzania wydarzeniami organizacji folkowych. Przetwarzamy wyłącznie dane osób, które zarządzają wydarzeniami (moderatorów): adres e-mail, imię i identyfikator konta Google, oraz dziennik ich działań.",
+			"folk-ms is a system for managing the events of folk organizations. We process only the data of the people who manage events (moderators): their email address, name and Google account identifier, and the log of their actions."),
+		msg("Po połączeniu strony na Facebooku przechowujemy zaszyfrowany token strony, służący wyłącznie do publikowania ogłoszeń wydarzeń na prośbę moderatora. Nie przetwarzamy danych odwiedzających strony ani fanów.",
+			"After a Facebook Page is connected we store an encrypted Page token, used only to publish event announcements at a moderator's request. We do not process data of Page visitors or fans."),
+		msg("Aby usunąć swoje dane, skontaktuj się z administratorem organizacji lub skorzystaj z instrukcji na stronie /data-deletion.",
+			"To delete your data, contact the organization's administrator or follow the instructions at /data-deletion."),
 	}})
 }
 
-func (s *Server) dataDeletion(w http.ResponseWriter, _ *http.Request) {
-	renderPage(w, 200, page{Title: "Usuwanie danych", Paragraphs: []string{
-		"Aby usunąć połączenie z Facebookiem i Instagramem: zaloguj się do CMS, otwórz „Media społecznościowe” i kliknij „Rozłącz”. Token strony zostanie natychmiast usunięty. Możesz też usunąć aplikację w ustawieniach Facebooka (Ustawienia → Aplikacje i witryny).",
-		"Aby usunąć swoje konto moderatora, poproś administratora CMS o odebranie dostępu; wpisy w dzienniku zmian są przechowywane jako zapis historii wydarzeń.",
+func (s *Server) dataDeletion(w http.ResponseWriter, r *http.Request) {
+	renderPage(w, r, 200, page{Title: msg("Usuwanie danych", "Data deletion"), Paragraphs: []domain.Text{
+		msg("Aby usunąć połączenie z Facebookiem i Instagramem: zaloguj się do CMS, otwórz „Media społecznościowe” i kliknij „Rozłącz”. Token strony zostanie natychmiast usunięty. Możesz też usunąć aplikację w ustawieniach Facebooka (Ustawienia → Aplikacje i witryny).",
+			"To remove the Facebook and Instagram connection: sign in to the CMS, open “Social media” and click “Disconnect”. The Page token is deleted immediately. You can also remove the app in your Facebook settings (Settings → Apps and websites)."),
+		msg("Aby usunąć swoje konto moderatora, poproś administratora CMS o odebranie dostępu; wpisy w dzienniku zmian są przechowywane jako zapis historii wydarzeń.",
+			"To delete your moderator account, ask the CMS administrator to revoke your access; audit log entries are kept as a record of the events' history."),
 	}})
 }
 

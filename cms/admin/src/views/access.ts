@@ -1,8 +1,9 @@
 import { api, type Invitation, type User } from "../api.ts";
-import { busy, fmtDate, fmtDateTime, html, showError, toast } from "../ui.ts";
+import { busy, fmtDate, fmtDateTime, html, showError, t, toast } from "../ui.ts";
 import { View } from "../view.ts";
+import { L } from "../i18n.ts";
 
-const INV_STATUS: Record<string, string> = { pending: "oczekuje", bound: "przyjęte", expired: "wygasło", revoked: "odwołane" };
+const INV_STATUS: Record<string, string> = { pending: L("oczekuje", "pending"), bound: L("przyjęte", "accepted"), expired: L("wygasło", "expired"), revoked: L("odwołane", "revoked") };
 
 class AccessView extends View {
   private users: User[] = [];
@@ -17,12 +18,12 @@ class AccessView extends View {
       else void this.saveOrgs(f);
     });
     this.on("[data-revoke-inv]", "click", (_e, el) => {
-      if (!confirm("Odwołać zaproszenie?")) return;
-      void this.act(el as HTMLButtonElement, () => api.revokeInvitation(el.dataset.revokeInv!), "Odwołano zaproszenie");
+      if (!confirm(L("Odwołać zaproszenie?", "Revoke the invitation?"))) return;
+      void this.act(el as HTMLButtonElement, () => api.revokeInvitation(el.dataset.revokeInv!), L("Odwołano zaproszenie", "Invitation revoked"));
     });
     this.on("[data-revoke-user]", "click", (_e, el) => {
-      if (!confirm("Odebrać cały dostęp? Działa od następnego kliknięcia tej osoby.")) return;
-      void this.act(el as HTMLButtonElement, () => api.revokeUser(el.dataset.revokeUser!), "Odebrano dostęp");
+      if (!confirm(L("Odebrać cały dostęp? Działa od następnego kliknięcia tej osoby.", "Revoke all access? It takes effect on this person's next click."))) return;
+      void this.act(el as HTMLButtonElement, () => api.revokeUser(el.dataset.revokeUser!), L("Odebrano dostęp", "Access revoked"));
     });
   }
 
@@ -33,62 +34,62 @@ class AccessView extends View {
 
   private orgBoxes(selected: string[]): ReturnType<typeof html> {
     return html`${this.me.orgs.map(
-      (o) => html`<label class="chip"><input type="checkbox" name="orgs" value="${o.id}" ${selected.includes(o.id) ? "checked" : ""}> ${o.name.pl}</label>`,
+      (o) => html`<label class="chip"><input type="checkbox" name="orgs" value="${o.id}" ${selected.includes(o.id) ? "checked" : ""}> ${t(o.name)}</label>`,
     )}`;
   }
 
   private render(): void {
     const loginUrl = `${location.origin}/app/`;
     this.set(html`
-      <h1>Moderatorzy</h1>
+      <h1>${L("Moderatorzy", "Moderators")}</h1>
       <section class="card">
-        <h2>Zaproś moderatora</h2>
+        <h2>${L("Zaproś moderatora", "Invite a moderator")}</h2>
         <form id="invite">
-          <div class="field"><label>E-mail konta Google<input name="email" type="email" required></label></div>
-          <fieldset><legend>Organizacje</legend>${this.orgBoxes([])}</fieldset>
-          <button class="primary" type="submit">Zaproś</button>
+          <div class="field"><label>${L("E-mail konta Google", "Google account email")}<input name="email" type="email" required></label></div>
+          <fieldset><legend>${L("Organizacje", "Organizations")}</legend>${this.orgBoxes([])}</fieldset>
+          <button class="primary" type="submit">${L("Zaproś", "Invite")}</button>
         </form>
-        <p class="muted small">CMS nie wysyła e-maili. Przekaż osobie link <code>${loginUrl}</code> – zaproszenie wiąże się z jej kontem Google przy pierwszym logowaniu i wygasa po 14 dniach.</p>
+        <p class="muted small">${L("CMS nie wysyła e-maili. Przekaż osobie link", "The CMS sends no email. Give the person the link")} <code>${loginUrl}</code> – ${L("zaproszenie wiąże się z jej kontem Google przy pierwszym logowaniu i wygasa po 14 dniach.", "the invitation is bound to their Google account on first sign-in and expires after 14 days.")}</p>
       </section>
 
       <section class="card">
-        <h2>Zaproszenia</h2>
+        <h2>${L("Zaproszenia", "Invitations")}</h2>
         ${this.invs.length
-          ? html`<table class="list"><thead><tr><th>E-mail</th><th>Organizacje</th><th>Stan</th><th>Wygasa</th><th></th></tr></thead><tbody>
+          ? html`<table class="list"><thead><tr><th>${L("E-mail", "Email")}</th><th>${L("Organizacje", "Organizations")}</th><th>${L("Stan", "Status")}</th><th>${L("Wygasa", "Expires")}</th><th></th></tr></thead><tbody>
             ${this.invs.map(
               (i) => html`<tr><td>${i.email}</td><td>${i.orgs.join(", ")}</td><td><span class="badge ${i.effectiveStatus}">${INV_STATUS[i.effectiveStatus] ?? i.effectiveStatus}</span></td>
                 <td>${fmtDate(i.expiresAt)}</td>
-                <td>${i.effectiveStatus === "pending" ? html`<button type="button" class="link danger" data-revoke-inv="${i.id}">Odwołaj</button>` : ""}</td></tr>`,
+                <td>${i.effectiveStatus === "pending" ? html`<button type="button" class="link danger" data-revoke-inv="${i.id}">${L("Odwołaj", "Revoke")}</button>` : ""}</td></tr>`,
             )}</tbody></table>`
-          : html`<p class="muted">Brak zaproszeń.</p>`}
+          : html`<p class="muted">${L("Brak zaproszeń.", "No invitations.")}</p>`}
       </section>
 
       <section class="card">
-        <h2>Użytkownicy</h2>
+        <h2>${L("Użytkownicy", "Users")}</h2>
         <ul class="users">${this.users.map(
           (u) => html`<li class="${u.revoked ? "revoked" : ""}">
-            <div><strong>${u.email}</strong> ${u.superAdmin ? html`<span class="badge published">administrator</span>` : ""}
-              ${u.revoked ? html`<span class="badge binned">bez dostępu</span>` : ""}
-              <div class="muted small">ostatnie logowanie ${fmtDateTime(u.lastLoginAt)}</div></div>
+            <div><strong>${u.email}</strong> ${u.superAdmin ? html`<span class="badge published">${L("administrator", "administrator")}</span>` : ""}
+              ${u.revoked ? html`<span class="badge binned">${L("bez dostępu", "no access")}</span>` : ""}
+              <div class="muted small">${L("ostatnie logowanie", "last sign-in")} ${fmtDateTime(u.lastLoginAt)}</div></div>
             ${u.superAdmin || u.revoked
               ? ""
               : html`<form data-user="${u.id}" class="inline-form">${this.orgBoxes(u.orgs ?? [])}
-                  <button type="submit">Zapisz</button>
-                  <button type="button" class="link danger" data-revoke-user="${u.id}">Odbierz dostęp</button></form>`}
+                  <button type="submit">${L("Zapisz", "Save")}</button>
+                  <button type="button" class="link danger" data-revoke-user="${u.id}">${L("Odbierz dostęp", "Revoke access")}</button></form>`}
           </li>`,
         )}</ul>
-        <p class="muted small">Odebranie organizacji osobie, która połączyła jej konto Facebook, pokaże moderatorom ostrzeżenie o ponownym połączeniu.</p>
+        <p class="muted small">${L("Odebranie organizacji osobie, która połączyła jej konto Facebook, pokaże moderatorom ostrzeżenie o ponownym połączeniu.", "Removing an organization from the person who connected its Facebook account shows its moderators a warning to reconnect.")}</p>
       </section>`);
   }
 
   private async invite(f: HTMLFormElement): Promise<void> {
     const fd = new FormData(f);
-    await this.act(f.querySelector("button"), () => api.invite(String(fd.get("email")), fd.getAll("orgs").map(String)), "Utworzono zaproszenie");
+    await this.act(f.querySelector("button"), () => api.invite(String(fd.get("email")), fd.getAll("orgs").map(String)), L("Utworzono zaproszenie", "Invitation created"));
   }
 
   private async saveOrgs(f: HTMLFormElement): Promise<void> {
     const orgs = new FormData(f).getAll("orgs").map(String);
-    await this.act(f.querySelector("button[type=submit]"), () => api.setUserOrgs(f.dataset.user!, orgs), "Zapisano");
+    await this.act(f.querySelector("button[type=submit]"), () => api.setUserOrgs(f.dataset.user!, orgs), L("Zapisano", "Saved"));
   }
 
   private async act(btn: HTMLButtonElement | null, fn: () => Promise<unknown>, ok: string): Promise<void> {

@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -19,7 +18,7 @@ const (
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	ct := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "application/json") {
-		return fmt.Errorf("%w: oczekiwano JSON", errBadRequest)
+		return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano JSON", "bad request: JSON expected")}
 	}
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSON))
 	dec.DisallowUnknownFields()
@@ -27,7 +26,7 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 		if _, ok := err.(*http.MaxBytesError); ok {
 			return err
 		}
-		return fmt.Errorf("%w: %v", errBadRequest, err)
+		return &badRequest{msg: msg("nieprawidłowe żądanie: "+err.Error(), "bad request: "+err.Error()), cause: err}
 	}
 	return nil
 }
@@ -151,7 +150,7 @@ func (s *Server) routes(m *http.ServeMux) {
 	// Images: the raw file is the body.
 	m.Handle("POST /api/orgs/{org}/images", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "image/") {
-			return fmt.Errorf("%w: oczekiwano pliku obrazu", errBadRequest)
+			return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano pliku obrazu", "bad request: image file expected")}
 		}
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImage))
 		if err != nil {

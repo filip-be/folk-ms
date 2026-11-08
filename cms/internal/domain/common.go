@@ -56,11 +56,16 @@ var (
 	ErrTooManyEvents = errors.New("too many")
 )
 
-// FieldError is one validation problem. Messages are Polish: they are shown
-// to Moderators as they are.
+// FieldError is one validation problem. Its Message is shown to Moderators
+// in the admin UI language, so it always has both Polish and English.
 type FieldError struct {
 	Field   string `json:"field"`
-	Message string `json:"message"`
+	Message Text   `json:"message"`
+}
+
+// Problem returns a ValidationError with one FieldError.
+func Problem(field, pl, en string) *ValidationError {
+	return &ValidationError{Problems: []FieldError{{Field: field, Message: Text{PL: pl, EN: en}}}}
 }
 
 // ValidationError collects FieldErrors.
@@ -71,15 +76,16 @@ type ValidationError struct {
 func (e *ValidationError) Error() string {
 	parts := make([]string, len(e.Problems))
 	for i, p := range e.Problems {
-		parts[i] = p.Field + ": " + p.Message
+		parts[i] = p.Field + ": " + p.Message.EN
 	}
 	return "validation: " + strings.Join(parts, "; ")
 }
 
 type problems []FieldError
 
-func (p *problems) add(field, format string, args ...any) {
-	*p = append(*p, FieldError{Field: field, Message: fmt.Sprintf(format, args...)})
+// add appends a problem; pl and en are format strings sharing args.
+func (p *problems) add(field, pl, en string, args ...any) {
+	*p = append(*p, FieldError{Field: field, Message: Text{PL: fmt.Sprintf(pl, args...), EN: fmt.Sprintf(en, args...)}})
 }
 
 func (p problems) err() error {

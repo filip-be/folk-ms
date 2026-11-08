@@ -121,72 +121,72 @@ func (s Schedule) validate(p *problems) {
 	before := len(*p)
 	start, okStart := parseDate(s.StartDate)
 	if !okStart {
-		p.add("schedule.startDate", "podaj datę rozpoczęcia")
+		p.add("schedule.startDate", "podaj datę rozpoczęcia", "enter the start date")
 	}
 	if _, _, ok := parseClock(s.StartTime); !ok {
-		p.add("schedule.startTime", "podaj godzinę rozpoczęcia (GG:MM)")
+		p.add("schedule.startTime", "podaj godzinę rozpoczęcia (GG:MM)", "enter the start time (HH:MM)")
 	}
 	if _, _, ok := parseClock(s.EndTime); !ok {
-		p.add("schedule.endTime", "podaj godzinę zakończenia (GG:MM)")
+		p.add("schedule.endTime", "podaj godzinę zakończenia (GG:MM)", "enter the end time (HH:MM)")
 	}
 	switch s.Kind {
 	case KindSingle:
 		if s.Recurrence != nil {
-			p.add("schedule.recurrence", "wydarzenie jednorazowe nie ma powtarzania")
+			p.add("schedule.recurrence", "wydarzenie jednorazowe nie ma powtarzania", "a single event has no recurrence")
 		}
 		if len(s.Exceptions) > 0 {
-			p.add("schedule.exceptions", "wyjątki dotyczą tylko wydarzeń cyklicznych")
+			p.add("schedule.exceptions", "wyjątki dotyczą tylko wydarzeń cyklicznych", "exceptions apply only to recurring events")
 		}
 	case KindMultiDay:
 		end, ok := parseDate(s.EndDate)
 		switch {
 		case !ok:
-			p.add("schedule.endDate", "podaj datę zakończenia")
+			p.add("schedule.endDate", "podaj datę zakończenia", "enter the end date")
 		case okStart && !end.After(start):
-			p.add("schedule.endDate", "data zakończenia musi być późniejsza niż data rozpoczęcia")
+			p.add("schedule.endDate", "data zakończenia musi być późniejsza niż data rozpoczęcia", "the end date must be after the start date")
 		case okStart && end.Sub(start) > MaxMultiDayDays*24*time.Hour:
-			p.add("schedule.endDate", "wydarzenie wielodniowe może trwać najwyżej %d dni", MaxMultiDayDays)
+			p.add("schedule.endDate", "wydarzenie wielodniowe może trwać najwyżej %d dni", "a multi-day event can last at most %d days", MaxMultiDayDays)
 		}
 		if s.Recurrence != nil {
-			p.add("schedule.recurrence", "wydarzenie wielodniowe nie ma powtarzania")
+			p.add("schedule.recurrence", "wydarzenie wielodniowe nie ma powtarzania", "a multi-day event has no recurrence")
 		}
 		if len(s.Exceptions) > 0 {
-			p.add("schedule.exceptions", "wyjątki dotyczą tylko wydarzeń cyklicznych")
+			p.add("schedule.exceptions", "wyjątki dotyczą tylko wydarzeń cyklicznych", "exceptions apply only to recurring events")
 		}
 	case KindRecurring:
 		r := s.Recurrence
 		if r == nil {
-			p.add("schedule.recurrence", "podaj regułę powtarzania")
+			p.add("schedule.recurrence", "podaj regułę powtarzania", "enter the recurrence rule")
 			return
 		}
 		switch r.Freq {
 		case Weekly, Biweekly:
 			if r.Nth != 0 {
-				p.add("schedule.recurrence.nth", "„który w miesiącu” dotyczy tylko powtarzania miesięcznego")
+				p.add("schedule.recurrence.nth", "„który w miesiącu” dotyczy tylko powtarzania miesięcznego", "“which in the month” applies only to monthly recurrence")
 			}
 		case Monthly:
 			if r.Nth != -1 && (r.Nth < 1 || r.Nth > 4) {
-				p.add("schedule.recurrence.nth", "wybierz który dzień tygodnia w miesiącu (1–4 lub ostatni)")
+				p.add("schedule.recurrence.nth", "wybierz który dzień tygodnia w miesiącu (1–4 lub ostatni)", "choose which weekday of the month (1–4 or last)")
 			}
 		default:
-			p.add("schedule.recurrence.freq", "wybierz częstotliwość")
+			p.add("schedule.recurrence.freq", "wybierz częstotliwość", "choose the frequency")
 		}
 		if r.Weekday < 0 || r.Weekday > 6 {
-			p.add("schedule.recurrence.weekday", "wybierz dzień tygodnia")
+			p.add("schedule.recurrence.weekday", "wybierz dzień tygodnia", "choose the weekday")
 		}
 		end, ok := parseDate(r.EndDate)
 		switch {
 		case !ok:
-			p.add("schedule.recurrence.endDate", "podaj datę końca powtarzania")
+			p.add("schedule.recurrence.endDate", "podaj datę końca powtarzania", "enter the date the recurrence ends")
 		case okStart && end.Before(start):
-			p.add("schedule.recurrence.endDate", "koniec powtarzania musi być po dacie rozpoczęcia")
+			p.add("schedule.recurrence.endDate", "koniec powtarzania musi być po dacie rozpoczęcia", "the recurrence must end after the start date")
 		case okStart && end.After(start.AddDate(0, MaxRecurrenceMonths, 0)):
-			p.add("schedule.recurrence.endDate", "powtarzanie może trwać najwyżej %d miesiące", MaxRecurrenceMonths)
+			p.add("schedule.recurrence.endDate", "powtarzanie może trwać najwyżej %d miesiące", "the recurrence can last at most %d months", MaxRecurrenceMonths)
 		}
 		if len(*p) == before {
 			dates := s.recurringDates()
 			if len(dates) == 0 {
-				p.add("schedule.recurrence", "reguła nie daje żadnego terminu")
+				p.add("schedule.recurrence", "reguła nie daje żadnego terminu", "the rule yields no dates")
 			}
 			known := map[string]bool{}
 			for _, d := range dates {
@@ -196,26 +196,26 @@ func (s Schedule) validate(p *problems) {
 			for i, e := range s.Exceptions {
 				f := fmt.Sprintf("schedule.exceptions[%d]", i)
 				if !known[e.Date] {
-					p.add(f+".date", "%s nie jest terminem tego wydarzenia", e.Date)
+					p.add(f+".date", "%s nie jest terminem tego wydarzenia", "%s is not a date of this event", e.Date)
 				}
 				if seen[e.Date] {
-					p.add(f+".date", "termin %s ma już wyjątek", e.Date)
+					p.add(f+".date", "termin %s ma już wyjątek", "the date %s already has an exception", e.Date)
 				}
 				seen[e.Date] = true
 				if e.StartTime != "" {
 					if _, _, ok := parseClock(e.StartTime); !ok {
-						p.add(f+".startTime", "nieprawidłowa godzina")
+						p.add(f+".startTime", "nieprawidłowa godzina", "invalid time")
 					}
 				}
 				if e.EndTime != "" {
 					if _, _, ok := parseClock(e.EndTime); !ok {
-						p.add(f+".endTime", "nieprawidłowa godzina")
+						p.add(f+".endTime", "nieprawidłowa godzina", "invalid time")
 					}
 				}
 			}
 		}
 	default:
-		p.add("schedule.kind", "wybierz rodzaj wydarzenia")
+		p.add("schedule.kind", "wybierz rodzaj wydarzenia", "choose the event type")
 	}
 }
 

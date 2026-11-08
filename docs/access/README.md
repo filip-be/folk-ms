@@ -30,6 +30,12 @@ flowchart LR
 - Unsafe methods are protected against CSRF: `Sec-Fetch-Site` must be `same-origin` when present, otherwise `Origin` must be the CMS origin. JSON bodies must be `application/json`.
 - Sign-in endpoints are rate limited; responses carry a CSP and security headers.
 
+### Admin UI language
+
+The admin SPA and the CMS's own pages (sign-in errors, privacy, data deletion) are in Polish or English. The language comes from the user's browser settings: the first of Polish or English among the browser's preferred languages (`navigator.languages` in the SPA, `Accept-Language` on the server), else English. The switch in the header overrides it for a year in the `folkms-lang` cookie, which the SPA sets and the server reads, and reloads the page in that language.
+
+The API does not depend on the language: every message it returns (errors, validation problems, the reconnection note) carries both Polish and English, and the SPA shows the one it uses. This is independent of Event content, which is authored in Polish with optional English for Sites.
+
 ### Audit Log
 
 An append-only record of Event changes, Publish and Unpublish, Social Posts and access grants, in one append blob per day. Only the Super Admin can read it. It outlives Events purged from the Bin.
@@ -41,7 +47,14 @@ An append-only record of Event changes, Publish and Unpublish, Social Posts and 
 | Roles and Invitation lifecycle | [`cms/internal/domain/access.go`](../../cms/internal/domain/access.go), [`cms/internal/app/auth.go`](../../cms/internal/app/auth.go), [`cms/internal/app/access.go`](../../cms/internal/app/access.go) |
 | Google and dev OIDC adapters | [`cms/internal/adapters/google/`](../../cms/internal/adapters/google/), [`cms/internal/adapters/devoidc/`](../../cms/internal/adapters/devoidc/) |
 | Session cookie, CSRF, headers, rate limit | [`cms/internal/http/`](../../cms/internal/http/) |
+| Admin UI language: choice, switch and server pages | [`cms/admin/src/i18n.ts`](../../cms/admin/src/i18n.ts), [`cms/internal/http/lang.go`](../../cms/internal/http/lang.go) |
 | Moderators, Invitations and Audit Log screens | [`cms/admin/src/views/access.ts`](../../cms/admin/src/views/access.ts), [`cms/admin/src/views/audit.ts`](../../cms/admin/src/views/audit.ts) |
+
+## Change together
+
+| Rule | Files | What breaks |
+| --- | --- | --- |
+| The SPA and the server use the same language cookie | `cms/admin/src/i18n.ts`, `cms/internal/http/lang.go` | Server pages ignore the language chosen in the SPA. Enforced by `TestLangCookieMatchesAdmin` in `cms/internal/http`. |
 
 ## Read next
 

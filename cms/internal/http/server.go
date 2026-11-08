@@ -161,11 +161,11 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 		}
 		if sfs := r.Header.Get("Sec-Fetch-Site"); sfs != "" {
 			if sfs != "same-origin" {
-				writeJSON(w, http.StatusForbidden, errorBody{Error: "csrf", Message: "żądanie z innej strony zostało odrzucone"})
+				writeJSON(w, http.StatusForbidden, errorBody{Error: "csrf", Message: msg("żądanie z innej strony zostało odrzucone", "cross-site request rejected")})
 				return
 			}
 		} else if o := r.Header.Get("Origin"); o != s.BaseURL {
-			writeJSON(w, http.StatusForbidden, errorBody{Error: "csrf", Message: "żądanie z innej strony zostało odrzucone"})
+			writeJSON(w, http.StatusForbidden, errorBody{Error: "csrf", Message: msg("żądanie z innej strony zostało odrzucone", "cross-site request rejected")})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -207,7 +207,7 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 					panic(v)
 				}
 				s.Log.Error("panic", "path", r.URL.Path, "panic", v)
-				writeJSON(w, 500, errorBody{Error: "internal", Message: "błąd serwera"})
+				writeJSON(w, 500, errorBody{Error: "internal", Message: msg("błąd serwera", "server error")})
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -236,7 +236,7 @@ func (s *Server) rateLimit(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.limiter.allow(s.clientIP(r)) {
 			w.Header().Set("Retry-After", "60")
-			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: "zbyt wiele prób, spróbuj za minutę"})
+			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("zbyt wiele prób, spróbuj za minutę", "too many attempts, try again in a minute")})
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -282,7 +282,7 @@ func (l *limiter) allow(key string) bool {
 
 type errorBody struct {
 	Error    string              `json:"error"`
-	Message  string              `json:"message"`
+	Message  domain.Text         `json:"message"`
 	Problems []domain.FieldError `json:"problems,omitempty"`
 }
 
@@ -295,29 +295,43 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	var ve *domain.ValidationError
 	var mbe *http.MaxBytesError
+	var bre *badRequest
 	switch {
 	case errors.As(err, &ve):
-		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: "validation", Message: "popraw zaznaczone pola", Problems: ve.Problems})
+		writeJSON(w, http.StatusUnprocessableEntity, errorBody{Error: "validation", Message: msg("popraw zaznaczone pola", "correct the marked fields"), Problems: ve.Problems})
 	case errors.As(err, &mbe):
-		writeJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: "too_large", Message: "przesłane dane są za duże"})
+		writeJSON(w, http.StatusRequestEntityTooLarge, errorBody{Error: "too_large", Message: msg("przesłane dane są za duże", "the uploaded data is too large")})
 	case errors.Is(err, domain.ErrUnauthorized):
-		writeJSON(w, http.StatusUnauthorized, errorBody{Error: "unauthorized", Message: "zaloguj się"})
+		writeJSON(w, http.StatusUnauthorized, errorBody{Error: "unauthorized", Message: msg("zaloguj się", "sign in")})
 	case errors.Is(err, domain.ErrForbidden):
-		writeJSON(w, http.StatusForbidden, errorBody{Error: "forbidden", Message: "brak dostępu"})
+		writeJSON(w, http.StatusForbidden, errorBody{Error: "forbidden", Message: msg("brak dostępu", "access denied")})
 	case errors.Is(err, domain.ErrNotFound):
-		writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: "nie znaleziono"})
+		writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: msg("nie znaleziono", "not found")})
 	case errors.Is(err, domain.ErrNeedsConfirm):
-		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: "potwierdź ponowną publikację"})
+		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: msg("potwierdź ponowną publikację", "confirm publishing again")})
 	case errors.Is(err, domain.ErrConflict):
-		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: "ktoś inny zmienił te dane – odśwież i spróbuj ponownie"})
+		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: msg("ktoś inny zmienił te dane – odśwież i spróbuj ponownie", "someone else changed this data – refresh and try again")})
 	case errors.Is(err, domain.ErrInvalidState):
-		writeJSON(w, http.StatusConflict, errorBody{Error: "invalid_state", Message: "ta operacja nie jest teraz możliwa"})
-	case errors.Is(err, errBadRequest):
-		writeJSON(w, http.StatusBadRequest, errorBody{Error: "bad_request", Message: err.Error()})
+		writeJSON(w, http.StatusConflict, errorBody{Error: "invalid_state", Message: msg("ta operacja nie jest teraz możliwa", "this action is not possible now")})
+	case errors.As(err, &bre):
+		writeJSON(w, http.StatusBadRequest, errorBody{Error: "bad_request", Message: bre.msg})
 	default:
 		log.Error("request failed", "err", err)
-		writeJSON(w, http.StatusInternalServerError, errorBody{Error: "internal", Message: "błąd serwera"})
+		writeJSON(w, http.StatusInternalServerError, errorBody{Error: "internal", Message: msg("błąd serwera", "server error")})
 	}
 }
 
-var errBadRequest = errors.New("nieprawidłowe żądanie")
+// badRequest is a malformed request; msg is shown to the user.
+type badRequest struct {
+	msg   domain.Text
+	cause error
+}
+
+func (e *badRequest) Error() string {
+	if e.cause != nil {
+		return e.msg.EN + ": " + e.cause.Error()
+	}
+	return e.msg.EN
+}
+
+func (e *badRequest) Unwrap() error { return e.cause }

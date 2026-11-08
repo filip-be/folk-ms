@@ -190,7 +190,8 @@ func slugTaken(events []*domain.Event, exceptID string) func(string) bool {
 }
 
 func slugConflict(slug string) error {
-	return &domain.ValidationError{Problems: []domain.FieldError{{Field: "slug", Message: fmt.Sprintf("adres „%s” jest już używany przez inne wydarzenie", slug)}}}
+	return domain.Problem("slug", fmt.Sprintf("adres „%s” jest już używany przez inne wydarzenie", slug),
+		fmt.Sprintf("the address “%s” is already used by another event", slug))
 }
 
 // reserveShortID draws a shortId and claims it with a create-only index

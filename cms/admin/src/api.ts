@@ -1,5 +1,7 @@
 // Typed client for the CMS JSON API (same origin, cookie session).
 
+import { inLang } from "./i18n.ts";
+
 export type Lang = "pl" | "en";
 export interface Text {
   pl: string;
@@ -76,7 +78,8 @@ export interface Occurrence {
 }
 export interface FieldError {
   field: string;
-  message: string;
+  /** Both languages; shown with inLang. */
+  message: Text;
 }
 export interface EventView {
   event: Event;
@@ -137,7 +140,7 @@ export interface ConnectionStatus {
   createdByEmail?: string;
   createdAt?: string;
   needsReconnect: boolean;
-  reconnectNote?: string;
+  reconnectNote?: Text;
   pendingPages?: PageInfo[];
 }
 export type Platform = "facebook" | "instagram";
@@ -210,7 +213,7 @@ async function request<T>(method: string, path: string, body?: unknown, headers:
   const text = await res.text();
   const data = text ? JSON.parse(text) : undefined;
   if (!res.ok) {
-    throw new ApiError(res.status, data?.error ?? "error", data?.message ?? `HTTP ${res.status}`, data?.problems ?? []);
+    throw new ApiError(res.status, data?.error ?? "error", inLang(data?.message) || `HTTP ${res.status}`, data?.problems ?? []);
   }
   return data as T;
 }

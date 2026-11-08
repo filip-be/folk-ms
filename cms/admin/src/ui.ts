@@ -1,6 +1,7 @@
 // Small rendering helpers: escaped HTML templates, formatting, toasts.
 
 import { ApiError, type FieldError, type Text } from "./api.ts";
+import { inLang, L, lang, locale } from "./i18n.ts";
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
@@ -34,7 +35,7 @@ function render(v: unknown): string {
   return esc(v);
 }
 
-const dtf = new Intl.DateTimeFormat("pl-PL", {
+const dtf = new Intl.DateTimeFormat(locale, {
   timeZone: "Europe/Warsaw",
   weekday: "short",
   day: "numeric",
@@ -43,13 +44,17 @@ const dtf = new Intl.DateTimeFormat("pl-PL", {
   hour: "2-digit",
   minute: "2-digit",
 });
-const df = new Intl.DateTimeFormat("pl-PL", { timeZone: "Europe/Warsaw", day: "numeric", month: "short", year: "numeric" });
+const df = new Intl.DateTimeFormat(locale, { timeZone: "Europe/Warsaw", day: "numeric", month: "short", year: "numeric" });
 
 export const fmtDateTime = (s?: string) => (s ? dtf.format(new Date(s)) : "–");
 export const fmtDate = (s?: string) => (s ? df.format(new Date(s)) : "–");
-export const t = (x?: Text) => x?.pl ?? "";
+/** Bilingual text in the UI language, falling back to Polish. */
+export const t = (x?: Text) => inLang(x);
 
-export const WEEKDAYS = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+export const WEEKDAYS =
+  lang === "pl"
+    ? ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"]
+    : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function toast(message: string, kind: "ok" | "error" = "ok"): void {
   const el = document.createElement("div");
@@ -75,18 +80,26 @@ export function showError(err: unknown, target?: HTMLElement | null): void {
     return;
   }
   console.error(err);
-  toast("Wystąpił błąd. Spróbuj ponownie.", "error");
+  toast(L("Wystąpił błąd. Spróbuj ponownie.", "Something went wrong. Try again."), "error");
 }
 
 export function problemsHtml(problems: FieldError[]): Raw {
   if (!problems.length) return html``;
-  return html`<div class="problems" role="alert"><strong>Do poprawy przed publikacją:</strong><ul>${problems.map(
-    (p) => html`<li>${p.message} <span class="muted">(${p.field})</span></li>`,
+  return html`<div class="problems" role="alert"><strong>${L("Do poprawy przed publikacją:", "To fix before publishing:")}</strong><ul>${problems.map(
+    (p) => html`<li>${inLang(p.message)} <span class="muted">(${p.field})</span></li>`,
   )}</ul></div>`;
 }
 
-export const STATUS_LABEL: Record<string, string> = { draft: "Szkic", published: "Opublikowane", binned: "W koszu" };
-export const KIND_LABEL: Record<string, string> = { single: "Jednorazowe", multiDay: "Wielodniowe", recurring: "Cykliczne" };
+export const STATUS_LABEL: Record<string, string> = {
+  draft: L("Szkic", "Draft"),
+  published: L("Opublikowane", "Published"),
+  binned: L("W koszu", "In the bin"),
+};
+export const KIND_LABEL: Record<string, string> = {
+  single: L("Jednorazowe", "Single"),
+  multiDay: L("Wielodniowe", "Multi-day"),
+  recurring: L("Cykliczne", "Recurring"),
+};
 
 export function badge(status: string, extra = ""): Raw {
   return html`<span class="badge ${status}">${STATUS_LABEL[status] ?? status}</span>${extra ? html` <span class="badge warn">${extra}</span>` : ""}`;

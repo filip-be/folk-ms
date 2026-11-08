@@ -73,11 +73,11 @@ func (c Content) ValidateDraft() error {
 
 func (c Content) validateShape(p *problems) {
 	if c.Slug != "" && !IsSlug(c.Slug) {
-		p.add("slug", "adres może zawierać tylko małe litery, cyfry i pojedyncze myślniki")
+		p.add("slug", "adres może zawierać tylko małe litery, cyfry i pojedyncze myślniki", "the address may contain only lowercase letters, digits and single hyphens")
 	}
 	checkLen := func(field string, t Text, max int) {
 		if len([]rune(t.PL)) > max || len([]rune(t.EN)) > max {
-			p.add(field, "tekst jest za długi (maks. %d znaków)", max)
+			p.add(field, "tekst jest za długi (maks. %d znaków)", "the text is too long (max. %d characters)", max)
 		}
 	}
 	checkLen("title", c.Title, MaxTitleLen)
@@ -85,19 +85,19 @@ func (c Content) validateShape(p *problems) {
 	checkLen("description", c.Description, MaxDescriptionLen)
 	checkLen("price.text", c.Price.Text, MaxPriceLen)
 	if c.Price.URL != "" && !isHTTPURL(c.Price.URL) {
-		p.add("price.url", "podaj adres zaczynający się od https://")
+		p.add("price.url", "podaj adres zaczynający się od https://", "enter an address starting with https://")
 	}
 	switch c.Schedule.Kind {
 	case KindSingle, KindMultiDay, KindRecurring, "":
 	default:
-		p.add("schedule.kind", "nieznany rodzaj wydarzenia")
+		p.add("schedule.kind", "nieznany rodzaj wydarzenia", "unknown event type")
 	}
 	for _, f := range []struct {
 		field string
 		t     Text
 	}{{"title", c.Title}, {"summary", c.Summary}, {"description", c.Description}, {"price.text", c.Price.Text}} {
 		if f.t.PL == "" && f.t.EN != "" {
-			p.add(f.field+".pl", "tekst angielski wymaga polskiego")
+			p.add(f.field+".pl", "tekst angielski wymaga polskiego", "English text requires Polish text")
 		}
 	}
 }
@@ -108,19 +108,19 @@ func (c Content) ValidatePublish(venueOK func(id string) bool) error {
 	var p problems
 	c.validateShape(&p)
 	if c.Title.PL == "" {
-		p.add("title.pl", "tytuł po polsku jest wymagany")
+		p.add("title.pl", "tytuł po polsku jest wymagany", "a Polish title is required")
 	}
 	if c.Slug == "" {
-		p.add("slug", "adres jest wymagany")
+		p.add("slug", "adres jest wymagany", "the address is required")
 	}
 	if c.VenueID == "" {
-		p.add("venueId", "wybierz miejsce")
+		p.add("venueId", "wybierz miejsce", "choose a venue")
 	} else if !venueOK(c.VenueID) {
-		p.add("venueId", "wybrane miejsce nie istnieje")
+		p.add("venueId", "wybrane miejsce nie istnieje", "the chosen venue does not exist")
 	}
 	for i, id := range c.Schedule.venueIDs() {
 		if !venueOK(id) {
-			p.add(fmt.Sprintf("schedule.exceptions[%d].venueId", i), "wybrane miejsce nie istnieje")
+			p.add(fmt.Sprintf("schedule.exceptions[%d].venueId", i), "wybrane miejsce nie istnieje", "the chosen venue does not exist")
 		}
 	}
 	c.Schedule.validate(&p)

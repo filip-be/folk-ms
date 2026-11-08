@@ -1,7 +1,8 @@
 // Admin SPA entry: app shell, router, sign-in gate.
 
 import { api, ApiError, type Me } from "./api.ts";
-import { html, esc, navigate, showError } from "./ui.ts";
+import { L, lang, setLang } from "./i18n.ts";
+import { html, navigate, showError, t } from "./ui.ts";
 import { View } from "./view.ts";
 import "./views/events.ts";
 import "./views/editor.ts";
@@ -44,6 +45,19 @@ function currentOrg(): string {
   return me.orgs[0]?.id ?? "";
 }
 
+/** Switches to the other language; its label is in that language. */
+function langSwitch() {
+  const other = lang === "pl" ? "en" : "pl";
+  return html`<button type="button" class="link lang-switch" data-set-lang="${other}" lang="${other}"
+    title="${other === "en" ? "Switch to English" : "Przełącz na polski"}">${other === "en" ? "English" : "Polski"}</button>`;
+}
+
+function bindLangSwitch(): void {
+  document.querySelector<HTMLElement>("[data-set-lang]")?.addEventListener("click", (e) => {
+    setLang((e.currentTarget as HTMLElement).dataset.setLang as "pl" | "en");
+  });
+}
+
 function shell(): void {
   const org = currentOrg();
   const section = location.pathname.split("/")[4] ?? location.pathname.split("/")[2] ?? "";
@@ -53,17 +67,18 @@ function shell(): void {
     <header class="top">
       <a class="brand" href="/app/">folk-ms</a>
       ${me.orgs.length > 1
-        ? html`<label class="org-switch"><span class="sr-only">Organizacja</span>
-            <select id="org-select">${me.orgs.map((o) => html`<option value="${o.id}" ${o.id === org ? "selected" : ""}>${o.name.pl}</option>`)}</select></label>`
-        : html`<span class="org-name">${me.orgs[0]?.name.pl ?? ""}</span>`}
+        ? html`<label class="org-switch"><span class="sr-only">${L("Organizacja", "Organization")}</span>
+            <select id="org-select">${me.orgs.map((o) => html`<option value="${o.id}" ${o.id === org ? "selected" : ""}>${t(o.name)}</option>`)}</select></label>`
+        : html`<span class="org-name">${t(me.orgs[0]?.name)}</span>`}
       <nav>
-        ${link(`/app/orgs/${org}/events`, "Wydarzenia", "events")}
-        ${link(`/app/orgs/${org}/venues`, "Miejsca", "venues")}
-        ${link(`/app/orgs/${org}/social`, "Media społecznościowe", "social")}
-        ${me.superAdmin ? html`${link("/app/access", "Moderatorzy", "access")}${link("/app/audit", "Dziennik", "audit")}` : ""}
+        ${link(`/app/orgs/${org}/events`, L("Wydarzenia", "Events"), "events")}
+        ${link(`/app/orgs/${org}/venues`, L("Miejsca", "Venues"), "venues")}
+        ${link(`/app/orgs/${org}/social`, L("Media społecznościowe", "Social media"), "social")}
+        ${me.superAdmin ? html`${link("/app/access", L("Moderatorzy", "Moderators"), "access")}${link("/app/audit", L("Dziennik", "Audit log"), "audit")}` : ""}
       </nav>
       <span class="user" title="${me.email}">${me.name || me.email}</span>
-      <button id="logout" class="link">Wyloguj</button>
+      ${langSwitch()}
+      <button id="logout" class="link">${L("Wyloguj", "Sign out")}</button>
     </header>
     <div id="banner"></div>
     <main id="view"></main>`.value;
@@ -72,6 +87,7 @@ function shell(): void {
     const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|venues|social)/)?.[1] ?? "events";
     navigate(`/app/orgs/${id}/${rest}`);
   });
+  bindLangSwitch();
   document.getElementById("logout")!.addEventListener("click", async () => {
     await api.logout().catch(() => undefined);
     location.href = "/app/";
@@ -84,8 +100,8 @@ async function reconnectBanner(org: string): Promise<void> {
     const st = await api.social(org);
     const el = document.getElementById("banner");
     if (el && st.needsReconnect) {
-      el.innerHTML = html`<div class="banner warn">${st.reconnectNote ?? "Połącz ponownie konto Facebook/Instagram."}
-        <a href="/app/orgs/${org}/social">Przejdź do połączenia</a></div>`.value;
+      el.innerHTML = html`<div class="banner warn">${t(st.reconnectNote) || L("Połącz ponownie konto Facebook/Instagram.", "Reconnect the Facebook/Instagram account.")}
+        <a href="/app/orgs/${org}/social">${L("Przejdź do połączenia", "Go to the connection")}</a></div>`.value;
     }
   } catch {
     /* the banner is best effort */
@@ -94,8 +110,9 @@ async function reconnectBanner(org: string): Promise<void> {
 
 function route(): void {
   if (!me.orgs.length) {
-    document.getElementById("app")!.innerHTML = html`<main class="card narrow"><h1>Brak organizacji</h1>
-      <p>Twoje konto nie ma przypisanych organizacji. Skontaktuj się z administratorem.</p></main>`.value;
+    document.getElementById("app")!.innerHTML = html`<main class="card narrow"><h1>${L("Brak organizacji", "No organizations")}</h1>
+      <p>${L("Twoje konto nie ma przypisanych organizacji. Skontaktuj się z administratorem.", "Your account has no organizations assigned. Contact the administrator.")}</p>${langSwitch()}</main>`.value;
+    bindLangSwitch();
     return;
   }
   const path = location.pathname.replace(/\/+$/, "") || "/app";
@@ -125,18 +142,20 @@ function route(): void {
     window.scrollTo(0, 0);
     return;
   }
-  view.innerHTML = html`<div class="card"><h1>Nie znaleziono</h1><p><a href="/app/">Wróć do listy wydarzeń</a></p></div>`.value;
+  view.innerHTML = html`<div class="card"><h1>${L("Nie znaleziono", "Not found")}</h1><p><a href="/app/">${L("Wróć do listy wydarzeń", "Back to the event list")}</a></p></div>`.value;
 }
 
 function signInScreen(): void {
   const ret = encodeURIComponent(location.pathname + location.search);
-  document.getElementById("app")!.innerHTML = `
+  document.getElementById("app")!.innerHTML = html`
     <main class="card narrow signin">
       <h1>folk-ms</h1>
-      <p>Zarządzanie wydarzeniami organizacji folkowych.</p>
-      <a class="button primary" href="/auth/login?return=${esc(ret)}">Zaloguj się przez Google</a>
-      <p class="muted small">Dostęp mają wyłącznie osoby zaproszone przez administratora.</p>
-    </main>`;
+      <p>${L("Zarządzanie wydarzeniami organizacji folkowych.", "Event management for folk organizations.")}</p>
+      <a class="button primary" href="/auth/login?return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
+      <p class="muted small">${L("Dostęp mają wyłącznie osoby zaproszone przez administratora.", "Only people invited by the administrator have access.")}</p>
+      ${langSwitch()}
+    </main>`.value;
+  bindLangSwitch();
 }
 
 document.addEventListener("click", (e) => {
