@@ -1,6 +1,6 @@
 # Social posting
 
-How a Moderator announces a Published Event on the Organization's Facebook Page and Instagram account. The CMS cannot create Facebook Events (the Graph API does not allow it), but it can publish Page feed posts and Instagram image posts. It uses the CMS, Storage and the Meta Graph API.
+How a Moderator announces a Published Event on the Organization's Facebook Page and Instagram account. The CMS cannot create Facebook Events: Meta allows that only through its Official Events API, which is open to approved ticketing partners and not to apps like this one. It can publish Page feed posts and Instagram image posts instead. It uses the CMS, Storage and the Meta Graph API.
 
 ## How it works
 
