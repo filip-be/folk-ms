@@ -67,14 +67,14 @@ type ConnectionStatus struct {
 	PendingPages   []PageInfo `json:"pendingPages,omitempty"`
 }
 
-// PageInfo is a Facebook Page to choose from.
+// PageInfo is a Facebook page to choose from.
 type PageInfo struct {
 	ID         string `json:"id"`
 	Name       string `json:"name"`
 	IGUsername string `json:"igUsername,omitempty"`
 }
 
-// pendingPages are the Pages a Moderator may choose from after signing in
+// pendingPages are the Facebook pages a Moderator may choose from after signing in
 // with Meta. They hold no token.
 type pendingPages struct {
 	ExpiresAt time.Time          `json:"expiresAt"`
@@ -82,7 +82,7 @@ type pendingPages struct {
 }
 
 // SocialStatus returns the connection status of an Organization, including
-// Pages waiting for the current user to choose one.
+// Facebook pages waiting for the current user to choose one.
 func (a *App) SocialStatus(ctx context.Context, p domain.Principal, org string) (ConnectionStatus, error) {
 	if _, err := a.authorize(p, org); err != nil {
 		return ConnectionStatus{}, err
@@ -107,7 +107,7 @@ func (a *App) SocialStatus(ctx context.Context, p domain.Principal, org string) 
 }
 
 // SocialLoginURL returns where to send the Moderator to sign in with Meta,
-// to connect a Page or to complete a Post Request.
+// to connect a Facebook page or to complete a Post Request.
 func (a *App) SocialLoginURL(p domain.Principal, org, state, redirectURI string) (string, error) {
 	if _, err := a.authorize(p, org); err != nil {
 		return "", err
@@ -115,7 +115,7 @@ func (a *App) SocialLoginURL(p domain.Principal, org, state, redirectURI string)
 	return a.Social.LoginURL(state, redirectURI), nil
 }
 
-// CompleteSocialLogin lists the Pages the Moderator has a role on and keeps
+// CompleteSocialLogin lists the Facebook pages the Moderator has a role on and keeps
 // that list (no tokens) for 15 minutes until they choose one. The user
 // token is used for this one call and dropped.
 func (a *App) CompleteSocialLogin(ctx context.Context, p domain.Principal, org, code, redirectURI string) ([]PageInfo, error) {
@@ -156,7 +156,7 @@ func (a *App) pendingPages(ctx context.Context, org, user string) ([]ports.Socia
 	return pp.Pages, nil
 }
 
-// SelectPage makes a chosen Page the Organization's connection, replacing
+// SelectPage makes a chosen Facebook page the Organization's connection, replacing
 // any previous one.
 func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID string) (ConnectionStatus, error) {
 	if _, err := a.authorize(p, org); err != nil {
@@ -346,7 +346,7 @@ const (
 	RefusedCancelled = "cancelled" // the Moderator cancelled the Meta sign-in
 	RefusedExpired   = "expired"   // the request is gone, expired or not theirs
 	RefusedLogin     = "login"     // the Meta sign-in could not be completed
-	RefusedPage      = "page"      // their Meta account has no role on the Page
+	RefusedPage      = "page"      // their Meta account has no role on the Facebook page
 	RefusedInvalid   = "invalid"   // the Event or connection changed meanwhile
 	RefusedInstagram = "instagram" // their Meta account cannot reach the Instagram account
 	RefusedQuota     = "quota"     // the daily Instagram publishing limit is used up
@@ -381,7 +381,7 @@ func (a *App) CancelPost(ctx context.Context, p domain.Principal, org, requestID
 
 // CompletePost finishes a Post Request after the Meta sign-in: it redeems
 // the code for a short-lived user token, gets the token of the
-// Organization's Page (which proves the Moderator has a role on it), posts
+// Organization's Facebook page (which proves the Moderator has a role on it), posts
 // each draft and drops both tokens. Every post is recorded as pending
 // before its Graph call, so a crash leaves an unknown outcome that is
 // retried only after the Moderator confirms.
@@ -443,7 +443,7 @@ func (a *App) CompletePost(ctx context.Context, p domain.Principal, org, request
 	return out, nil
 }
 
-// postOne posts one draft with a Page token held in memory only.
+// postOne posts one draft with a Facebook page token held in memory only.
 func (a *App) postOne(ctx context.Context, p domain.Principal, org string, e *domain.Event, conn *domain.Connection, page ports.SocialPage, token string, d domain.PostDraft, confirmed bool) PlatformResult {
 	refuse := func(reason string) PlatformResult {
 		a.audit(ctx, p, "social.post_refused", org, e.ID, map[string]any{"platform": d.Platform, "reason": reason})
@@ -452,7 +452,7 @@ func (a *App) postOne(ctx context.Context, p domain.Principal, org string, e *do
 	target := conn.PageID
 	if d.Platform == domain.Instagram {
 		// The Moderator's Meta account must reach the connected Instagram
-		// account through the Page.
+		// account through the Facebook page.
 		if page.IGUserID == "" || page.IGUserID != conn.IGUserID {
 			return refuse(RefusedInstagram)
 		}
@@ -519,9 +519,9 @@ func (a *App) postOne(ctx context.Context, p domain.Principal, org string, e *do
 	return PlatformResult{Platform: d.Platform, Status: string(domain.PostPosted)}
 }
 
-// purgeSocial removes expired Post Requests and Page lists of an
+// purgeSocial removes expired Post Requests and Facebook page lists of an
 // Organization; neither holds a secret. It also rewrites a connection saved
-// by an earlier version, which kept an encrypted Page token, without it.
+// by an earlier version, which kept an encrypted Facebook page token, without it.
 func (a *App) purgeSocial(ctx context.Context, org string, now time.Time) error {
 	var errs []error
 	if d, err := a.Docs.Get(ctx, connectionKey(org)); err == nil && bytes.Contains(d.Data, []byte(`"tokenEnc"`)) {

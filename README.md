@@ -83,14 +83,14 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 
 1. At developers.facebook.com create a *Business* app, add *Facebook Login for Business* and the Instagram Graph API.
 2. Valid OAuth redirect URI: `<CMS_BASE_URL>/auth/meta/callback`. Privacy policy URL: `<CMS_BASE_URL>/privacy`. Data deletion instructions URL: `<CMS_BASE_URL>/data-deletion`.
-3. Keep the app in Standard Access. For every Moderator who will post Social Posts or connect a Page: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Page that allows posting, and access to its Instagram account; the Page must be linked to an Instagram professional account for Instagram posts.
+3. Keep the app in Standard Access. For every Moderator who will post Social Posts or connect a Facebook page: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
 4. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
 
 ### Who can post Social Posts
 
-The CMS stores no Meta token: a Moderator signs in with Meta every time they post, and the CMS posts with that sign-in only. So a Moderator can post only while they are a Tester on the Meta app and have a role on the Page (and access to its Instagram account). To stop someone posting, remove their CMS access, their Page role or their Tester role; nothing in the CMS needs reconnecting. Changing the Organization's Page or disconnecting it is done under *Media społecznościowe*, by any of its Moderators or the Super Admin.
+The CMS stores no Meta token: a Moderator signs in with Meta every time they post, and the CMS posts with that sign-in only. So a Moderator can post only while they are a Tester on the Meta app and have a role on the Facebook page (and access to its Instagram account). To stop someone posting, remove their CMS access, their Facebook page role or their Tester role; nothing in the CMS needs reconnecting. Changing the Organization's Facebook page or disconnecting it is done under *Media społecznościowe*, by any of its Moderators or the Super Admin.
 
-Upgrading from a version that stored Page tokens: the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
+Upgrading from a version that stored Facebook page tokens: the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
 
 ### Autofill
 
@@ -114,10 +114,10 @@ CMS_ORIGIN=https://<cms host> bun autofill/build.ts
 - Firefox for Android: install Violentmonkey from addons.mozilla.org, open the address above, confirm.
 - iOS Safari (best effort): install a userscript manager from the App Store (Userscripts, Stay or Macaque), enable it for `facebook.com` and the CMS host, and add the script from the address above. When facebook.com opens in the Facebook app instead, long-press "Open Facebook" and open it in Safari; when it still fails, use the copy buttons.
 
-**Per-release checklist against real Facebook**, with a test Page, on desktop Chrome, desktop Firefox, Firefox for Android (Violentmonkey) and iOS Safari (one manager), in English and Polish Facebook UI:
+**Per-release checklist against real Facebook**, with a test Facebook page, on desktop Chrome, desktop Firefox, Firefox for Android (Violentmonkey) and iOS Safari (one manager), in English and Polish Facebook UI:
 
 1. On the Handoff, "Fill on Facebook" appears (Autofill detected); with nothing installed the install hint shows.
-2. Facebook opens the create form; switch to acting as the Page. The panel appears and no field is filled twice.
+2. Facebook opens the create form; switch to acting as the Facebook page. The panel appears and no field is filled twice.
 3. Each field ends as *filled*, or as *needs you* where the field map knows it is manual (on m.facebook.com everything but name, description and cover). Check name, start and end date and time, time zone, location, description line breaks, cover photo and ticket link in the form itself.
 4. Autofill did not press Create. Press it; the panel shows the new link and "Back to the CMS".
 5. Back in the CMS the link is offered for confirmation; confirm it and check it on the Site.

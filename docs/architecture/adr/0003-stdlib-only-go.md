@@ -5,7 +5,7 @@
 
 ## Context
 
-The CMS holds Meta Page tokens and decides who may publish for an Organization. It is maintained by volunteers, so every dependency is an attack surface and an upgrade chore.
+The CMS holds Facebook page tokens and decides who may publish for an Organization. It is maintained by volunteers, so every dependency is an attack surface and an upgrade chore.
 
 ## Decision
 

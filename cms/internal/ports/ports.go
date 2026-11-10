@@ -14,9 +14,9 @@ var (
 	// ErrPrecondition means the ETag did not match, or a create-only Put
 	// found an existing document.
 	ErrPrecondition = errors.New("store: precondition failed")
-	// ErrNoPageAccess means the signed-in Meta user has no role on the Page
+	// ErrNoPageAccess means the signed-in Meta user has no role on the Facebook page
 	// that would let them post.
-	ErrNoPageAccess = errors.New("social: no access to the Page")
+	ErrNoPageAccess = errors.New("social: no access to the Facebook page")
 )
 
 // AnyETag makes Put unconditional.
@@ -80,7 +80,7 @@ type IdentityProvider interface {
 	Exchange(ctx context.Context, code, codeVerifier, redirectURI, nonce string) (Identity, error)
 }
 
-// SocialPage is a Facebook Page the signed-in Meta user has a role on, with
+// SocialPage is a Facebook page the signed-in Meta user has a role on, with
 // its linked Instagram professional account if any. It carries no token.
 type SocialPage struct {
 	ID         string
@@ -101,10 +101,10 @@ type SocialPublisher interface {
 	LoginURL(state, redirectURI string) string
 	// UserToken redeems a login code for a short-lived user token.
 	UserToken(ctx context.Context, code, redirectURI string) (string, error)
-	// Pages lists the Pages the user has a role on.
+	// Pages lists the Facebook pages the user has a role on.
 	Pages(ctx context.Context, userToken string) ([]SocialPage, error)
-	// PageToken returns a token for one Page the user has a role on, and
-	// the Page as that user sees it (its linked Instagram account included).
+	// PageToken returns a token for one Facebook page the user has a role on, and
+	// the Facebook page as that user sees it (its linked Instagram account included).
 	PageToken(ctx context.Context, userToken, pageID string) (string, SocialPage, error)
 	PostFacebookPhoto(ctx context.Context, pageID, pageToken, imageURL, caption string) (PostResult, error)
 	PostInstagramImage(ctx context.Context, igUserID, pageToken, imageURL, caption string) (PostResult, error)

@@ -1,6 +1,6 @@
 // Package meta implements ports.SocialPublisher on the Meta Graph API:
-// Facebook Login to a short-lived user token, the Page token and linked
-// Instagram account of one Page, Page photo posts and Instagram image posts.
+// Facebook Login to a short-lived user token, the Facebook page token and linked
+// Instagram account of one Facebook page, Facebook page photo posts and Instagram image posts.
 // No token outlives the request that obtained it.
 package meta
 
@@ -164,7 +164,7 @@ func (g graphPage) page() ports.SocialPage {
 	return p
 }
 
-// Pages implements ports.SocialPublisher. Page tokens are not requested.
+// Pages implements ports.SocialPublisher. Facebook page tokens are not requested.
 func (c *Client) Pages(ctx context.Context, userToken string) ([]ports.SocialPage, error) {
 	var accounts struct {
 		Data []graphPage `json:"data"`
@@ -181,7 +181,7 @@ func (c *Client) Pages(ctx context.Context, userToken string) ([]ports.SocialPag
 	return pages, nil
 }
 
-// PageToken implements ports.SocialPublisher. Graph answers a Page the user
+// PageToken implements ports.SocialPublisher. Graph answers a Facebook page the user
 // has no role on without a token, or with a permission error.
 func (c *Client) PageToken(ctx context.Context, userToken, pageID string) (string, ports.SocialPage, error) {
 	var g graphPage
@@ -295,7 +295,7 @@ type Recorder struct {
 	PagesFn func() []ports.SocialPage
 	// Tokens counts the user tokens issued, one per Meta sign-in.
 	Tokens int
-	// NoAccess makes PageToken refuse every Page.
+	// NoAccess makes PageToken refuse every Facebook page.
 	NoAccess bool
 	FailFB   error
 	FailIG   error

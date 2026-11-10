@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "checked": "2026-11-10: desktop www.facebook.com in English and Polish UI, and m.facebook.com (English UI, phone viewport), acting as a Page.",
+  "checked": "2026-11-10: desktop www.facebook.com in English and Polish UI, and m.facebook.com (English UI, phone viewport), acting as a Facebook page.",
   "created": "^/events/([0-9]{5,25})/?$",
   "forms": [
     {

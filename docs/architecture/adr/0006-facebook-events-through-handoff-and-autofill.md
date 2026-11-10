@@ -5,7 +5,7 @@
 
 ## Context
 
-Organizations announce most dances as Facebook Events hosted by their Page. Moderators retyped every Event into Facebook by hand: name, dates, Venue, description, Cover Image, ticket link. The CMS already holds all of it.
+Organizations announce most dances as Facebook Events hosted by their Facebook page. Moderators retyped every Event into Facebook by hand: name, dates, Venue, description, Cover Image, ticket link. The CMS already holds all of it.
 
 The CMS cannot create a Facebook Event for them:
 
@@ -14,7 +14,7 @@ The CMS cannot create a Facebook Event for them:
 
 ## Decision
 
-The CMS prepares a **Facebook Event Handoff** and the Moderator creates the Facebook Event on Facebook, acting as the Organization's Page:
+The CMS prepares a **Facebook Event Handoff** and the Moderator creates the Facebook Event on Facebook, acting as the Organization's Facebook page:
 
 - The Handoff screen shows each field with a copy button, the Cover Image to download and "Open Facebook". It works on every device and is the baseline.
 - **Autofill** is an optional helper that types the Handoff into Facebook's own create-event form inside the Moderator's own Facebook session. It never presses Create. It brings the new Facebook Event's address back to the CMS, where the Moderator confirms it.
@@ -24,7 +24,7 @@ The CMS prepares a **Facebook Event Handoff** and the Moderator creates the Face
 
 ## Spike results (2026-11-10)
 
-Checked by hand with a test Page, acting as the Page:
+Checked by hand with a test Facebook page, acting as the Facebook page:
 
 - **Desktop www.facebook.com, English UI:** the create form is a `role=dialog`; every field is a `<label>` whose first line of text names it. Text typed with `execCommand("insertText")` is accepted. Dates and times commit on blur, which needs the tab to have focus. A date in a format the UI locale cannot parse is silently reverted, so Autofill types each candidate format and checks what Facebook kept. The location typeahead keeps free text through its "Just use …" option. The cover photo accepts a `File` set on its `input[type=file]` through `DataTransfer`. The end date and the ticket link sit behind "Add end date and time" and "Add tickets".
 - **Event name:** the form counts to 100 characters, not the 64 assumed when this was planned; the Handoff caps the name at 100.
@@ -42,7 +42,7 @@ Checked by hand with a test Page, acting as the Page:
 
 ## Consequences
 
-- Moderators still press Create on Facebook, acting as the Page. The CMS never holds a Facebook session or token for this.
+- Moderators still press Create on Facebook, acting as the Facebook page. The CMS never holds a Facebook session or token for this.
 - Autofill acts inside Moderators' own Facebook sessions, which Meta's terms restrict. The risk is documented in the root README runbook for Moderators; there is no in-product notice.
 - Autofill is expected to break when Facebook changes its form. Breakage degrades to a partial fill: a panel lists every field's status with copy buttons, and the failure is reported to the Audit Log. Most fixes are a field-map change and a CMS deploy; the rest are a store release (the userscript updates from the CMS).
 - Each release is tested by hand against real Facebook with the runbook checklist; CI covers the engine against a dev-only practice page and unit tests only.

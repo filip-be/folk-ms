@@ -69,7 +69,7 @@ type oidcState struct {
 
 // metaState binds a Meta sign-in to the CMS user who started it. With
 // Request set, the sign-in completes that Post Request; otherwise it
-// connects a Page.
+// connects a Facebook page.
 type metaState struct {
 	State   string `json:"s"`
 	Org     string `json:"o"`

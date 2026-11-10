@@ -99,7 +99,7 @@ func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// metaCallback finishes a Meta sign-in: it connects a Page, or completes a
+// metaCallback finishes a Meta sign-in: it connects a Facebook page, or completes a
 // Post Request and posts.
 func (s *Server) metaCallback(w http.ResponseWriter, r *http.Request) {
 	var st metaState

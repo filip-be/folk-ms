@@ -244,7 +244,7 @@ ul.history {
   & li { padding: var(--space-3) 0; border-bottom: 1px solid var(--line); }
 }
 
-/* Venues, users, Pages */
+/* Venues, users, Facebook pages */
 ul.venues, ul.users, ul.pages { margin: 0 0 var(--space-10); padding: 0; list-style: none; }
 .venue {
   display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-10);

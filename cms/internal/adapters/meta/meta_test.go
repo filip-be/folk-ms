@@ -32,7 +32,7 @@ func TestGraphFlow(t *testing.T) {
 			t.Error("the user token must not be exchanged for a long-lived one")
 		case r.URL.Path == "/v24.0/me/accounts":
 			if strings.Contains(r.Form.Get("fields"), "access_token") {
-				t.Error("listing Pages must not fetch their tokens")
+				t.Error("listing Facebook pages must not fetch their tokens")
 			}
 			out["data"] = []any{map[string]any{"id": "p1", "name": "Page",
 				"instagram_business_account": map[string]string{"id": "ig1", "username": "bal"}}}

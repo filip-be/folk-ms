@@ -124,7 +124,7 @@ func (sp *SocialPost) Fail(msg string, now time.Time) {
 }
 
 // Connection is an Organization's Social Account Connection: which Facebook
-// Page and Instagram account it posts to. It holds no token: every Social
+// Facebook page and Instagram account it posts to. It holds no token: every Social
 // Post is sent with the posting Moderator's own Meta sign-in.
 type Connection struct {
 	OrgID          string    `json:"orgId"`

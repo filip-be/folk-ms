@@ -1,12 +1,12 @@
 # Facebook events
 
-How a Moderator turns a Published Event into a Facebook Event hosted by the Organization's Facebook Page, and how the CMS keeps its link. The CMS cannot create Facebook Events (see [ADR 0006](../architecture/adr/0006-facebook-events-through-handoff-and-autofill.md)): it prepares a Facebook Event Handoff, the Moderator creates the Facebook Event on Facebook, optionally with Autofill typing the fields, and the CMS records the link. It uses the CMS, the admin SPA, Storage, the contract and the Sites, plus Autofill, a browser helper outside the CMS.
+How a Moderator turns a Published Event into a Facebook Event hosted by the Organization's Facebook page, and how the CMS keeps its link. The CMS cannot create Facebook Events (see [ADR 0006](../architecture/adr/0006-facebook-events-through-handoff-and-autofill.md)): it prepares a Facebook Event Handoff, the Moderator creates the Facebook Event on Facebook, optionally with Autofill typing the fields, and the CMS records the link. It uses the CMS, the admin SPA, Storage, the contract and the Sites, plus Autofill, a browser helper outside the CMS.
 
 ## How it works
 
 ### The Handoff
 
-Any Moderator of the Organization, or the Super Admin, opens the Handoff from the editor or the event list of a Published Event. It needs the Social Account Connection: its Page hosts the Facebook Event, and the screen reminds the Moderator to act as that Page on Facebook.
+Any Moderator of the Organization, or the Super Admin, opens the Handoff from the editor or the event list of a Published Event. It needs the Social Account Connection: its Facebook page hosts the Facebook Event, and the screen reminds the Moderator to act as that Facebook page on Facebook.
 
 The CMS generates the fields for the next upcoming, non-cancelled Occurrence: the Polish name (editable, at most 100 characters), start and end in the Organization's time zone, the Venue as location text, a description (Polish, then English when present, the Price, the further dates of a Recurring Event, the Permalinks; editable), the ticket link from the Price and the Cover Image's largest variant (served same-origin, because the CMS allows only `connect-src 'self'`). Each field has a copy button; "Open Facebook" opens the create page in a new tab. This works on every device.
 
@@ -32,7 +32,7 @@ sequenceDiagram
 
 - **Builds:** one codebase in `autofill/`. A Manifest V3 WebExtension for desktop Chrome/Edge and Firefox, built for one CMS origin; and a userscript the CMS serves at `/app/autofill.user.js` with its origin filled in, for desktop and phones (Firefox for Android with Violentmonkey; iOS userscript managers on a best-effort basis). When both are installed, the second to load sees the first's marker on `<html>` and stays idle.
 - **Transport:** the SPA and Autofill talk through `CustomEvent`s on `document` with JSON-string details (`autofill/src/protocol.ts`). Only a page on the CMS origin can store a handoff. Results and failure reports wait in Autofill's storage until a CMS page is visible or focused, or the open Handoff polls; the SPA acknowledges them.
-- **On Facebook:** Autofill waits for the form, finds each field through the field map (ordered locators by ARIA role and Polish or English label, never class names), types it, checks what Facebook kept, and shows a panel: each field as filled, needs you or failed, copy buttons, the "act as Page" reminder, and a warning when the browser's time zone differs from the Organization's. It never presses Create, then watches the address for `/events/{id}`.
+- **On Facebook:** Autofill waits for the form, finds each field through the field map (ordered locators by ARIA role and Polish or English label, never class names), types it, checks what Facebook kept, and shows a panel: each field as filled, needs you or failed, copy buttons, the "act as the Facebook page" reminder, and a warning when the browser's time zone differs from the Organization's. It never presses Create, then watches the address for `/events/{id}`.
 - **Breakage** degrades to a partial fill. Failed fields are reported to the CMS, which appends them to the Audit Log (`autofill.reported`).
 - **Field map:** `autofill/fieldmap.json` is embedded in the admin build and travels with each handoff, so most fixes to Facebook form changes need only a CMS deploy.
 

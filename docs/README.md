@@ -28,7 +28,7 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log, the admin UI language |
 | [Platform](platform/README.md) | Hosting, ports and adapters, dependency policy, infrastructure, CI/CD, local development, cost, open risks |
 
-**Event management** is the core: Moderators edit Drafts and Publish them. Every Publish feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Only Published Events can be announced through **Social posting**, because a Social Post links to the Event's Permalink. The same holds for **Facebook events**: the CMS prepares a Facebook Event Handoff for a Published Event, the Moderator creates the Facebook Event on the Organization's Page, and its link reaches the Site through **Site delivery**. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
+**Event management** is the core: Moderators edit Drafts and Publish them. Every Publish feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Only Published Events can be announced through **Social posting**, because a Social Post links to the Event's Permalink. The same holds for **Facebook events**: the CMS prepares a Facebook Event Handoff for a Published Event, the Moderator creates the Facebook Event on the Organization's Facebook page, and its link reaches the Site through **Site delivery**. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
 
 ## Read next
 

@@ -103,7 +103,7 @@ func coverPath(org, id string) string {
 
 // FacebookEventHandoff prepares a Facebook Event for the next upcoming,
 // non-cancelled Occurrence of a Published Event, and lists the links
-// already recorded. It needs a Social Account Connection: the Page it
+// already recorded. It needs a Social Account Connection: the Facebook page it
 // names hosts the Facebook Event.
 func (a *App) FacebookEventHandoff(ctx context.Context, p domain.Principal, org, id string) (HandoffView, error) {
 	o, err := a.authorize(p, org)

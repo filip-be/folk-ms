@@ -40,7 +40,7 @@ func TestFacebookEventHandoffAndLinks(t *testing.T) {
 	}
 	must[app.EventView](t)(e.a.PublishEvent(e.ctx, sa, "org-a", id))
 
-	// Without a Social Account Connection there is no Page to host it.
+	// Without a Social Account Connection there is no Facebook page to host it.
 	h = must[app.HandoffView](t)(e.a.FacebookEventHandoff(e.ctx, sa, "org-a", id))
 	if h.Connection.Connected || h.Fields != nil {
 		t.Fatalf("no connection: %+v", h)

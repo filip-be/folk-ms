@@ -66,23 +66,23 @@ An Event is authored in Polish; English is optional. Where English is missing, S
 ## Social posting
 
 **Social Post**
-An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event. Posted manually by a Moderator, who signs in with Meta every time; each platform gets its own Social Post, and one sign-in can post on both. The CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
+An announcement of a Published Event on an Organization's social media account: a Facebook page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event. Posted manually by a Moderator, who signs in with Meta every time; each platform gets its own Social Post, and one sign-in can post on both. The CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
 
 **Caption**
 The text of a Social Post. Generated from the Event's fields and Permalink, then edited by the Moderator before posting.
 
 **Social Account Connection**
-Which Facebook Page and Instagram account an Organization posts to. Belongs to the Organization, not to the person who made it, and grants no access by itself: every Social Post is sent with the posting Moderator's own Meta sign-in. Established by a Moderator who signs in with Meta and chooses the Page. Any of the Organization's Moderators can change or disconnect it. Without it, the Organization cannot post Social Posts.
+Which Facebook page and Instagram account an Organization posts to. Belongs to the Organization, not to the person who made it, and grants no access by itself: every Social Post is sent with the posting Moderator's own Meta sign-in. Established by a Moderator who signs in with Meta and chooses the Facebook page. Any of the Organization's Moderators can change or disconnect it. Without it, the Organization cannot post Social Posts.
 
 **Post Request**
 A Moderator's request to post an Event on Facebook, Instagram or both, with its Captions, kept for a few minutes while they sign in with Meta. Used once; nothing is posted until the sign-in completes it.
 
 **Facebook Event**
-An event page on Facebook, hosted by the Organization's Facebook Page, announcing one Occurrence of a Published Event. Always created on Facebook by a Moderator; the CMS never creates, changes or removes one. The CMS remembers its link against the Occurrence, and the Site shows it. A Recurring Event gets one Facebook Event at a time, for its next Occurrence, and a new one once that Occurrence has passed.
+An event page on Facebook, hosted by the Organization's Facebook page, announcing one Occurrence of a Published Event. Always created on Facebook by a Moderator; the CMS never creates, changes or removes one. The CMS remembers its link against the Occurrence, and the Site shows it. A Recurring Event gets one Facebook Event at a time, for its next Occurrence, and a new one once that Occurrence has passed.
 _Avoid_: "event" alone (that is an Event), "post" (that is a Social Post).
 
 **Facebook Event Handoff**
-The CMS preparing a Facebook Event's fields from a Published Event's Occurrence (name, dates, Venue, description in Polish then English, Cover Image) for the Moderator to edit and then copy, or have Autofill type, into Facebook. Needs a Social Account Connection, which names the hosting Page. When the Event later changes, the CMS reminds the Moderator that the Facebook Event may be out of date.
+The CMS preparing a Facebook Event's fields from a Published Event's Occurrence (name, dates, Venue, description in Polish then English, Cover Image) for the Moderator to edit and then copy, or have Autofill type, into Facebook. Needs a Social Account Connection, which names the hosting Facebook page. When the Event later changes, the CMS reminds the Moderator that the Facebook Event may be out of date.
 _Avoid_: "Facebook Event Draft" (Draft is an Event's state).
 
 **Autofill**

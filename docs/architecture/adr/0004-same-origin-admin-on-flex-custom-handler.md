@@ -24,7 +24,7 @@ Verified locally on 2026-11-07 with the official host image `mcr.microsoft.com/a
 | Timer next to forwarded HTTP | Works: `purge` fired on schedule and succeeded while HTTP was served. |
 | Request size | 40 MB passes the host (the CMS caps uploads at 16 MB); 120 MB is refused by the host. |
 
-Still to verify on a real Flex Consumption app, which cannot be done locally: the `SameSite=Lax` session cookie after the Google redirect on the production host name, several `Set-Cookie` headers in one response, cold start time, the client IP in `X-Forwarded-For` (the CMS uses the last hop), the managed-identity token endpoint for blob access, and Meta Standard Access for `pages_manage_posts` with a test Page.
+Still to verify on a real Flex Consumption app, which cannot be done locally: the `SameSite=Lax` session cookie after the Google redirect on the production host name, several `Set-Cookie` headers in one response, cold start time, the client IP in `X-Forwarded-For` (the CMS uses the last hop), the managed-identity token endpoint for blob access, and Meta Standard Access for `pages_manage_posts` with a test Facebook page.
 
 ## Exit criterion
 

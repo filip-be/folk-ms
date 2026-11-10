@@ -286,7 +286,7 @@ func TestSocialPosting(t *testing.T) {
 		t.Fatalf("re-post without confirmation: %v", err)
 	}
 
-	// A Meta account without a role on the Page posts nothing.
+	// A Meta account without a role on the Facebook page posts nothing.
 	e.social.NoAccess = true
 	req = must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, fb("again"), true))
 	if out := must[app.PostOutcome](t)(e.a.CompletePost(e.ctx, mod, "org-a", req.ID, "code", cb)); out.Refused != app.RefusedPage || len(e.social.Posts) != 2 {
@@ -332,7 +332,7 @@ func TestSocialPosting(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Abandoned requests and Page lists are purged.
+	// Abandoned requests and Facebook page lists are purged.
 	must[*domain.PostRequest](t)(e.a.RequestPost(e.ctx, mod, "org-a", id, fb("x"), true))
 	must[[]app.PageInfo](t)(e.a.CompleteSocialLogin(e.ctx, mod, "org-a", "code", cb))
 	e.clock.t = e.clock.t.Add(time.Hour)

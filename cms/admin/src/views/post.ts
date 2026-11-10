@@ -121,7 +121,7 @@ class PostView extends View {
     this.set(html`${back}
       <h1>${L("Ogłoś w mediach", "Announce on social media")}</h1>
       ${!conn.connected
-        ? html`<div class="banner warn">${L("Organizacja nie ma połączonej strony.", "The organization has no connected Page.")} <a href="/app/orgs/${this.org}/social">${L("Połącz Facebook i Instagram", "Connect Facebook and Instagram")}</a></div>`
+        ? html`<div class="banner warn">${L("Organizacja nie ma połączonej strony.", "The organization has no connected Facebook page.")} <a href="/app/orgs/${this.org}/social">${L("Połącz Facebook i Instagram", "Connect Facebook and Instagram")}</a></div>`
         : html`<p class="muted">${L("Strona", "Facebook page")}: <strong>${conn.pageName}</strong>${conn.igUsername ? html` · Instagram: <strong>@${conn.igUsername}</strong>` : ""}</p>`}
       <div class="post-grid">${PLATFORMS.map((pl) => {
         const hist = this.history(pl);
