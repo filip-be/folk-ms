@@ -195,7 +195,7 @@ type page struct {
 }
 
 func renderPage(w http.ResponseWriter, r *http.Request, status int, p page) {
-	l := requestLang(r)
+	l := RequestLang(r)
 	paras := make([]string, len(p.Paragraphs))
 	for i, t := range p.Paragraphs {
 		paras[i] = t.In(l)

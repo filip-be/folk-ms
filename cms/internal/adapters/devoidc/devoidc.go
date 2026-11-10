@@ -70,28 +70,42 @@ func (p *Provider) Exchange(_ context.Context, code, verifier, _, nonce string) 
 	return ports.Identity{Issuer: Issuer, Subject: "dev:" + g.email, Email: g.email, EmailVerified: true, Name: name}, nil
 }
 
+// pageText is the login page copy in one UI language.
+type pageText struct{ Lang, Title, Note, Email, Submit string }
+
+var (
+	textPL = pageText{"pl", "Logowanie deweloperskie", "Tylko lokalnie. Wpisz dowolny e-mail – zostanie potraktowany jak zweryfikowane konto Google.", "E-mail", "Zaloguj"}
+	textEN = pageText{"en", "Developer sign-in", "Local only. Type any email – it is treated as a verified Google account.", "Email", "Sign in"}
+)
+
 var page = template.Must(template.New("p").Parse(`<!doctype html>
-<html lang="pl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>Logowanie deweloperskie</title><link rel="stylesheet" href="/app/app.css"></head>
+<html lang="{{.T.Lang}}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>{{.T.Title}}</title><link rel="stylesheet" href="/app/app.css"></head>
 <body class="dev-login"><main class="card narrow">
-<h1>Logowanie deweloperskie</h1>
-<p class="muted">Tylko lokalnie. Wpisz dowolny e-mail – zostanie potraktowany jak zweryfikowane konto Google.</p>
+<h1>{{.T.Title}}</h1>
+<p class="muted">{{.T.Note}}</p>
 <form method="post">
 <input type="hidden" name="state" value="{{.State}}"><input type="hidden" name="nonce" value="{{.Nonce}}">
 <input type="hidden" name="code_challenge" value="{{.Challenge}}"><input type="hidden" name="redirect_uri" value="{{.Redirect}}">
-<label>E-mail <input type="email" name="email" required autofocus value="{{.Email}}"></label>
-<button class="primary" type="submit">Zaloguj</button>
+<div class="field"><label>{{.T.Email}} <input type="email" name="email" required autofocus value="{{.Email}}"></label></div>
+<button class="primary" type="submit">{{.T.Submit}}</button>
 </form></main></body></html>`))
 
-// Handler serves the login page (GET) and issues a code (POST).
-func (p *Provider) Handler(defaultEmail string) http.Handler {
+// Handler serves the login page (GET) and issues a code (POST). polish
+// reports whether a request's UI language is Polish (else English).
+func (p *Provider) Handler(defaultEmail string, polish func(*http.Request) bool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			q := r.URL.Query()
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			_ = page.Execute(w, map[string]string{
-				"State": q.Get("state"), "Nonce": q.Get("nonce"), "Challenge": q.Get("code_challenge"),
+			t := textEN
+			if polish(r) {
+				t = textPL
+			}
+			w.Header().Add("Vary", "Accept-Language, Cookie")
+			_ = page.Execute(w, map[string]any{
+				"T": t, "State": q.Get("state"), "Nonce": q.Get("nonce"), "Challenge": q.Get("code_challenge"),
 				"Redirect": q.Get("redirect_uri"), "Email": defaultEmail,
 			})
 		case http.MethodPost:

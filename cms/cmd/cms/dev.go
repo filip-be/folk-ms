@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/filip-be/folk-ms/cms/internal/adapters/devoidc"
+	"github.com/filip-be/folk-ms/cms/internal/domain"
+	httpapi "github.com/filip-be/folk-ms/cms/internal/http"
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
@@ -22,7 +24,8 @@ var practice embed.FS
 func init() {
 	devIdentity = func(string) (ports.IdentityProvider, http.Handler) {
 		p := devoidc.New("/auth/dev/login")
-		return p, p.Handler(os.Getenv("SUPER_ADMIN_EMAIL"))
+		polish := func(r *http.Request) bool { return httpapi.RequestLang(r) == domain.PL }
+		return p, p.Handler(os.Getenv("SUPER_ADMIN_EMAIL"), polish)
 	}
 	devPages = func() http.Handler {
 		sub, _ := fs.Sub(practice, "practice")

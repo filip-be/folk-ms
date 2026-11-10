@@ -13,9 +13,9 @@ import (
 // decide. The SPA applies the same rule to navigator.languages.
 const langCookie = "folkms-lang"
 
-// requestLang returns the UI language of a request: the langCookie, else the
+// RequestLang returns the UI language of a request: the langCookie, else the
 // first of Polish or English in Accept-Language by preference, else English.
-func requestLang(r *http.Request) domain.Lang {
+func RequestLang(r *http.Request) domain.Lang {
 	if c, err := r.Cookie(langCookie); err == nil {
 		switch domain.Lang(c.Value) {
 		case domain.PL, domain.EN:
