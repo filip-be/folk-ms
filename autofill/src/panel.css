@@ -1,0 +1,69 @@
+/* The Autofill panel, in a shadow root on Facebook. Pixel units on purpose:
+   rem would follow Facebook's root font size. Imported as text, unprocessed
+   (Bun's CSS bundler rounds the z-index), so no nesting here. */
+:host {
+  all: initial;
+
+  /* Colour (Facebook's palette, so the panel looks at home there) */
+  --surface: #fff;
+  --text: #1c1e21;
+  --muted: #606770;
+  --line: #ccd0d5;
+  --line-soft: #eee;
+  --button-bg: #f5f6f7;
+  --accent: #1877f2;
+  --accent-text: #fff;
+  --ok: #1e6b25;
+  --ok-soft: #e3f5e1;
+  --warn: #7a5a00;
+  --warn-soft: #fff4d6;
+  --danger: #a1251c;
+  --danger-soft: #fde2e1;
+
+  /* Spacing: --space-N is N px */
+  --space-1: 1px;
+  --space-2: 2px;
+  --space-3: 3px;
+  --space-6: 6px;
+  --space-8: 8px;
+  --space-12: 12px;
+  --space-16: 16px;
+
+  /* Type */
+  --font: 13px/1.4 system-ui, sans-serif;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 14px;
+  --text-lg: 16px;
+
+  /* Shape and depth */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --shadow: 0 6px 24px rgb(0 0 0 / .18);
+  --z-panel: 2147483647;
+  --panel-width: 340px;
+}
+.p {
+  position: fixed; right: var(--space-16); bottom: var(--space-16); z-index: var(--z-panel);
+  width: var(--panel-width); max-width: calc(100vw - 2 * var(--space-16)); max-height: calc(100vh - 2 * var(--space-16)); overflow: auto;
+  padding: var(--space-12); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  font: var(--font); color: var(--text); background: var(--surface); box-shadow: var(--shadow);
+}
+h2 { display: flex; justify-content: space-between; align-items: center; margin: 0 0 var(--space-8); font-size: var(--text-md); }
+ul { margin: var(--space-8) 0; padding: 0; list-style: none; }
+li { display: flex; align-items: center; gap: var(--space-6); padding: var(--space-3) 0; border-top: 1px solid var(--line-soft); }
+li .n { flex: 1; }
+.s { padding: var(--space-1) var(--space-6); border-radius: var(--radius-md); font-size: var(--text-xs); }
+.filled { background: var(--ok-soft); color: var(--ok); }
+.needs-you { background: var(--warn-soft); color: var(--warn); }
+.failed { background: var(--danger-soft); color: var(--danger); }
+button, a.b {
+  padding: var(--space-2) var(--space-8); border: 1px solid var(--line); border-radius: var(--radius-sm);
+  font: inherit; color: var(--text); background: var(--button-bg); text-decoration: none; cursor: pointer;
+}
+a.b.primary, button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.m { margin: var(--space-6) 0; }
+.w { color: var(--danger); }
+.muted { font-size: var(--text-sm); color: var(--muted); }
+.x { border: 0; background: none; font-size: var(--text-lg); }

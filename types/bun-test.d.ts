@@ -29,6 +29,12 @@ declare module "node:path" {
   export function join(...parts: string[]): string;
 }
 
+// Stylesheets imported as text: import css from "./x.css" with { type: "text" }.
+declare module "*.css" {
+  const text: string;
+  export default text;
+}
+
 // The subset of the Bun runtime used by build scripts.
 declare const Bun: {
   build(options: {

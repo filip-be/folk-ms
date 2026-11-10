@@ -26,7 +26,14 @@ if (!result.success) {
   process.exit(1);
 }
 for (const f of readdirSync(join(dir, "src"))) {
-  if (!f.endsWith(".ts")) copyFileSync(join(dir, "src", f), join(out, f));
+  if (f.endsWith(".css")) {
+    // Bun inlines @imports and lowers CSS nesting.
+    const css = await Bun.build({ entrypoints: [join(dir, "src", f)], outdir: out, minify: true });
+    if (!css.success) {
+      console.error(css.logs);
+      process.exit(1);
+    }
+  } else if (!f.endsWith(".ts")) copyFileSync(join(dir, "src", f), join(out, f));
 }
 copyFileSync(join(dir, "staticwebapp.config.json"), join(out, "staticwebapp.config.json"));
 console.log(`built ${site} → ${out} (snapshot: ${snapshotUrl})`);

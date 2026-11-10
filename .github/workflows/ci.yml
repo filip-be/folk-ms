@@ -52,8 +52,8 @@ jobs:
       - name: TypeScript type-checker (the only npm package)
         run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx tsc -b tsconfig.json
-      - name: Tests (contract reader, Site routes vs config/sites.json, Autofill)
-        run: bun test contract sites autofill
+      - name: Tests (contract reader, Site routes vs config/sites.json, Autofill, CSS tokens)
+        run: bun test contract sites autofill scripts
       - name: Build admin SPA and Sites
         run: |
           bun cms/admin/build.ts

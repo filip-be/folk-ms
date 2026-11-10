@@ -5,6 +5,7 @@
 
 import type { FieldName } from "./fieldmap.ts";
 import type { FieldStatus, Handoff } from "./protocol.ts";
+import CSS from "./panel.css" with { type: "text" };
 
 type Lang = "pl" | "en";
 const T = {
@@ -40,22 +41,6 @@ const FIELD_LABEL: Record<FieldName, Record<Lang, string>> = {
   ticketUrl: { pl: "Link do biletów", en: "Ticket URL" },
 };
 
-const CSS = `
-:host { all: initial; }
-.p { position: fixed; z-index: 2147483647; right: 16px; bottom: 16px; width: 340px; max-width: calc(100vw - 32px);
-  max-height: calc(100vh - 32px); overflow: auto; background: #fff; color: #1c1e21; border: 1px solid #ccd0d5;
-  border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18); font: 13px/1.4 system-ui, sans-serif; padding: 12px; }
-h2 { font-size: 14px; margin: 0 0 8px; display: flex; justify-content: space-between; align-items: center; }
-ul { list-style: none; margin: 8px 0; padding: 0; }
-li { display: flex; gap: 6px; align-items: center; padding: 3px 0; border-top: 1px solid #eee; }
-li .n { flex: 1; }
-.s { font-size: 11px; padding: 1px 6px; border-radius: 8px; }
-.filled { background: #e3f5e1; color: #1e6b25; } .needs-you { background: #fff4d6; color: #7a5a00; } .failed { background: #fde2e1; color: #a1251c; }
-button, a.b { font: inherit; border: 1px solid #ccd0d5; background: #f5f6f7; color: #1c1e21; border-radius: 6px; padding: 2px 8px; cursor: pointer; text-decoration: none; }
-a.b.primary, button.primary { background: #1877f2; border-color: #1877f2; color: #fff; }
-.m { margin: 6px 0; } .w { color: #a1251c; } .muted { color: #606770; font-size: 12px; }
-.x { border: 0; background: none; font-size: 16px; }
-`;
 
 export interface PanelState {
   message: string;

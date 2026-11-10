@@ -45,7 +45,7 @@ Tests:
 ```
 
 ```bash
-bun test contract sites
+bun test contract sites autofill scripts
 ```
 
 ```bash

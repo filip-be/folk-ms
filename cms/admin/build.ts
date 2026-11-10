@@ -24,7 +24,12 @@ if (!result.success) {
   process.exit(1);
 }
 copyFileSync(join(dir, "src", "index.html"), join(out, "index.html"));
-copyFileSync(join(dir, "src", "app.css"), join(out, "app.css"));
+// app.css @imports tokens.css: Bun inlines it and lowers CSS nesting.
+const css = await Bun.build({ entrypoints: [join(dir, "src", "app.css")], outdir: out, minify: true });
+if (!css.success) {
+  console.error(css.logs);
+  process.exit(1);
+}
 await buildUserscript(join(out, "autofill.user.js"));
 const practice = join(dir, "..", "cmd", "cms", "practice");
 await buildHarness(join(practice, "harness.js"));
