@@ -88,6 +88,29 @@ describe("locators", () => {
   });
 });
 
+describe("Facebook's form as seen on 2026-11-10", () => {
+  // Visible labels of the desktop create form, with end date and tickets revealed.
+  const seen = {
+    en: ["Event name", "Start date", "Start time", "Time zone", "End date", "End time", "Add location", "What are the details?", "Ticket URL"],
+    pl: ["Nazwa wydarzenia", "Data rozpoczęcia", "Czas rozpoczęcia", "Strefa czasowa", "Data zakończenia", "Godzina zakończenia", "Dodaj lokalizację", "Jakie są szczegółowe informacje na temat tego wydarzenia?", "Adres URL strony z biletami"],
+  };
+  for (const [lang, labels] of Object.entries(seen)) {
+    test(`every desktop field is found in the ${lang} UI`, () => {
+      const m = parseFieldMap(raw);
+      const f = page({ labels: labels.map((l) => [l, l] as [string, string]), selectors: { "input[type=file]": ["file"] } });
+      const form = detectForm(f, m)!;
+      expect(form.name).toBe("desktop");
+      for (const [name, spec] of Object.entries(form.fields)) expect([name, locateAny(f, spec.locators)]).not.toEqual([name, undefined]);
+    });
+  }
+  test("the location question and its in-person option, in both languages", () => {
+    const loc = parseFieldMap(raw).forms[0]!.fields.location!;
+    expect(loc.mode!.label).toContain("Czy wydarzenie jest offline czy online?");
+    expect(loc.mode!.option).toContain("Offline");
+    expect(loc.freeText!.some((p) => new RegExp(p, "i").test("Użyj tylko „Zamek”"))).toBe(true);
+  });
+});
+
 describe("link capture", () => {
   const m = parseFieldMap(raw);
   test("the created event's id comes from its path", () => {

@@ -66,12 +66,12 @@ export function dateCandidates(date: YMD, patterns: string[]): string[] {
 
 /**
  * Reports whether a text Facebook shows (an input value or an aria-label
- * such as "Start date, selected: 20 Dec 2026") names this date. It accepts
+ * such as "Start date, selected: 20 Dec 2026" or "Data rozpoczęcia, wybrano: 10 lis 2026") names this date. It accepts
  * a month by number or by its English or Polish name.
  */
 export function showsDate(text: string, date: YMD): boolean {
   const t = text.toLowerCase();
-  const sel = /selected:\s*(.+)$/i.exec(text);
+  const sel = /(?:selected|wybrano):\s*(.+)$/i.exec(text);
   const s = (sel ? sel[1]! : text).toLowerCase();
   if (!s.includes(String(date.y))) return false;
   // Numeric: d/m/y, d.m.y, y-m-d (month must not be read as the day).

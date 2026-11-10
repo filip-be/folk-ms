@@ -23,6 +23,8 @@ describe("dates", () => {
 
   test("recognises what Facebook shows", () => {
     expect(showsDate("Start date, selected: 5 Nov 2026", d)).toBe(true);
+    expect(showsDate("Data rozpoczęcia, wybrano: 5 lis 2026", d)).toBe(true);
+    expect(showsDate("Data rozpoczęcia, wybrano: 5 gru 2026", d)).toBe(false);
     expect(showsDate("05/11/2026", d)).toBe(true);
     expect(showsDate("2026-11-05", d)).toBe(true);
     expect(showsDate("5 listopada 2026", d)).toBe(true);

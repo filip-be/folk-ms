@@ -30,7 +30,8 @@ Checked by hand with a test Page, acting as the Page:
 - **Event name:** the form counts to 100 characters, not the 64 assumed when this was planned; the Handoff caps the name at 100.
 - **After Create**, Facebook navigates client-side (`history.replaceState`) to `/events/{numeric id}/`, so Autofill polls the address.
 - **m.facebook.com in a phone viewport:** a simpler form; only the name, description and cover are located by `aria-label`. The other fields are left for the Moderator with copy buttons.
-- **Not yet checked on the device:** Polish UI labels (in the field map but unverified), desktop Firefox, Firefox for Android with Violentmonkey, and iOS userscript managers (whether facebook.com jumps into the Facebook app, and whether the manager injects into the CMS page under its CSP). They are the first items of the per-release checklist in the root README; a platform where Autofill fails stays Handoff only.
+- **Desktop www.facebook.com, Polish UI:** the same form; several labels are not the obvious translations ("Czas rozpoczęcia" but "Godzina zakończenia", "Czy wydarzenie jest offline czy online?" with the option "Offline", "Adres URL strony z biletami"), so the field map lists them as seen. Dates typed in English ("20 Dec 2026") are accepted and shown in Polish ("wybrano: 20 gru 2026"). Inputs have no `name` attributes and React-generated ids, so labels are the only language-independent-enough handle. All fields but the cover (not tried) filled correctly.
+- **Not yet checked on the device:** desktop Firefox, Firefox for Android with Violentmonkey, and iOS userscript managers (whether facebook.com jumps into the Facebook app, and whether the manager injects into the CMS page under its CSP). They are the first items of the per-release checklist in the root README; a platform where Autofill fails stays Handoff only.
 
 ## Alternatives
 
