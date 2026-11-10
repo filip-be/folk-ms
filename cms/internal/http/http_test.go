@@ -57,7 +57,8 @@ func newHarness(t *testing.T) *harness {
 	h.ts.Start()
 	srv, err := NewServer(&Server{
 		App: a, IdP: h.idp, BaseURL: h.ts.URL,
-		Admin: fstest.MapFS{"index.html": {Data: []byte("<!doctype html>spa")}, "app.js": {Data: []byte("js")}},
+		Admin: fstest.MapFS{"index.html": {Data: []byte("<!doctype html>spa")}, "app.js": {Data: []byte("js")},
+			"autofill.user.js": {Data: []byte("// @match __FOLKMS_CMS_ORIGIN__/app/*")}},
 	}, bytes.Repeat([]byte{3}, 32))
 	if err != nil {
 		t.Fatal(err)

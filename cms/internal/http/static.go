@@ -121,3 +121,22 @@ func (n noDirs) Open(name string) (http.File, error) {
 	}
 	return f, nil
 }
+
+// userscriptPlaceholder is replaced with the CMS origin when the Autofill
+// userscript is served (autofill/lib.ts, ORIGIN_PLACEHOLDER).
+const userscriptPlaceholder = "__FOLKMS_CMS_ORIGIN__"
+
+// userscript serves the Autofill userscript built with the admin SPA, with
+// this CMS's origin filled in, so one build serves every deployment.
+func (s *Server) userscript(w http.ResponseWriter, r *http.Request) {
+	a, ok := s.static.files["autofill.user.js"]
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+	body := strings.ReplaceAll(string(a.data), userscriptPlaceholder, s.BaseURL)
+	h := w.Header()
+	h.Set("Content-Type", "text/javascript; charset=utf-8")
+	h.Set("Cache-Control", "no-cache")
+	_, _ = w.Write([]byte(body))
+}

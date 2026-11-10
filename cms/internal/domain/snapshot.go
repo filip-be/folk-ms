@@ -95,6 +95,8 @@ type (
 		Cancelled bool   `json:"cancelled"`
 		VenueID   string `json:"venueId"`
 		Note      *Text  `json:"note,omitempty"`
+		// FacebookEventURL links the Facebook Event of this Occurrence.
+		FacebookEventURL string `json:"facebookEventUrl,omitempty"`
 	}
 	SnapshotEvent struct {
 		ID          string           `json:"id"`
@@ -169,6 +171,7 @@ func BuildSnapshot(org *Organization, events []*Event, venues map[string]Venue, 
 		if r := c.Schedule.Recurrence; c.Schedule.Kind == KindRecurring && r != nil {
 			se.Recurrence = &SnapRecurrence{Freq: r.Freq, Weekday: r.Weekday, Nth: r.Nth, StartDate: c.Schedule.StartDate, EndDate: r.EndDate}
 		}
+		fbURLs := e.FacebookEventURLs(occ)
 		for _, o := range occ {
 			venueKey := o.VenueID
 			if frozen, ok := e.PastVenues[o.Key]; ok && frozen.ID == o.VenueID {
@@ -180,6 +183,7 @@ func BuildSnapshot(org *Organization, events []*Event, venues map[string]Venue, 
 			se.Occurrences = append(se.Occurrences, SnapOccurrence{
 				Start: o.Start.Format(time.RFC3339), End: o.End.Format(time.RFC3339),
 				Cancelled: o.Cancelled, VenueID: venueKey, Note: optText(o.Note),
+				FacebookEventURL: fbURLs[o.Key],
 			})
 		}
 		s.Events = append(s.Events, se)

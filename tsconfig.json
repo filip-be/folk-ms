@@ -1,4 +1,4 @@
 {
   "files": [],
-  "references": [{ "path": "contract/client" }, { "path": "cms/admin" }, { "path": "sites" }]
+  "references": [{ "path": "contract/client" }, { "path": "cms/admin" }, { "path": "sites" }, { "path": "autofill" }]
 }

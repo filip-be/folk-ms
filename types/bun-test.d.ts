@@ -48,4 +48,10 @@ declare const process: { argv: string[]; exit(code: number): never; env: Record<
 declare module "node:fs" {
   export function copyFileSync(from: string, to: string): void;
   export function mkdirSync(path: string, opts?: { recursive?: boolean }): void;
+  export function rmSync(path: string, opts?: { force?: boolean; recursive?: boolean }): void;
+  export function existsSync(path: string): boolean;
+  export function mkdtempSync(prefix: string): string;
+}
+declare module "node:os" {
+  export function tmpdir(): string;
 }

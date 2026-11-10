@@ -31,6 +31,8 @@ type App struct {
 
 	SuperAdminEmail string
 
+	handoffKey []byte
+
 	orgs    []*domain.Organization
 	orgByID map[string]*domain.Organization
 }

@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "checked": "2026-11-10: desktop www.facebook.com (English UI) and m.facebook.com (English UI, phone viewport), acting as a Page. Polish labels are unverified.",
+  "created": "^/events/([0-9]{5,25})/?$",
+  "forms": [
+    {
+      "name": "desktop",
+      "detect": [{ "label": ["Event name", "Nazwa wydarzenia"] }],
+      "root": [{ "role": "dialog" }],
+      "fields": {
+        "cover": { "kind": "file", "locators": [{ "selector": "input[type=file]" }] },
+        "name": { "kind": "text", "locators": [{ "label": ["Event name", "Nazwa wydarzenia"] }] },
+        "startDate": { "kind": "date", "locators": [{ "label": ["Start date", "Data rozpoczęcia"] }] },
+        "startTime": { "kind": "time", "locators": [{ "label": ["Start time", "Godzina rozpoczęcia"] }] },
+        "timezone": {
+          "kind": "choice",
+          "locators": [{ "label": ["Time zone", "Strefa czasowa"] }]
+        },
+        "endDate": {
+          "kind": "date",
+          "reveal": [{ "ariaLabel": ["Add end date and time", "Dodaj datę i godzinę zakończenia"] }],
+          "locators": [{ "label": ["End date", "Data zakończenia"] }]
+        },
+        "endTime": { "kind": "time", "locators": [{ "label": ["End time", "Godzina zakończenia"] }] },
+        "location": {
+          "kind": "place",
+          "mode": { "label": ["Is it in person or virtual?", "Wydarzenie stacjonarne czy wirtualne?"], "option": ["In person", "Stacjonarne", "Osobiście"] },
+          "freeText": ["^Just use", "^Użyj"],
+          "locators": [{ "label": ["Add location", "Dodaj lokalizację"] }]
+        },
+        "description": { "kind": "text", "locators": [{ "label": ["What are the details?", "Jakie są szczegóły?"] }, { "selector": "textarea" }] },
+        "ticketUrl": {
+          "kind": "text",
+          "reveal": [{ "text": ["Add tickets", "Dodaj bilety"] }],
+          "locators": [{ "label": ["Ticket URL", "Adres URL biletu", "Link do biletów"] }]
+        }
+      }
+    },
+    {
+      "name": "mobile",
+      "detect": [{ "ariaLabel": ["Event name", "Nazwa wydarzenia"], "tag": "input" }],
+      "root": [],
+      "fields": {
+        "cover": { "kind": "file", "locators": [{ "selector": "input[type=file]" }] },
+        "name": { "kind": "text", "locators": [{ "ariaLabel": ["Event name", "Nazwa wydarzenia"], "tag": "input" }] },
+        "description": { "kind": "text", "locators": [{ "ariaLabel": ["Description", "Opis"], "tag": "textarea" }] }
+      }
+    }
+  ],
+  "dateFormats": ["d MMM yyyy", "dd/MM/yyyy", "dd.MM.yyyy", "MMMM d, yyyy", "yyyy-MM-dd"],
+  "timeFormats": ["HH:mm", "h:mm a"]
+}

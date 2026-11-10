@@ -162,3 +162,11 @@ dl.facts dt { color: var(--muted); } dl.facts dd { margin: 0; }
   table.list th:nth-child(3), table.list td:nth-child(3) { display: none; }
   .toolbar.sticky { position: static; }
 }
+
+/* Facebook Event Handoff */
+ul.fb-links { list-style: none; margin: 0; padding: 0; }
+ul.fb-links li { padding: 0.6rem 0; border-top: 1px solid var(--line); }
+ul.fb-links li.detached { background: var(--warn-soft); }
+ul.fb-links .row { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin-top: 0.4rem; }
+ul.fb-links input[type="url"] { flex: 1 1 18rem; min-width: 0; }
+.fb-handoff textarea { width: 100%; }

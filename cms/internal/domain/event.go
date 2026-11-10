@@ -143,10 +143,13 @@ type Event struct {
 	// Occurrence key.
 	PastVenues     map[string]Venue `json:"pastVenues,omitempty"`
 	DuplicatedFrom string           `json:"duplicatedFrom,omitempty"`
-	CreatedAt      time.Time        `json:"createdAt"`
-	CreatedBy      string           `json:"createdBy"`
-	UpdatedAt      time.Time        `json:"updatedAt"`
-	UpdatedBy      string           `json:"updatedBy"`
+	// FacebookEvents are links to Facebook Events created by hand on
+	// Facebook, each kept against the Occurrence it announces.
+	FacebookEvents []FacebookEventLink `json:"facebookEvents,omitempty"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	CreatedBy      string              `json:"createdBy"`
+	UpdatedAt      time.Time           `json:"updatedAt"`
+	UpdatedBy      string              `json:"updatedBy"`
 	// Revisions let the UI tell whether the Draft has unpublished changes.
 	DraftRevision     int `json:"draftRevision"`
 	PublishedRevision int `json:"publishedRevision,omitempty"`

@@ -35,7 +35,7 @@ A place where Events happen: name, address, optional map link. Kept as a reusabl
 Free-text, bilingual description of the cost of attending, with an optional tickets/registration link.
 
 **Cover Image**
-The landscape image representing an Event on Sites and in Facebook Social Posts.
+The landscape image representing an Event on Sites, in Facebook Social Posts and on Facebook Events.
 
 **Social Image**
 An optional square/portrait image (e.g. a poster) used for Instagram Social Posts. When absent, a crop of the Cover Image is used.
@@ -66,7 +66,7 @@ An Event is authored in Polish; English is optional. Where English is missing, S
 ## Social posting
 
 **Social Post**
-An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event (which is created by hand outside the CMS). Posted manually by a Moderator, who signs in with Meta every time; each platform gets its own Social Post, and one sign-in can post on both. The CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
+An announcement of a Published Event on an Organization's social media account: a Facebook Page feed post or an Instagram image post. Distinct from the Event itself and from a Facebook Event. Posted manually by a Moderator, who signs in with Meta every time; each platform gets its own Social Post, and one sign-in can post on both. The CMS remembers each Social Post's outcome (pending, posted, failed). A post whose outcome is unknown is retried only after the Moderator confirms it did not go out.
 
 **Caption**
 The text of a Social Post. Generated from the Event's fields and Permalink, then edited by the Moderator before posting.
@@ -76,6 +76,17 @@ Which Facebook Page and Instagram account an Organization posts to. Belongs to t
 
 **Post Request**
 A Moderator's request to post an Event on Facebook, Instagram or both, with its Captions, kept for a few minutes while they sign in with Meta. Used once; nothing is posted until the sign-in completes it.
+
+**Facebook Event**
+An event page on Facebook, hosted by the Organization's Facebook Page, announcing one Occurrence of a Published Event. Always created on Facebook by a Moderator; the CMS never creates, changes or removes one. The CMS remembers its link against the Occurrence, and the Site shows it. A Recurring Event gets one Facebook Event at a time, for its next Occurrence, and a new one once that Occurrence has passed.
+_Avoid_: "event" alone (that is an Event), "post" (that is a Social Post).
+
+**Facebook Event Handoff**
+The CMS preparing a Facebook Event's fields from a Published Event's Occurrence (name, dates, Venue, description in Polish then English, Cover Image) for the Moderator to edit and then copy, or have Autofill type, into Facebook. Needs a Social Account Connection, which names the hosting Page. When the Event later changes, the CMS reminds the Moderator that the Facebook Event may be out of date.
+_Avoid_: "Facebook Event Draft" (Draft is an Event's state).
+
+**Autofill**
+An optional browser helper a Moderator installs, which types a Facebook Event Handoff into Facebook's own event form and brings the new Facebook Event's link back to the CMS. It never creates the Facebook Event: the Moderator reviews the form and presses Create. Unofficial and expected to break when Facebook changes its form; the Handoff's copy buttons always remain.
 
 ## Access
 
@@ -89,7 +100,7 @@ A person allowed to manage the Events of the Organizations they were granted. Ac
 A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
 
 **Audit Log**
-An append-only record of who did what and when: Event changes, Publish/Unpublish, Social Posts, access grants. Readable by the Super Admin.
+An append-only record of who did what and when: Event changes, Publish/Unpublish, Social Posts, Facebook Event links and Autofill failures, access grants. Readable by the Super Admin.
 
 ## Future extensions (not in v1)
 

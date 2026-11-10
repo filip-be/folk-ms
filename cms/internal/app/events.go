@@ -26,6 +26,10 @@ type EventSummary struct {
 	DeletedAt          *time.Time    `json:"deletedAt,omitempty"`
 	UpdatedAt          time.Time     `json:"updatedAt"`
 	HasCover           bool          `json:"hasCover"`
+	// FacebookOutOfDate: a Facebook Event may need editing on Facebook.
+	FacebookOutOfDate bool `json:"facebookOutOfDate,omitempty"`
+	// FacebookDetached: a Facebook Event lost its Occurrence.
+	FacebookDetached bool `json:"facebookDetached,omitempty"`
 }
 
 // List views.
@@ -36,7 +40,7 @@ const (
 	ViewBin      = "bin"
 )
 
-func summarize(e *domain.Event, loc *time.Location, now time.Time) EventSummary {
+func summarize(e *domain.Event, loc *time.Location, venues map[string]domain.Venue, now time.Time) EventSummary {
 	c := e.Draft
 	if e.Published != nil {
 		c = *e.Published
@@ -46,6 +50,7 @@ func summarize(e *domain.Event, loc *time.Location, now time.Time) EventSummary 
 		Status: e.Status(), UnpublishedChanges: e.HasUnpublishedChanges(), DeletedAt: e.DeletedAt,
 		UpdatedAt: e.UpdatedAt, HasCover: e.Draft.Cover != nil,
 	}
+	s.FacebookOutOfDate, s.FacebookDetached = e.FacebookEventFlags(loc, venues)
 	occ := c.Schedule.Occurrences(loc, c.VenueID)
 	s.Occurrences = len(occ)
 	for i := range occ {
@@ -76,9 +81,13 @@ func (a *App) ListEvents(ctx context.Context, p domain.Principal, org, view stri
 		return nil, err
 	}
 	now := a.now()
+	venues, err := a.venueMap(ctx, org)
+	if err != nil {
+		return nil, err
+	}
 	out := []EventSummary{}
 	for _, e := range all {
-		s := summarize(e, o.Location(), now)
+		s := summarize(e, o.Location(), venues, now)
 		var in bool
 		switch view {
 		case ViewBin:
@@ -413,6 +422,13 @@ func (a *App) PurgeBin(ctx context.Context) (int, error) {
 				continue
 			}
 			details := map[string]any{"title": e.Draft.Title.PL, "shortId": e.ShortID, "deletedAt": e.DeletedAt}
+			if len(e.FacebookEvents) > 0 {
+				var fb []string
+				for _, l := range e.FacebookEvents {
+					fb = append(fb, l.URL)
+				}
+				details["facebookEventUrls"] = fb
+			}
 			if posts, _, err := load[domain.EventPosts](ctx, a.Docs, postsKey(o.ID, e.ID)); err == nil {
 				var urls []string
 				for _, sp := range posts.Posts {

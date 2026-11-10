@@ -59,6 +59,8 @@ export interface Occurrence {
   cancelled: boolean;
   venueId: string;
   note?: LocalizedText;
+  /** The Facebook Event announcing this Occurrence, when one was recorded. */
+  facebookEventUrl?: string;
 }
 
 export type EventKind = "single" | "multiDay" | "recurring";

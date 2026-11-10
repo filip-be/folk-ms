@@ -118,7 +118,8 @@ class EditorView extends View {
               : html`
                 <button type="submit" class="primary" id="save">${L("Zapisz szkic", "Save draft")}</button>
                 ${v ? html`<button type="button" class="primary publish" data-action="publish">${status !== "published" ? L("Opublikuj", "Publish") : v!.event.draftRevision !== v!.event.publishedRevision ? L("Opublikuj zmiany", "Publish changes") : L("Opublikuj ponownie", "Publish again")}</button>` : ""}
-                ${status === "published" ? html`<a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/post">${L("Ogłoś w mediach", "Announce on social media")}</a>` : ""}
+                ${status === "published" ? html`<a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/post">${L("Ogłoś w mediach", "Announce on social media")}</a>
+                  <a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/facebook">${L("Wydarzenie na Facebooku", "Facebook event")}</a>` : ""}
                 ${v ? html`<details class="more"><summary class="button">${L("Więcej", "More")}</summary><div class="menu">
                   ${status === "published" ? html`<button type="button" data-action="unpublish">${L("Wycofaj ze strony", "Unpublish")}</button>` : ""}
                   ${v ? html`<button type="button" data-action="duplicate">${L("Duplikuj", "Duplicate")}</button>

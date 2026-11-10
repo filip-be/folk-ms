@@ -104,6 +104,8 @@ export interface EventSummary {
   deletedAt?: string;
   updatedAt: string;
   hasCover: boolean;
+  facebookOutOfDate?: boolean;
+  facebookDetached?: boolean;
 }
 export interface Venue {
   id: string;
@@ -164,6 +166,66 @@ export interface PostsView {
   connection: ConnectionStatus;
   canInstagram: boolean;
 }
+export interface HandedOver {
+  title: string;
+  start: string;
+  end: string;
+  venueName: string;
+  venueAddress: string;
+  cancelled: boolean;
+}
+export interface FacebookEventLink {
+  id: string;
+  url: string;
+  occurrenceKey: string;
+  handedOver: HandedOver;
+  recordedBy: string;
+  recordedAt: string;
+}
+export type ChangedField = "title" | "start" | "end" | "venue" | "cancelled";
+export interface FacebookEventState {
+  link: FacebookEventLink;
+  occurrence?: Occurrence;
+  detached: boolean;
+  unpublished: boolean;
+  outOfDate: boolean;
+  changed: ChangedField[];
+  current?: HandedOver;
+}
+export interface FacebookEventFields {
+  occurrenceKey: string;
+  name: string;
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  start: string;
+  end: string;
+  timezone: string;
+  location: string;
+  venueName: string;
+  venueAddress: string;
+  description: string;
+  ticketUrl?: string;
+}
+export interface HandoffView {
+  published: boolean;
+  connection: ConnectionStatus;
+  title: Text;
+  fields?: FacebookEventFields;
+  coverUrl?: string;
+  coverName?: string;
+  token?: string;
+  links: FacebookEventState[];
+  occurrences: Occurrence[];
+  nextLinked: boolean;
+}
+export interface LinkInput {
+  url?: string;
+  occurrenceKey?: string;
+  token?: string;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -242,6 +304,15 @@ export const api = {
   /** Starts a Post Request; the answer is the Meta sign-in to send the browser to. */
   requestPost: (org: string, id: string, posts: PostDraft[], confirm: boolean) =>
     request<{ url: string }>("POST", `${o(org)}/events/${id}/posts`, { posts, confirm }),
+
+  facebookEvent: (org: string, id: string) => request<HandoffView>("GET", `${o(org)}/events/${id}/facebook-event`),
+  addFacebookEvent: (org: string, id: string, l: LinkInput) => request<HandoffView>("POST", `${o(org)}/events/${id}/facebook-event`, l),
+  changeFacebookEvent: (org: string, id: string, link: string, l: LinkInput) =>
+    request<HandoffView>("PUT", `${o(org)}/events/${id}/facebook-event/${link}`, l),
+  removeFacebookEvent: (org: string, id: string, link: string) => request<HandoffView>("DELETE", `${o(org)}/events/${id}/facebook-event/${link}`),
+  dismissFacebookEvent: (org: string, id: string, link: string) =>
+    request<HandoffView>("POST", `${o(org)}/events/${id}/facebook-event/${link}/dismiss`),
+  autofillReport: (org: string, r: unknown) => request<{ ok: boolean }>("POST", `${o(org)}/autofill-reports`, r),
 
   venues: (org: string) => request<Venue[]>("GET", `${o(org)}/venues`),
   createVenue: (org: string, v: Partial<Venue>) => request<Venue>("POST", `${o(org)}/venues`, v),

@@ -20,8 +20,8 @@ const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"
 export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ESC[c]!);
 
 const L = {
-  pl: { upcoming: "Nadchodzące wydarzenia", past: "Minione wydarzenia", none: "Brak wydarzeń.", more: "Szczegóły", dates: "Terminy", cancelled: "odwołane", tickets: "Bilety / zapisy", map: "Mapa", notFound: "Nie znaleziono strony.", switchLang: "English", showPast: "Minione", showUpcoming: "Nadchodzące" },
-  en: { upcoming: "Upcoming events", past: "Past events", none: "No events.", more: "Details", dates: "Dates", cancelled: "cancelled", tickets: "Tickets / registration", map: "Map", notFound: "Page not found.", switchLang: "Polski", showPast: "Past", showUpcoming: "Upcoming" },
+  pl: { upcoming: "Nadchodzące wydarzenia", past: "Minione wydarzenia", none: "Brak wydarzeń.", more: "Szczegóły", dates: "Terminy", cancelled: "odwołane", tickets: "Bilety / zapisy", map: "Mapa", facebook: "Wydarzenie na Facebooku", notFound: "Nie znaleziono strony.", switchLang: "English", showPast: "Minione", showUpcoming: "Nadchodzące" },
+  en: { upcoming: "Upcoming events", past: "Past events", none: "No events.", more: "Details", dates: "Dates", cancelled: "cancelled", tickets: "Tickets / registration", map: "Map", facebook: "Facebook event", notFound: "Page not found.", switchLang: "Polski", showPast: "Past", showUpcoming: "Upcoming" },
 };
 
 function card(s: Snapshot, e: Event, lang: Lang, now: Date): string {
@@ -57,7 +57,8 @@ function detail(s: Snapshot, e: Event, lang: Lang, now: Date): string {
         const v = venue(s, o);
         return `<li class="${o.cancelled ? "cancelled" : ""}">${esc(formatStart(o, lang, s.organization.timezone))}
           ${v ? ` · ${esc(v.name)}, ${esc(v.address)}${v.mapUrl ? ` (<a href="${esc(v.mapUrl)}" rel="noopener">${esc(L[lang].map)}</a>)` : ""}` : ""}
-          ${o.cancelled ? ` – <strong>${esc(L[lang].cancelled)}</strong>` : ""}${o.note ? ` – ${esc(t(o.note, lang))}` : ""}</li>`;
+          ${o.cancelled ? ` – <strong>${esc(L[lang].cancelled)}</strong>` : ""}${o.note ? ` – ${esc(t(o.note, lang))}` : ""}
+          ${o.facebookEventUrl ? ` · <a href="${esc(o.facebookEventUrl)}" rel="noopener">${esc(L[lang].facebook)}</a>` : ""}</li>`;
       })
       .join("")}</ul>
     ${e.price ? `<p class="price">${esc(t(e.price.text, lang))}${e.price.url ? ` · <a href="${esc(e.price.url)}" rel="noopener">${esc(L[lang].tickets)}</a>` : ""}</p>` : ""}

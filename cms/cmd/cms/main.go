@@ -35,6 +35,9 @@ import (
 // devIdentity is set by dev.go in builds with the "dev" tag.
 var devIdentity func(baseURL string) (ports.IdentityProvider, http.Handler)
 
+// devPages is set by dev.go: the Autofill practice page under /dev/facebook/.
+var devPages func() http.Handler
+
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
 		return v
@@ -104,6 +107,9 @@ func run(log *slog.Logger) error {
 	} else if mode == "local" && devIdentity != nil {
 		idp, h := devIdentity(baseURL)
 		srv.IdP, srv.DevLogin = idp, h
+		if devPages != nil {
+			srv.DevPages = devPages()
+		}
 		log.Warn("using the dev OIDC stub: any email can sign in")
 	} else {
 		return errors.New("GOOGLE_CLIENT_ID is required (or build with -tags dev for local sign-in)")

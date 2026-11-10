@@ -1,6 +1,6 @@
 # Social posting
 
-How a Moderator announces a Published Event on the Organization's Facebook Page and Instagram account. The CMS cannot create Facebook Events: Meta allows that only through its Official Events API, which is open to approved ticketing partners and not to apps like this one. It can publish Page feed posts and Instagram image posts instead. It uses the CMS, Storage and the Meta Graph API.
+How a Moderator announces a Published Event on the Organization's Facebook Page and Instagram account. The CMS cannot create Facebook Events: Meta allows that only through its Official Events API, which is open to approved ticketing partners and not to apps like this one. It can publish Page feed posts and Instagram image posts instead; Facebook Events are prepared through a Handoff, see [Facebook events](../facebook-events/README.md). It uses the CMS, Storage and the Meta Graph API.
 
 ## How it works
 
@@ -56,6 +56,7 @@ The spike verifies, with a test Page, that Standard Access is enough for `pages_
 ## Read next
 
 - [Event management](../event-management/README.md): images and Publish
+- [Facebook events](../facebook-events/README.md): Facebook Events hosted by the connected Page
 - [ADR 0005](../architecture/adr/0005-meta-sign-in-for-every-post.md): why the CMS stores no Meta token
 - [Root README](../../README.md#operations): Meta app setup and who can post
 - [CONTEXT.md](../../CONTEXT.md#social-posting): the terms this capability uses

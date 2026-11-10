@@ -14,7 +14,7 @@ flowchart LR
   V -->|fetch snapshot and images, CORS| B
 ```
 
-- **Snapshot:** one `pub/sites/<site>/events.json` per Site with all Published Events of its Organization: Organization info, each Event's id, slug, Permalink, kind, expanded Occurrences (with cancellations and overrides), Polish and English texts with explicit fallback, Venue, Price, image variants with width, height and URL, `publishedAt` and `schemaVersion`. Served with `Cache-Control: public, max-age=60`.
+- **Snapshot:** one `pub/sites/<site>/events.json` per Site with all Published Events of its Organization: Organization info, each Event's id, slug, Permalink, kind, expanded Occurrences (with cancellations and overrides), Polish and English texts with explicit fallback, Venue, Price, image variants with width, height and URL, an optional `facebookEventUrl` per Occurrence (see [Facebook events](../facebook-events/README.md)), `publishedAt` and `schemaVersion`. Served with `Cache-Control: public, max-age=60`.
 - **Concurrent Publishes** rebuild the snapshot with ETag compare-and-swap and retry on conflict.
 - **Media:** JPEG variants under immutable, content-hashed names in `pub`.
 - **Contract:** the hand-written JSON Schema `contract/events.schema.json` is canonical. The Go snapshot builder and the TypeScript reader are both tested against the shared fixtures. Because the Go side allows no third-party dependencies, the CMS has its own minimal validator for the keyword subset the schema uses, with a test that the schema uses no other keywords.

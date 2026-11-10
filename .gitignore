@@ -7,3 +7,6 @@ node_modules/
 /.data/
 *.exe
 /cms/deploy/out/
+/autofill/dist/
+/cms/cmd/cms/practice/harness.js
+/cms/cmd/cms/practice/fieldmap.json

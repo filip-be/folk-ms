@@ -72,3 +72,11 @@ describe("helpers", () => {
     expect(pickVariant(undefined, 1)).toBeUndefined();
   });
 });
+
+describe("facebook events", () => {
+  test("an Occurrence carries its Facebook Event link", () => {
+    const s = parseSnapshot(JSON.parse(readFileSync(join(fixtures, "valid", "full.json"), "utf8")));
+    expect(s.events[0]!.occurrences[0]!.facebookEventUrl).toBe("https://www.facebook.com/events/1004759319341552/");
+    expect(s.events[1]!.occurrences[0]!.facebookEventUrl).toBeUndefined();
+  });
+});

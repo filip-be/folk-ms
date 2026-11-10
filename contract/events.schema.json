@@ -103,7 +103,8 @@
         "end": { "type": "string", "format": "date-time" },
         "cancelled": { "type": "boolean" },
         "venueId": { "type": "string", "minLength": 1 },
-        "note": { "$ref": "#/$defs/localizedText" }
+        "note": { "$ref": "#/$defs/localizedText" },
+        "facebookEventUrl": { "type": "string", "pattern": "^https://www\\.facebook\\.com/events/[0-9]+/$", "maxLength": 100, "description": "The Facebook Event announcing this Occurrence, when a Moderator recorded one" }
       }
     },
     "event": {

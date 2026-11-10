@@ -40,7 +40,10 @@ class EventsView extends View {
                   <div class="muted small">/${e.shortId}-${e.slug}</div></td>
                 <td>${when(e)}${e.kind === "recurring" ? html`<div class="muted small">${L(`${e.occurrences} terminów`, `${e.occurrences} dates`)}</div>` : ""}</td>
                 <td>${KIND_LABEL[e.kind] ?? "–"}</td>
-                <td>${badge(e.status, e.unpublishedChanges ? L("niepublikowane zmiany", "unpublished changes") : "")}</td>
+                <td>${badge(e.status, e.unpublishedChanges ? L("niepublikowane zmiany", "unpublished changes") : "")}
+                  ${e.facebookDetached || e.facebookOutOfDate
+                    ? html` <a class="badge warn" href="/app/orgs/${this.org}/events/${e.id}/facebook">${e.facebookDetached ? L("Facebook: link bez terminu", "Facebook: detached link") : L("Facebook: do aktualizacji", "Facebook: out of date")}</a>`
+                    : ""}</td>
               </tr>`,
             )}</tbody></table>`}
       ${tab === "bin" ? html`<p class="muted small">${L("Wydarzenia w koszu są usuwane na stałe po 30 dniach. Przywrócić może administrator.", "Events in the bin are deleted permanently after 30 days. The administrator can restore them.")}</p>` : ""}

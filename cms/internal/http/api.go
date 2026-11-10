@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/domain"
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
@@ -118,6 +119,53 @@ func (s *Server) routes(m *http.ServeMux) {
 			return err
 		}
 		return s.startMetaLogin(w, p, metaState{Org: org, Request: req.ID, Event: id})
+	}))
+
+	// Facebook Events: the Handoff and the links Moderators record.
+	m.Handle("GET /api/orgs/{org}/events/{id}/facebook-event", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.FacebookEventHandoff(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		return ok(w, v, err)
+	}))
+	m.Handle("GET /api/orgs/{org}/events/{id}/facebook-event/cover", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		data, err := s.App.FacebookEventCover(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		if err != nil {
+			return err
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Disposition", `inline; filename="cover.jpg"`)
+		_, _ = w.Write(data)
+		return nil
+	}))
+	m.Handle("POST /api/orgs/{org}/events/{id}/facebook-event", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in app.LinkInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/orgs/{org}/events/{id}/facebook-event/{link}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in app.LinkInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.ChangeFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE /api/orgs/{org}/events/{id}/facebook-event/{link}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/events/{id}/facebook-event/{link}/dismiss", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.DismissFacebookEventFlag(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/autofill-reports", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in app.AutofillReport
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		return ok(w, map[string]bool{"ok": true}, s.App.ReportAutofill(r.Context(), p, r.PathValue("org"), in))
 	}))
 
 	// Venues.
