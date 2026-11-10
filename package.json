@@ -6,6 +6,6 @@
     "typecheck": "tsc -b tsconfig.json"
   },
   "devDependencies": {
-    "typescript": "7.0.2"
+    "typescript": "^7.0.2"
   }
 }

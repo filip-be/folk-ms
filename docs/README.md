@@ -34,5 +34,5 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post, 0006 Facebook Events through a Handoff and Autofill
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post, 0006 Facebook Events through a Handoff and Autofill, 0007 latest toolchains and Dependabot cooldown
 - [Root README](../README.md): local setup and operations runbooks

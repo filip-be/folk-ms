@@ -44,4 +44,4 @@ The `dev` tag adds the local sign-in stub; production builds leave it out. Build
 
 ## Dependencies
 
-Standard library and `golang.org/x/image` only, vendored. After changing `go.mod`: `go mod tidy && go mod vendor`. See [ADR 0003](../docs/architecture/adr/0003-stdlib-only-go.md).
+Standard library and `golang.org/x/image` only. After changing `go.mod`: `go mod tidy`. Dependabot keeps the modules current. See [ADR 0003](../docs/architecture/adr/0003-stdlib-only-go.md) and [ADR 0007](../docs/architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md).

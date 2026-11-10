@@ -20,14 +20,14 @@ jobs:
       AZURITE_BLOB_URL: http://127.0.0.1:10000/devstoreaccount1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Toolchain (checksum-verified)
-        run: tools/fetch.sh go && echo "$PWD/.tools/go/bin" >> "$GITHUB_PATH"
-      - name: Vendor is complete and tidy
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: cms/go.sum
+      - name: go.mod and go.sum are tidy and verified
         working-directory: cms
-        run: |
-          go mod tidy
-          go mod vendor
-          git diff --exit-code -- go.mod go.sum vendor
+        run: go mod tidy -diff && go mod verify
       - name: Vet
         working-directory: cms
         run: go vet ./... && go vet -tags dev ./...
@@ -36,7 +36,7 @@ jobs:
         run: go test -race -count=1 ./...
       - name: govulncheck
         working-directory: cms
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
       - name: Production build has no dev sign-in
         working-directory: cms
         run: |
@@ -47,8 +47,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Bun (checksum-verified)
-        run: tools/fetch.sh bun && echo "$PWD/.tools/bun" >> "$GITHUB_PATH"
+      - name: Bun (latest release, checksum-verified)
+        run: .github/scripts/setup-bun.sh
       - name: TypeScript type-checker (the only npm package)
         run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx tsc -b tsconfig.json

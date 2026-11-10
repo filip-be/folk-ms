@@ -4,8 +4,9 @@
 set -euo pipefail
 export PATH="/usr/bin:/bin:$PATH"
 root="$(cd "$(dirname "$0")/.." && pwd)"
-export PATH="$root/.tools/go/bin:$root/.tools/bun:$PATH"
-[ -x "$root/.tools/go/bin/go" ] || [ -x "$root/.tools/go/bin/go.exe" ] || "$root/tools/fetch.sh"
+for tool in go bun; do
+  command -v "$tool" >/dev/null || { echo "$tool is not on PATH; see README.md#local-development" >&2; exit 1; }
+done
 bun "$root/cms/admin/build.ts"
 cd "$root/cms"
 export FOLKMS_ENV=local DATA_DIR="$root/.data" SITES_CONFIG="$root/config/sites.json"

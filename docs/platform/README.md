@@ -39,11 +39,12 @@ All store adapters run one shared contract suite ([`storetest`](../../cms/intern
 
 ### Dependency policy
 
-See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md). In short:
+See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md) for what may be depended on and [ADR 0007](../architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md) for how versions are kept current. In short:
 
-- **Go:** standard library and `golang.org/x/*` only, vendored with `go mod vendor`, checked with `govulncheck` in CI. No Azure SDK and no OIDC or JWT libraries.
-- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with a pinned Bun binary that [`tools/fetch.sh`](../../tools/fetch.sh) downloads and verifies against [`tools/checksums.txt`](../../tools/checksums.txt). Zero npm runtime dependencies; the only npm package is the dev-only `typescript` type-checker, at an exact version with lockfile integrity, installed with `npm ci --ignore-scripts`.
-- **GitHub Actions:** only `actions/*`, pinned by commit SHA; Dependabot updates actions only. Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
+- **Go:** standard library and `golang.org/x/*` only, fetched as modules and verified by `go.sum`, checked with `govulncheck` in CI. CI builds with the latest stable Go. No Azure SDK and no OIDC or JWT libraries.
+- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with Bun; CI installs the latest release with [`.github/scripts/setup-bun.sh`](../../.github/scripts/setup-bun.sh). Zero npm runtime dependencies; the only npm package is the dev-only `typescript` type-checker, locked with integrity in `package-lock.json` and installed with `npm ci --ignore-scripts`.
+- **GitHub Actions:** only `actions/*`, pinned by commit SHA.
+- **Updates:** Dependabot updates the actions, `typescript` and the Go modules with a 7-day cooldown ([`.github/dependabot.yml`](../../.github/dependabot.yml)). Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
 
 ### Infrastructure and CI/CD
 
@@ -51,7 +52,7 @@ Bicep in [`infra/azure/main.bicep`](../../infra/azure/main.bicep) declares the s
 
 Workflows in [`.github/workflows`](../../.github/workflows/):
 
-- `ci.yml`: Go vet, test (with Azurite as a service), `govulncheck`, vendor check, a check that the production binary has no dev sign-in; `tsc -b`; Bun tests (contract reader, Site routes); admin and Site builds; Bicep build.
+- `ci.yml`: Go vet, test (with Azurite as a service), `govulncheck`, a check that `go.mod` and `go.sum` are tidy, a check that the production binary has no dev sign-in; `tsc -b`; Bun tests (contract reader, Site routes); admin and Site builds; Bicep build.
 - `deploy-infra.yml`: `main.bicep` with Site ids and origins computed from `config/sites.json`.
 - `deploy-cms.yml`: tests, `cms/deploy/package.sh` (Linux binary + `host.json` + function folders + `sites.json`), zip deploy, health check.
 - `deploy-site.yml`: a matrix of the Site ids in `config/sites.json`, with path filters; the snapshot URL is baked in at build time.
@@ -87,8 +88,8 @@ Workflows in [`.github/workflows`](../../.github/workflows/):
 | Adapters | [`cms/internal/adapters/`](../../cms/internal/adapters/) (`azblob/`, `fs/`, `memory/`, `google/`, `devoidc/`, `meta/`, `img/`, `storetest/`) |
 | HTTP layer | [`cms/internal/http/`](../../cms/internal/http/) |
 | Functions package | [`cms/deploy/`](../../cms/deploy/) |
-| Vendored Go dependencies | `cms/vendor/` |
-| Pinned tools | [`tools/`](../../tools/) |
+| Go dependencies | [`cms/go.mod`](../../cms/go.mod) |
+| Dependency updates | [`.github/dependabot.yml`](../../.github/dependabot.yml) |
 | Infrastructure | [`infra/azure/main.bicep`](../../infra/azure/main.bicep) |
 | Workflows | [`.github/workflows/`](../../.github/workflows/) |
 
@@ -96,12 +97,11 @@ Workflows in [`.github/workflows`](../../.github/workflows/):
 
 | Rule | Files | What breaks |
 | --- | --- | --- |
-| A tool version and its checksums change together | `tools/versions.env`, `tools/checksums.txt` | `tools/fetch.sh` refuses the download, so CI fails loudly. |
 | The Functions package layout matches the binary | `cms/deploy/functions/host.json` (`defaultExecutablePath`), `cms/deploy/package.sh` | The host cannot start the handler; the deploy smoke test fails. |
 | Each Static Web App carries the tag `folkms-site=<site id>` that the deploy finds it by | `infra/azure/main.bicep`, `.github/workflows/deploy-site.yml` | The Site deploy fails with "no Static Web App tagged". |
 ## Read next
 
-- [ADR 0002](../architecture/adr/0002-blob-json-documents-with-etag.md), [ADR 0003](../architecture/adr/0003-stdlib-only-go.md), [ADR 0004](../architecture/adr/0004-same-origin-admin-on-flex-custom-handler.md)
+- [ADR 0002](../architecture/adr/0002-blob-json-documents-with-etag.md), [ADR 0003](../architecture/adr/0003-stdlib-only-go.md), [ADR 0004](../architecture/adr/0004-same-origin-admin-on-flex-custom-handler.md), [ADR 0007](../architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md)
 - [Site delivery](../site-delivery/README.md): the read path in detail
 - [Access](../access/README.md): sessions, cookies and CSRF
 - [`infra/azure/README.md`](../../infra/azure/README.md): parameters and keys

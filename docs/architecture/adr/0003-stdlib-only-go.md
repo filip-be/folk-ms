@@ -1,6 +1,6 @@
 # 0003. Minimal supply chain: stdlib-only Go, no npm runtime dependencies
 
-- Status: accepted
+- Status: accepted; the pinned toolchains, the exact `typescript` version, the vendoring and the actions-only Dependabot scope are superseded by [ADR 0007](0007-latest-toolchains-and-dependabot-cooldown.md)
 - Date: 2026-11-07
 
 ## Context

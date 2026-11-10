@@ -22,11 +22,13 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Toolchains (checksum-verified)
-        run: |
-          tools/fetch.sh go bun
-          echo "$PWD/.tools/go/bin" >> "$GITHUB_PATH"
-          echo "$PWD/.tools/bun" >> "$GITHUB_PATH"
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          check-latest: true
+          cache-dependency-path: cms/go.sum
+      - name: Bun (latest release, checksum-verified)
+        run: .github/scripts/setup-bun.sh
       - name: Test
         working-directory: cms
         run: go test -count=1 ./...

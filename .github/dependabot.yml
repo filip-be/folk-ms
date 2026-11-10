@@ -1,8 +1,25 @@
-# Only GitHub Actions are updated by Dependabot. Go modules are vendored and
-# reviewed by hand; Bun, Go and TypeScript are pinned in tools/ and package.json.
+# Dependabot updates GitHub Actions, the npm type-checker and Go modules.
+# The cooldown holds a new release back for a week, so a malicious publish has
+# time to be found and pulled before it reaches this repository. Security
+# updates are not held back. Go and Bun themselves are not managed here: CI
+# installs the latest release of each (see ADR 0007).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+  - package-ecosystem: gomod
+    directory: /cms
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

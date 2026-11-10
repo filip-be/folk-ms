@@ -2,6 +2,6 @@
   "version": "0.0.1",
   "configurations": [
     { "name": "cms-dev", "runtimeExecutable": "C:\\Program Files\\Git\\usr\\bin\\bash.exe", "runtimeArgs": ["scripts/dev.sh"], "port": 8080 },
-    { "name": "site-balfolk-poznan", "runtimeExecutable": "C:\\DEV\\folk-ms\\.tools\\bun\\bun.exe", "runtimeArgs": ["sites/serve.ts", "balfolk-poznan", "5173"], "port": 5173 }
+    { "name": "site-balfolk-poznan", "runtimeExecutable": "bun", "runtimeArgs": ["sites/serve.ts", "balfolk-poznan", "5173"], "port": 5173 }
   ]
 }

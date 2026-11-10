@@ -14,21 +14,16 @@ Documentation: [docs/README.md](docs/README.md). Glossary: [CONTEXT.md](CONTEXT.
 | [`autofill/`](autofill/) | Autofill: the browser helper that types a Facebook Event Handoff into Facebook's form (WebExtension and userscript) |
 | [`config/sites.json`](config/sites.json) | The fixed list of Organizations and Sites |
 | [`infra/azure/`](infra/azure/) | Bicep |
-| [`tools/`](tools/) | Pinned Go and Bun with checksums |
 | [`docs/`](docs/) | Capability articles and [ADRs](docs/architecture/adr/) |
 
 ## Local development
 
-Prerequisites: Git Bash (Windows) or any POSIX shell, `curl`, `unzip`, Node.js/npm (only for the type-checker), Docker (only for Azurite tests).
+Prerequisites, on `PATH` and kept up to date: Go (at least the `go` version in [`cms/go.mod`](cms/go.mod)), Bun, Git Bash (Windows) or any POSIX shell, Node.js/npm (only for the type-checker), Docker (only for Azurite tests). CI uses the latest Go and Bun; see [ADR 0007](docs/architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md).
+
+On Windows:
 
 ```bash
-tools/fetch.sh
-```
-
-Downloads the pinned Go and Bun into `.tools/` and verifies their SHA-256. Put them on `PATH`:
-
-```bash
-export PATH="$PWD/.tools/go/bin:$PWD/.tools/bun:$PATH"
+winget install GoLang.Go Oven-sh.Bun
 ```
 
 Run the CMS at http://localhost:8080/app/ with filesystem storage in `.data/`, a dev sign-in page that accepts any email (`admin@example.org` is the Super Admin), and Social Posts recorded instead of sent:
