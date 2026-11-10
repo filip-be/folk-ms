@@ -151,13 +151,13 @@ class FacebookEventView extends View {
       ${detached.length ? html`<div class="banner warn">${L("Niektóre linki straciły swój termin. Przypisz je do innego terminu albo usuń, zanim utworzysz nowe wydarzenie.", "Some links lost their date. Re-attach them to another date or remove them before creating a new event.")}</div>` : ""}
       ${links}
       ${!conn.connected
-        ? html`<div class="banner warn">${L("Organizacja nie ma połączonej strony na Facebooku, która byłaby gospodarzem wydarzenia.", "The organization has no connected Facebook Page to host the event.")} <a href="/app/orgs/${this.org}/social">${L("Połącz stronę", "Connect a Page")}</a></div>`
+        ? html`<div class="banner warn">${L("Organizacja nie ma połączonej strony na Facebooku, która byłaby gospodarzem wydarzenia.", "The organization has no connected Facebook page to host the event.")} <a href="/app/orgs/${this.org}/social">${L("Połącz stronę", "Connect a Facebook page")}</a></div>`
         : !f
           ? html`<div class="card"><p>${L("To wydarzenie nie ma nadchodzącego, nieodwołanego terminu.", "This event has no upcoming, non-cancelled date.")}</p></div>`
           : html`<section class="card fb-handoff">
               <h2>${L("Nowe wydarzenie na Facebooku", "New Facebook event")} · ${when(f.start, this.tz)}</h2>
               ${d.nextLinked ? html`<p class="banner warn small">${L("Ten termin ma już zapisane wydarzenie na Facebooku.", "This date already has a recorded Facebook event.")}</p>` : ""}
-              <p class="banner small">${L("Na Facebooku działaj jako strona", "On Facebook, act as the Page")} <strong>${conn.pageName}</strong>${L(" – przełącz profil, zanim utworzysz wydarzenie.", " – switch your profile before creating the event.")}</p>
+              <p class="banner small">${L("Na Facebooku działaj jako strona", "Act as the Facebook page")} <strong>${conn.pageName}</strong>${L(" – przełącz profil, zanim utworzysz wydarzenie.", " – switch your profile before creating the event.")}</p>
               <div class="field"><label for="fb-name">${L("Nazwa", "Name")}</label>
                 <input id="fb-name" maxlength="${MAX_NAME}" value="${f.name}">
                 <div class="row"><span class="muted small" id="fb-name-count"></span><button type="button" class="link" data-copy-from="fb-name">${L("Kopiuj", "Copy")}</button></div></div>

@@ -1,5 +1,5 @@
 // The status panel Autofill shows on Facebook: each field as filled, needs
-// you or failed, with copy buttons, the "act as the Page" reminder and,
+// you or failed, with copy buttons, the "act as the Facebook page" reminder and,
 // once the Moderator pressed Create, the way back to the CMS. It lives in a
 // closed shadow root so Facebook's styles and scripts leave it alone.
 
@@ -15,8 +15,8 @@ const T = {
   waiting: { pl: "Czekam na formularz Facebooka…", en: "Waiting for Facebook's form…" },
   noForm: { pl: "Nie znaleziono formularza. Wypełnij go ręcznie przyciskami „Kopiuj”.", en: "The form was not found. Fill it by hand with the Copy buttons." },
   done: { pl: "Sprawdź formularz i kliknij „Utwórz wydarzenie”. Autofill nigdy nie tworzy wydarzenia sam.", en: "Review the form and press “Create event”. Autofill never creates the event itself." },
-  asPage: { pl: "Upewnij się, że działasz jako strona", en: "Make sure you are acting as the Page" },
-  hostWarn: { pl: "Gospodarzem nie wygląda na stronę", en: "The host does not look like the Page" },
+  asPage: { pl: "Upewnij się, że działasz jako strona", en: "Make sure you are acting as the Facebook page" },
+  hostWarn: { pl: "Gospodarzem nie wygląda na stronę", en: "The host does not look like the Facebook page" },
   tz: { pl: "Strefa czasowa przeglądarki różni się od strefy organizacji", en: "Your browser's time zone differs from the organization's" },
   created: { pl: "Utworzono wydarzenie na Facebooku:", en: "Facebook event created:" },
   back: { pl: "Wróć do CMS", en: "Back to the CMS" },

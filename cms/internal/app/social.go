@@ -285,14 +285,14 @@ func (a *App) postable(ctx context.Context, org, id string, platforms []domain.P
 	}
 	conn, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if errors.Is(err, domain.ErrNotFound) {
-		return nil, nil, problem("connection", "połącz najpierw stronę na Facebooku", "connect the Facebook Page first")
+		return nil, nil, problem("connection", "połącz najpierw stronę na Facebooku", "connect the Facebook page first")
 	}
 	if err != nil {
 		return nil, nil, err
 	}
 	for _, pl := range platforms {
 		if pl == domain.Instagram && conn.IGUserID == "" {
-			return nil, nil, problem("connection", "strona nie ma połączonego konta Instagram", "the Page has no connected Instagram account")
+			return nil, nil, problem("connection", "strona nie ma połączonego konta Instagram", "the Facebook page has no connected Instagram account")
 		}
 		if imageFor(e.Published, pl) == "" {
 			return nil, nil, problem("image", "dodaj zdjęcie główne i opublikuj wydarzenie ponownie", "add a cover image and publish the event again")
