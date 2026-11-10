@@ -92,7 +92,9 @@ class FacebookEventView extends View {
 
   private linkCard(s: FacebookEventState): unknown {
     const l = s.link;
-    const options = this.data.occurrences.filter((o) => !o.cancelled);
+    // The link's own Occurrence stays selectable even when cancelled, so
+    // "Change" does not silently move the link to another date.
+    const options = this.data.occurrences.filter((o) => !o.cancelled || o.key === l.occurrenceKey);
     return html`<li class="fb-link ${s.detached ? "detached" : ""}" data-link="${l.id}">
       <div><a href="${l.url}" target="_blank" rel="noopener">${l.url}</a>
         ${s.detached ? html` <span class="badge warn">${L("bez terminu", "detached")}</span>` : ""}
@@ -232,7 +234,10 @@ class FacebookEventView extends View {
     this.on("[data-change]", "click", (_e, el) => {
       const id = el.dataset.change!;
       const url = this.querySelector<HTMLInputElement>(`[data-url-of="${id}"]`)?.value;
-      const key = this.querySelector<HTMLSelectElement>(`[data-key-of="${id}"]`)?.value;
+      const link = this.data.links.find((s) => s.link.id === id);
+      const picked = this.querySelector<HTMLSelectElement>(`[data-key-of="${id}"]`)?.value;
+      // Re-attach only when the Moderator chose another date (or must: detached).
+      const key = picked && (link?.detached || picked !== link?.link.occurrenceKey) ? picked : undefined;
       void this.save(el as HTMLButtonElement, () => api.changeFacebookEvent(this.org, this.eventId, id, { url, occurrenceKey: key }), L("Zmieniono link", "Link changed"));
     });
     this.on("[data-remove]", "click", (_e, el) => {
