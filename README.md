@@ -26,6 +26,26 @@ On Windows:
 winget install GoLang.Go Oven-sh.Bun
 ```
 
+On Ubuntu (including WSL): Ubuntu's `golang` package is usually older than `cms/go.mod` requires, so install Go from go.dev and Bun with its installer. Rerun the Go command to update Go. Run `bun upgrade` to update Bun.
+
+```bash
+sudo apt install -y curl unzip
+```
+
+```bash
+v=$(curl -fsSL 'https://go.dev/VERSION?m=text' | head -1) && curl -fsSL "https://go.dev/dl/$v.linux-amd64.tar.gz" -o /tmp/go.tgz && sudo rm -rf /usr/local/go && sudo tar -C /usr/local -xzf /tmp/go.tgz && rm /tmp/go.tgz
+```
+
+```bash
+curl -fsSL https://bun.sh/install | bash
+```
+
+```bash
+echo 'export PATH="/usr/local/go/bin:$HOME/.bun/bin:$PATH"' >> ~/.bashrc && exec bash
+```
+
+Then `go version` and `bun --version` should both work. For the type-checker, install Node.js LTS (e.g. via nvm); for Azurite, use Docker Desktop with WSL integration or Docker Engine.
+
 Run the CMS at http://localhost:8080/app/ with filesystem storage in `.data/`, a dev sign-in page that accepts any email (`admin@example.org` is the Super Admin), and Social Posts recorded instead of sent:
 
 ```bash
