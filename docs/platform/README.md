@@ -31,7 +31,7 @@ The domain and the use cases depend only on ports ([`cms/internal/ports`](../../
 | `DocumentStore` (Get/Put with ETag, List by prefix, Delete) | blob REST, managed identity (`azblob`) | files, atomic rename and lock file (`fs`) | `memory` |
 | `PublicStore` (snapshots, media) | blob container `pub` | directory served at `/pub/` | `memory` |
 | `AppendLog` (Audit Log) | append blobs, one per day | `O_APPEND` file per day | `memory` |
-| `IdentityProvider` | Google (`google`) | Google, or the dev OIDC stub (`devoidc`, build tag `dev`) | fake |
+| `IdentityProvider` | Google (`google`), Facebook (`meta.SignIn`) | Google and Facebook, or the dev OIDC stub for both (`devoidc`, build tag `dev`) | fake |
 | `SocialPublisher` | Meta Graph API (`meta`) | Meta Graph API, or the recorder when `META_APP_ID` is unset | recorder |
 | `ImageProcessor` | `img` (JPEG, PNG, WebP in; JPEG out) | same | same |
 

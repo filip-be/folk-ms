@@ -23,7 +23,9 @@ import (
 // Server serves the CMS.
 type Server struct {
 	App *app.App
-	IdP ports.IdentityProvider
+	IdP ports.IdentityProvider // Google
+	// Facebook signs in with Facebook Login (nil: not offered).
+	Facebook ports.IdentityProvider
 	// BaseURL is the CMS origin, e.g. https://cms.example (no trailing slash).
 	BaseURL string
 	// Secure marks cookies Secure with the __Host- prefix and sends HSTS.

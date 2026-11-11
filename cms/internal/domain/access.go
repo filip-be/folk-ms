@@ -12,12 +12,18 @@ import (
 // InvitationTTL is how long a pending Invitation stays valid.
 const InvitationTTL = 14 * 24 * time.Hour
 
-// User is a person who signed in: the Super Admin or a Moderator. It is
-// identified by the identity provider's issuer and subject, never by email.
+// User is a person who signed in: the Super Admin or a Moderator. Its id
+// comes from the issuer and subject of the identity it first signed in with;
+// another provider's identity signs in as it when it returns the same email
+// (never for the Super Admin).
 type User struct {
-	ID           string     `json:"id"`
-	Issuer       string     `json:"issuer"`
-	Subject      string     `json:"subject"`
+	ID      string `json:"id"`
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
+	// Identities lists the other sign-in identities (another provider) that
+	// were matched to this user by email. Informational: matching is done
+	// again on every sign-in.
+	Identities   []Identity `json:"identities,omitempty"`
 	Email        string     `json:"email"`
 	Name         string     `json:"name,omitempty"`
 	Orgs         []string   `json:"orgs"`
@@ -28,6 +34,12 @@ type User struct {
 	LastLoginAt  time.Time  `json:"lastLoginAt"`
 	// SessionsValidAfter invalidates sessions issued before it.
 	SessionsValidAfter time.Time `json:"sessionsValidAfter"`
+}
+
+// Identity is an issuer and subject at an identity provider.
+type Identity struct {
+	Issuer  string `json:"issuer"`
+	Subject string `json:"subject"`
 }
 
 // UserID derives the stable user id from issuer and subject.

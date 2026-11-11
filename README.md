@@ -97,13 +97,13 @@ In Google Cloud Console → APIs & Services: configure the consent screen (Exter
 
 ### Super Admin bootstrap
 
-The Super Admin is whoever first signs in with the Google account whose email equals `SUPER_ADMIN_EMAIL`; that identity (Google `sub`) is then bound. Changing `SUPER_ADMIN_EMAIL` re-binds on the next sign-in with the new email. The Super Admin invites Moderators under *Moderatorzy* and sends them the CMS link; Invitations expire after 14 days.
+The Super Admin is whoever first signs in with the Google account whose email equals `SUPER_ADMIN_EMAIL`; that identity (Google `sub`) is then bound, and the Super Admin signs in with it only, never with Facebook. Changing `SUPER_ADMIN_EMAIL` re-binds on the next sign-in with the new email. The Super Admin invites Moderators under *Moderatorzy* and sends them the CMS link; Invitations expire after 14 days. A Moderator can sign in with Google or Facebook, and is the same user with either, as long as both accounts return the email they were invited with ([Access](docs/access/README.md#sign-in)).
 
 ### Meta app
 
 1. At developers.facebook.com create a *Business* app, add *Facebook Login for Business* and the Instagram Graph API.
-2. Valid OAuth redirect URI: `<CMS_BASE_URL>/auth/meta/callback`. Privacy policy URL: `<CMS_BASE_URL>/privacy`. Data deletion instructions URL: `<CMS_BASE_URL>/data-deletion`.
-3. Keep the app in Standard Access. For every Moderator who will post Social Posts or connect a Facebook page: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
+2. Valid OAuth redirect URIs: `<CMS_BASE_URL>/auth/meta/callback` (posting) and `<CMS_BASE_URL>/auth/callback` (Facebook sign-in). Privacy policy URL: `<CMS_BASE_URL>/privacy`. Data deletion instructions URL: `<CMS_BASE_URL>/data-deletion`.
+3. Keep the app in Standard Access. For every Moderator who will post Social Posts, connect a Facebook page or sign in with Facebook: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
 4. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
 
 ### Who can post Social Posts

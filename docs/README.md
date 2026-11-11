@@ -14,7 +14,7 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | Contract | JSON Schema of the snapshot, shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
 | Sites | One static website per Organization, each with its own design | [`sites/`](../sites/) |
 | Site config | The fixed list of Organizations and Sites | [`config/sites.json`](../config/sites.json) |
-| External services | Google (sign-in), Meta Graph API (Social Posts) | |
+| External services | Google and Facebook (sign-in), Meta Graph API (Social Posts) | |
 | Autofill | Optional browser helper (WebExtension and userscript) that types a Facebook Event Handoff into Facebook's form | [`autofill/`](../autofill/) |
 
 ## Capabilities
@@ -34,5 +34,5 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post, 0006 Facebook Events through a Handoff and Autofill, 0007 latest toolchains and Dependabot cooldown
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post, 0006 Facebook Events through a Handoff and Autofill, 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email
 - [Root README](../README.md): local setup and operations runbooks

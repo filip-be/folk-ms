@@ -60,6 +60,7 @@ type sessionData struct {
 }
 
 type oidcState struct {
+	Provider string `json:"p"` // google or facebook
 	State    string `json:"s"`
 	Nonce    string `json:"n"`
 	Verifier string `json:"v"`
@@ -109,4 +110,7 @@ const (
 	sessionCookie = "folkms"
 	oidcCookie    = "folkms-oidc"
 	metaCookie    = "folkms-meta"
+	// idpCookie remembers the provider of the last sign-in, so that an
+	// expired session and "Sign in again" go back to it. Not secret.
+	idpCookie = "folkms-idp"
 )

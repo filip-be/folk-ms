@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
@@ -22,12 +23,19 @@ import (
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
-// Issuer identifies dev identities; they never collide with Google ones.
+// Issuer identifies dev identities standing in for Google; they never
+// collide with real ones.
 const Issuer = "folk-ms-devoidc"
 
+// FacebookIssuer identifies dev identities standing in for Facebook.
+const FacebookIssuer = "folk-ms-devoidc-facebook"
+
+// accounts names the provider each issuer stands in for, on the login page.
+var accounts = map[string]string{Issuer: "Google", FacebookIssuer: "Facebook"}
+
 type grant struct {
-	email, nonce, challenge string
-	at                      time.Time
+	email, nonce, challenge, issuer string
+	at                              time.Time
 }
 
 // Provider implements ports.IdentityProvider and serves the login page.
@@ -44,14 +52,39 @@ func New(loginPath string) *Provider {
 	return &Provider{LoginPath: loginPath, codes: map[string]grant{}}
 }
 
+// AuthCodeURL implements ports.IdentityProvider (as Google).
+func (p *Provider) AuthCodeURL(ctx context.Context, state, nonce, challenge, redirectURI string) (string, error) {
+	return p.authCodeURL(Issuer, state, nonce, challenge, redirectURI), nil
+}
+
+// Exchange implements ports.IdentityProvider (as Google).
+func (p *Provider) Exchange(_ context.Context, code, verifier, _, nonce string) (ports.Identity, error) {
+	return p.exchange(Issuer, code, verifier, nonce)
+}
+
+// FacebookView is the same login page standing in for Facebook: its
+// identities carry FacebookIssuer and NoSuperAdmin, like real Facebook ones.
+type FacebookView struct{ p *Provider }
+
+// Facebook returns the provider's Facebook view.
+func (p *Provider) Facebook() FacebookView { return FacebookView{p} }
+
 // AuthCodeURL implements ports.IdentityProvider.
-func (p *Provider) AuthCodeURL(_ context.Context, state, nonce, challenge, redirectURI string) (string, error) {
-	q := url.Values{"state": {state}, "nonce": {nonce}, "code_challenge": {challenge}, "redirect_uri": {redirectURI}}
-	return p.LoginPath + "?" + q.Encode(), nil
+func (f FacebookView) AuthCodeURL(_ context.Context, state, nonce, challenge, redirectURI string) (string, error) {
+	return f.p.authCodeURL(FacebookIssuer, state, nonce, challenge, redirectURI), nil
 }
 
 // Exchange implements ports.IdentityProvider.
-func (p *Provider) Exchange(_ context.Context, code, verifier, _, nonce string) (ports.Identity, error) {
+func (f FacebookView) Exchange(_ context.Context, code, verifier, _, nonce string) (ports.Identity, error) {
+	return f.p.exchange(FacebookIssuer, code, verifier, nonce)
+}
+
+func (p *Provider) authCodeURL(issuer, state, nonce, challenge, redirectURI string) string {
+	q := url.Values{"state": {state}, "nonce": {nonce}, "code_challenge": {challenge}, "redirect_uri": {redirectURI}, "issuer": {issuer}}
+	return p.LoginPath + "?" + q.Encode()
+}
+
+func (p *Provider) exchange(issuer, code, verifier, nonce string) (ports.Identity, error) {
 	p.mu.Lock()
 	g, ok := p.codes[code]
 	delete(p.codes, code)
@@ -66,16 +99,20 @@ func (p *Provider) Exchange(_ context.Context, code, verifier, _, nonce string) 
 	if g.nonce != nonce {
 		return ports.Identity{}, errors.New("devoidc: nonce mismatch")
 	}
+	if g.issuer != issuer {
+		return ports.Identity{}, errors.New("devoidc: issuer mismatch")
+	}
 	name, _, _ := strings.Cut(g.email, "@")
-	return ports.Identity{Issuer: Issuer, Subject: "dev:" + g.email, Email: g.email, EmailVerified: true, Name: name}, nil
+	return ports.Identity{Issuer: issuer, Subject: "dev:" + g.email, Email: g.email, EmailVerified: true, Name: name,
+		NoSuperAdmin: issuer == FacebookIssuer}, nil
 }
 
 // pageText is the login page copy in one UI language.
 type pageText struct{ Lang, Title, Note, Email, Submit string }
 
 var (
-	textPL = pageText{"pl", "Logowanie deweloperskie", "Tylko lokalnie. Wpisz dowolny e-mail – zostanie potraktowany jak zweryfikowane konto Google.", "E-mail", "Zaloguj"}
-	textEN = pageText{"en", "Developer sign-in", "Local only. Type any email – it is treated as a verified Google account.", "Email", "Sign in"}
+	textPL = pageText{"pl", "Logowanie deweloperskie", "Tylko lokalnie. Wpisz dowolny e-mail – zostanie potraktowany jak zweryfikowane konto %s.", "E-mail", "Zaloguj"}
+	textEN = pageText{"en", "Developer sign-in", "Local only. Type any email – it is treated as a verified %s account.", "Email", "Sign in"}
 )
 
 var page = template.Must(template.New("p").Parse(`<!doctype html>
@@ -83,10 +120,11 @@ var page = template.Must(template.New("p").Parse(`<!doctype html>
 <title>{{.T.Title}}</title><link rel="stylesheet" href="/app/app.css"></head>
 <body class="dev-login"><main class="card narrow">
 <h1>{{.T.Title}}</h1>
-<p class="muted">{{.T.Note}}</p>
+<p class="muted">{{.Note}}</p>
 <form method="post">
 <input type="hidden" name="state" value="{{.State}}"><input type="hidden" name="nonce" value="{{.Nonce}}">
 <input type="hidden" name="code_challenge" value="{{.Challenge}}"><input type="hidden" name="redirect_uri" value="{{.Redirect}}">
+<input type="hidden" name="issuer" value="{{.Issuer}}">
 <div class="field"><label>{{.T.Email}} <input type="email" name="email" required autofocus value="{{.Email}}"></label></div>
 <button class="primary" type="submit">{{.T.Submit}}</button>
 </form></main></body></html>`))
@@ -104,9 +142,14 @@ func (p *Provider) Handler(defaultEmail string, polish func(*http.Request) bool)
 				t = textPL
 			}
 			w.Header().Add("Vary", "Accept-Language, Cookie")
+			issuer, email := Issuer, defaultEmail
+			if q.Get("issuer") == FacebookIssuer {
+				// The Super Admin cannot sign in with Facebook.
+				issuer, email = FacebookIssuer, ""
+			}
 			_ = page.Execute(w, map[string]any{
-				"T": t, "State": q.Get("state"), "Nonce": q.Get("nonce"), "Challenge": q.Get("code_challenge"),
-				"Redirect": q.Get("redirect_uri"), "Email": defaultEmail,
+				"T": t, "Note": fmt.Sprintf(t.Note, accounts[issuer]), "State": q.Get("state"), "Nonce": q.Get("nonce"),
+				"Challenge": q.Get("code_challenge"), "Redirect": q.Get("redirect_uri"), "Email": email, "Issuer": issuer,
 			})
 		case http.MethodPost:
 			if err := r.ParseForm(); err != nil {
@@ -124,7 +167,7 @@ func (p *Provider) Handler(defaultEmail string, polish func(*http.Request) bool)
 			p.mu.Lock()
 			p.codes[code] = grant{
 				email: strings.ToLower(strings.TrimSpace(r.PostForm.Get("email"))), nonce: r.PostForm.Get("nonce"),
-				challenge: r.PostForm.Get("code_challenge"), at: time.Now(),
+				challenge: r.PostForm.Get("code_challenge"), issuer: r.PostForm.Get("issuer"), at: time.Now(),
 			}
 			p.mu.Unlock()
 			u, err := url.Parse(redirect)

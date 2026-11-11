@@ -14,6 +14,7 @@ import (
 
 	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/domain"
+	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
 func randToken() string {
@@ -32,14 +33,49 @@ func safeReturn(r string) string {
 	return "/app/"
 }
 
+// Sign-in providers, as named in /auth/login?provider=.
+const (
+	providerGoogle   = "google"
+	providerFacebook = "facebook"
+)
+
+// idp returns the identity provider for a name, or nil.
+func (s *Server) idp(name string) ports.IdentityProvider {
+	switch name {
+	case providerGoogle:
+		return s.IdP
+	case providerFacebook:
+		return s.Facebook
+	}
+	return nil
+}
+
+// loginProvider is the provider asked for, else the one used last, else
+// Google.
+func (s *Server) loginProvider(r *http.Request) string {
+	if p := r.URL.Query().Get("provider"); p != "" {
+		return p
+	}
+	if c, err := r.Cookie(s.cookieName(idpCookie)); err == nil && s.idp(c.Value) != nil {
+		return c.Value
+	}
+	return providerGoogle
+}
+
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	provider := s.loginProvider(r)
+	idp := s.idp(provider)
+	if idp == nil {
+		s.authError(w, r, msg("Ten sposób logowania jest niedostępny.", "This sign-in method is not available."))
+		return
+	}
 	st := oidcState{
-		State: randToken(), Nonce: randToken(), Verifier: randToken(),
+		Provider: provider, State: randToken(), Nonce: randToken(), Verifier: randToken(),
 		Return: safeReturn(r.URL.Query().Get("return")), Expires: time.Now().Add(10 * time.Minute).Unix(),
 	}
 	sum := sha256.Sum256([]byte(st.Verifier))
 	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
-	u, err := s.IdP.AuthCodeURL(r.Context(), st.State, st.Nonce, challenge, s.BaseURL+"/auth/callback")
+	u, err := idp.AuthCodeURL(r.Context(), st.State, st.Nonce, challenge, s.BaseURL+"/auth/callback")
 	if err != nil {
 		s.Log.Error("auth url", "err", err)
 		s.authError(w, r, msg("Logowanie jest chwilowo niedostępne.", "Sign-in is temporarily unavailable."))
@@ -59,7 +95,8 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	err := s.readCookie(r, oidcCookie, "oidc", &st)
 	s.setCookie(w, oidcCookie, "", -1)
 	q := r.URL.Query()
-	if err != nil || time.Now().Unix() > st.Expires || q.Get("state") == "" || q.Get("state") != st.State {
+	idp := s.idp(st.Provider)
+	if err != nil || idp == nil || time.Now().Unix() > st.Expires || q.Get("state") == "" || q.Get("state") != st.State {
 		s.authError(w, r, msg("Sesja logowania wygasła. Spróbuj ponownie.", "The sign-in session expired. Try again."))
 		return
 	}
@@ -67,14 +104,24 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		s.authError(w, r, msg("Logowanie zostało przerwane.", "Sign-in was cancelled."))
 		return
 	}
-	id, err := s.IdP.Exchange(r.Context(), q.Get("code"), st.Verifier, s.BaseURL+"/auth/callback", st.Nonce)
+	id, err := idp.Exchange(r.Context(), q.Get("code"), st.Verifier, s.BaseURL+"/auth/callback", st.Nonce)
 	if err != nil {
 		s.Log.Warn("oidc exchange", "err", err)
 		s.authError(w, r, msg("Nie udało się potwierdzić tożsamości.", "Your identity could not be confirmed."))
 		return
 	}
 	u, err := s.App.SignIn(r.Context(), id)
+	if errors.Is(err, app.ErrSuperAdminIdentity) {
+		s.authError(w, r, msg("Administrator loguje się wyłącznie kontem Google, z którym jest powiązany.",
+			"The administrator signs in only with the Google account they are bound to."))
+		return
+	}
 	if errors.Is(err, domain.ErrForbidden) {
+		if id.Email == "" {
+			s.authError(w, r, msg("Konto nie udostępniło adresu e-mail, więc nie możemy sprawdzić dostępu. Zaloguj się ponownie i zezwól na dostęp do adresu e-mail.",
+				"The account did not share an email address, so access cannot be checked. Sign in again and allow access to your email address."))
+			return
+		}
 		s.authError(w, r, msg("Konto "+id.Email+" nie ma dostępu do CMS. Poproś administratora o zaproszenie.",
 			"The account "+id.Email+" has no access to the CMS. Ask the administrator for an invitation."))
 		return
@@ -91,6 +138,7 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setCookie(w, sessionCookie, v, SessionTTL)
+	s.setCookie(w, idpCookie, st.Provider, 365*24*time.Hour)
 	http.Redirect(w, r, st.Return, http.StatusSeeOther)
 }
 
@@ -216,10 +264,10 @@ func (s *Server) authError(w http.ResponseWriter, r *http.Request, m domain.Text
 
 func (s *Server) privacy(w http.ResponseWriter, r *http.Request) {
 	renderPage(w, r, 200, page{Title: msg("Polityka prywatności", "Privacy policy"), Paragraphs: []domain.Text{
-		msg("folk-ms to system do zarządzania wydarzeniami organizacji folkowych. Przetwarzamy wyłącznie dane osób, które zarządzają wydarzeniami (moderatorów): adres e-mail, imię i identyfikator konta Google, oraz dziennik ich działań.",
-			"folk-ms is a system for managing the events of folk organizations. We process only the data of the people who manage events (moderators): their email address, name and Google account identifier, and the log of their actions."),
-		msg("Po połączeniu strony na Facebooku przechowujemy tylko jej nazwę i identyfikator oraz nazwę i identyfikator powiązanego konta Instagram. Moderator, który publikuje ogłoszenie wydarzenia, za każdym razem loguje się do Meta; token dostępu zwrócony przez Meta służy wyłącznie do opublikowania tego ogłoszenia i nie jest przechowywany. Nie przetwarzamy danych odwiedzających strony ani fanów.",
-			"When a Facebook page is connected we store only its name and identifier, and those of its linked Instagram account. A moderator who publishes an event announcement signs in with Meta every time; the access token Meta returns is used only to publish that announcement and is not stored. We do not process data of Facebook page visitors or fans."),
+		msg("folk-ms to system do zarządzania wydarzeniami organizacji folkowych. Przetwarzamy wyłącznie dane osób, które zarządzają wydarzeniami (moderatorów): adres e-mail, imię i identyfikator konta Google lub Facebook, którym się logują, oraz dziennik ich działań.",
+			"folk-ms is a system for managing the events of folk organizations. We process only the data of the people who manage events (moderators): their email address, name and the identifier of the Google or Facebook account they sign in with, and the log of their actions."),
+		msg("Po połączeniu strony na Facebooku przechowujemy tylko jej nazwę i identyfikator oraz nazwę i identyfikator powiązanego konta Instagram. Moderator, który publikuje ogłoszenie wydarzenia, za każdym razem loguje się do Meta; token dostępu zwrócony przez Meta służy wyłącznie do opublikowania tego ogłoszenia (lub, przy logowaniu do CMS przez Facebooka, do odczytania identyfikatora, imienia i adresu e-mail) i nie jest przechowywany. Nie przetwarzamy danych odwiedzających strony ani fanów.",
+			"When a Facebook page is connected we store only its name and identifier, and those of its linked Instagram account. A moderator who publishes an event announcement signs in with Meta every time; the access token Meta returns is used only to publish that announcement (or, when signing in to the CMS with Facebook, to read the account's identifier, name and email address) and is not stored. We do not process data of Facebook page visitors or fans."),
 		msg("Opcjonalny pomocnik Autofill (rozszerzenie przeglądarki lub skrypt użytkownika) przechowuje przekazane mu pola wydarzenia lokalnie w przeglądarce moderatora przez najwyżej 15 minut, a adres utworzonego wydarzenia na Facebooku do czasu przekazania go do CMS. Nie wysyła żadnych danych do stron trzecich ani nie kontaktuje się samodzielnie z CMS.",
 			"The optional Autofill helper (a browser extension or userscript) keeps the event fields handed to it locally in the moderator's browser for at most 15 minutes, and the address of the created Facebook event until it is passed to the CMS. It sends no data to third parties and never contacts the CMS by itself."),
 		msg("Aby usunąć swoje dane, skontaktuj się z administratorem organizacji lub skorzystaj z instrukcji na stronie /data-deletion.",
