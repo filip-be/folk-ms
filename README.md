@@ -86,10 +86,17 @@ scripts/azurite.sh
 
 ### First deployment
 
-1. Create a resource group and an Entra app registration with a federated credential for this repository's `production` environment; grant it `Contributor` and `User Access Administrator` (for the role assignment) on the resource group.
-2. In the GitHub `production` environment set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, `CMS_BASE_URL` (e.g. `https://<app>.azurewebsites.net`), and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs.
-3. Run `deploy-infra`, then set `CMS_FUNCTION_APP` and `STORAGE_PUBLIC_URL` (`https://<account>.blob.core.windows.net/pub`) from its outputs, then run `deploy-cms` and `deploy-site`.
-4. Add each Site's custom domain to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
+The CMS address contains a hash that `main.bicep` derives from the resource group, so it is known only after the first `deploy-infra` run. The Google and Meta apps are therefore created first and get their redirect URIs afterwards.
+
+1. Create a resource group and an Entra app registration. On the app registration add a federated credential (*Certificates & secrets → Federated credentials → GitHub Actions deploying Azure resources*) with entity type *Environment* and environment `production`; its subject is `repo:filip-be/folk-ms:environment:production`. Grant the app registration `Contributor` and `User Access Administrator` (for the role assignment) on the resource group.
+2. Create the [Google OAuth client](#google-oauth-client) and the [Meta app](#meta-app) without redirect URIs yet; note their ids and secrets.
+3. In GitHub *Settings → Environments* create the environment `production`. Set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs. Leave `CMS_BASE_URL` unset for now: the CMS then uses its default `*.azurewebsites.net` address.
+4. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`).
+5. Add the redirect URIs and the other `<CMS_BASE_URL>` addresses to the Google OAuth client and the Meta app as described in their sections below.
+6. Run `deploy-cms` (its smoke test calls `CMS_BASE_URL`), then `deploy-site`.
+7. Add each Site's custom domain to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
+
+After that, pushes to `main` redeploy whatever changed: `infra/azure/**` runs `deploy-infra`, `cms/**` and `contract/**` run `deploy-cms`, `sites/**` and `contract/client/**` run `deploy-site`, and `config/sites.json` runs all three. Nothing needs to be installed locally to deploy.
 
 ### Google OAuth client
 
