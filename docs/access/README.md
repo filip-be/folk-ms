@@ -1,25 +1,33 @@
 # Access
 
-Who can use the CMS and for which Organizations: Google sign-in, the Super Admin, Moderators and their Invitations, sessions, and the Audit Log that records what they did. It uses the CMS, Storage and Google.
+Who can use the CMS and for which Organizations: sign-in with Google or Facebook, the Super Admin, Moderators and their Invitations, sessions, and the Audit Log that records what they did. It uses the CMS, Storage, Google and Meta.
 
 ## How it works
 
 ### Sign-in
 
-Google OIDC is the only identity provider in v1; Apple can follow as one more `IdentityProvider` adapter (it costs $99 a year and needs its client secret rotated at least every six months). The CMS runs the authorization code flow with PKCE, nonce and state, and verifies the ID token by hand: RS256 against the cached JWKS, then `iss`, `aud` (and `azp`), `exp`, `iat`, nonce and `email_verified`. PKCE verifier, nonce and state live in a short-lived signed cookie. A user is identified by issuer and subject, never by email. Locally, a dev OIDC stub replaces Google; it is compiled only with the `dev` build tag, and CI checks that the production binary does not contain it.
+There are two identity providers, Google and Facebook, and the sign-in screen offers both (`/auth/login?provider=google|facebook`). Apple can follow as one more `IdentityProvider` adapter; it costs $99 a year and needs its client secret rotated at least every six months.
+
+For Google, the CMS runs the authorization code flow with PKCE, nonce and state, and verifies the ID token by hand: RS256 against the cached JWKS, then `iss`, `aud` (and `azp`), `exp`, `iat`, nonce and `email_verified`. PKCE verifier, nonce and state live in a short-lived signed cookie. Facebook sign-in uses the Meta app that posting uses ([ADR 0008](../architecture/adr/0008-facebook-sign-in-matched-by-email.md)). Its web login is plain OAuth, so there is no ID token. The CMS runs the code flow with state, redeems the code with the app secret, then reads `id`, `name` and `email` from Graph `/me`, signed with `appsecret_proof`, and drops the user token. The app is in Standard Access, so only Testers of the Meta app can sign in with Facebook.
+
+The same `/auth/callback` serves both providers: the provider is in the signed state cookie, never taken from the query. A non-secret cookie remembers the last provider that worked, so an expired session and "Sign in again" go back to it.
+
+A user's id comes from the issuer and subject it first signed in with. Another identity, from either provider, signs in as that user when it returns the same email. This matching is done again on every sign-in, and its first use is written to the Audit Log. A Facebook identity with no email is refused. The Super Admin is excluded from matching (see below).
+
+Locally, a dev OIDC stub stands in for both Google and Facebook. It is compiled only with the `dev` build tag, and CI checks that the production binary does not contain it.
 
 ```mermaid
 flowchart LR
   B[Browser] -->|/auth/login| C[CMS]
-  C -->|redirect with PKCE, nonce, state| G[Google]
+  C -->|redirect with PKCE, state| G[Google or Facebook]
   G -->|/auth/callback with code| C
-  C -->|verify ID token, match user or Invitation| S[Session cookie]
+  C -->|verify identity, find user by identity or email, or Invitation| S[Session cookie]
 ```
 
 ### Roles and Invitations
 
-- The **Super Admin** is configured by the app setting `SUPER_ADMIN_EMAIL`, set at deploy from a GitHub secret (secrets are masked in logs, variables are not). It works as a permanent Invitation, bound to the Google `sub` on first sign-in, and can act as a Moderator of every Organization.
-- A **Moderator** is invited by email for chosen Organizations. The Invitation is bound to the Google `sub` on first sign-in, because an email can change and `sub` cannot. It expires after 14 days if unused and can be revoked while pending. The CMS sends no email: the Super Admin passes the link on.
+- The **Super Admin** is configured by the app setting `SUPER_ADMIN_EMAIL`, set at deploy from a GitHub secret (secrets are masked in logs, variables are not). It works as a permanent Invitation, bound to the Google identity it first signs in with, and can act as a Moderator of every Organization. It signs in only with that identity: never with Facebook (Meta's email field carries no verified flag), and never through email matching, also after its email changed.
+- A **Moderator** is invited by email for chosen Organizations. The Invitation is bound to the identity, Google or Facebook, that redeems it on first sign-in. After that, any identity from either provider that returns the user's current email signs in as them. It expires after 14 days if unused and can be revoked while pending. The CMS sends no email: the Super Admin passes the link on.
 - The Super Admin can change a Moderator's Organizations or revoke all access.
 - Every use case checks the user's access to the Organization it touches.
 
@@ -45,7 +53,7 @@ An append-only record of Event changes, Publish and Unpublish, Social Posts and 
 | What | Path |
 | --- | --- |
 | Roles and Invitation lifecycle | [`cms/internal/domain/access.go`](../../cms/internal/domain/access.go), [`cms/internal/app/auth.go`](../../cms/internal/app/auth.go), [`cms/internal/app/access.go`](../../cms/internal/app/access.go) |
-| Google and dev OIDC adapters | [`cms/internal/adapters/google/`](../../cms/internal/adapters/google/), [`cms/internal/adapters/devoidc/`](../../cms/internal/adapters/devoidc/) |
+| Google, Facebook and dev OIDC adapters | [`cms/internal/adapters/google/`](../../cms/internal/adapters/google/), [`cms/internal/adapters/meta/signin.go`](../../cms/internal/adapters/meta/signin.go), [`cms/internal/adapters/devoidc/`](../../cms/internal/adapters/devoidc/) |
 | Session cookie, CSRF, headers, rate limit | [`cms/internal/http/`](../../cms/internal/http/) |
 | Admin UI language: choice, switch and server pages | [`cms/admin/src/i18n.ts`](../../cms/admin/src/i18n.ts), [`cms/internal/http/lang.go`](../../cms/internal/http/lang.go) |
 | Moderators, Invitations and Audit Log screens | [`cms/admin/src/views/access.ts`](../../cms/admin/src/views/access.ts), [`cms/admin/src/views/audit.ts`](../../cms/admin/src/views/audit.ts) |
@@ -59,5 +67,6 @@ An append-only record of Event changes, Publish and Unpublish, Social Posts and 
 ## Read next
 
 - [Platform](../platform/README.md): hosting and secrets
-- [Root README](../../README.md#operations): Google OAuth client and Super Admin bootstrap
+- [ADR 0008](../architecture/adr/0008-facebook-sign-in-matched-by-email.md): Facebook sign-in, users matched by email
+- [Root README](../../README.md#operations): Google OAuth client, Meta app and Super Admin bootstrap
 - [CONTEXT.md](../../CONTEXT.md#access): the terms this capability uses

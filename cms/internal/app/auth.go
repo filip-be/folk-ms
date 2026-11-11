@@ -15,6 +15,10 @@ import (
 // ErrNoAccess is returned at sign-in to people with no Invitation.
 var ErrNoAccess = fmt.Errorf("%w: no access", domain.ErrForbidden)
 
+// ErrSuperAdminIdentity is returned when the Super Admin signs in with a
+// provider or identity other than the one it is bound to.
+var ErrSuperAdminIdentity = fmt.Errorf("%w: the super admin signs in with its bound identity only", ErrNoAccess)
+
 func (a *App) superAdminEmail() string { return domain.NormalizeEmail(a.SuperAdminEmail) }
 
 // isSuperAdmin reports whether u is bound as the configured Super Admin.
@@ -33,19 +37,51 @@ func (a *App) isSuperAdmin(ctx context.Context, u *domain.User) (bool, error) {
 	return b.UserID == u.ID && b.Email == sa, nil
 }
 
-// SignIn turns a verified identity into a user: an existing user, the
-// configured Super Admin (bound on first sign-in), or a person with a usable
-// Invitation (bound now). Everyone else is refused.
-func (a *App) SignIn(ctx context.Context, id ports.Identity) (*domain.User, error) {
-	if !id.EmailVerified || id.Subject == "" {
+// SignIn turns a verified identity into a user: an existing user (by this
+// identity, or by email from another provider), the configured Super Admin
+// (bound on first sign-in), or a person with a usable Invitation (bound now).
+// Everyone else is refused.
+func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, retErr error) {
+	email := domain.NormalizeEmail(id.Email)
+	if !id.EmailVerified || id.Subject == "" || email == "" {
 		return nil, ErrNoAccess
 	}
+	isSA := a.superAdminEmail() != "" && email == a.superAdminEmail()
+	if isSA && id.NoSuperAdmin {
+		a.Log.Warn("super admin email from a provider not trusted for it", "issuer", id.Issuer)
+		return nil, ErrSuperAdminIdentity
+	}
 	now := a.now()
-	email := domain.NormalizeEmail(id.Email)
 	uid := domain.UserID(id.Issuer, id.Subject)
 	user, etag, err := load[domain.User](ctx, a.Docs, userKey(uid))
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return nil, err
+	}
+	if user == nil && !isSA {
+		// The Super Admin stays bound to one identity; anyone else is the
+		// same person whichever provider returns their email.
+		if user, etag, err = a.userByEmail(ctx, email); err != nil {
+			return nil, err
+		}
+		if user != nil {
+			// Never the Super Admin, also when its email changed after it
+			// was bound (the binding is by user id).
+			if sa, err := a.isSuperAdmin(ctx, user); err != nil {
+				return nil, err
+			} else if sa {
+				a.Log.Warn("super admin matched by email from another identity", "issuer", id.Issuer)
+				return nil, ErrSuperAdminIdentity
+			}
+			uid = user.ID
+			if a.addIdentity(user, id) {
+				matched := user
+				defer func() {
+					if retErr == nil {
+						a.audit(ctx, domain.Principal{User: matched}, "identity.matched", "", matched.ID, map[string]any{"email": email, "issuer": id.Issuer})
+					}
+				}()
+			}
+		}
 	}
 	isNew := user == nil
 	if isNew {
@@ -54,7 +90,7 @@ func (a *App) SignIn(ctx context.Context, id ports.Identity) (*domain.User, erro
 	user.Email, user.Name, user.LastLoginAt = email, id.Name, now
 
 	bindSA := false
-	if sa := a.superAdminEmail(); sa != "" && email == sa {
+	if sa := a.superAdminEmail(); isSA {
 		b, bEtag, err := load[domain.SuperAdminBinding](ctx, a.Docs, superAdminKey)
 		switch {
 		case errors.Is(err, domain.ErrNotFound):
@@ -106,6 +142,49 @@ func (a *App) SignIn(ctx context.Context, id ports.Identity) (*domain.User, erro
 		return nil, err
 	}
 	return user, nil
+}
+
+// userByEmail finds the user with this email for an identity seen for the
+// first time: the active one if any, else the most recent sign-in.
+func (a *App) userByEmail(ctx context.Context, email string) (*domain.User, string, error) {
+	keys, err := a.Docs.List(ctx, "users/")
+	if err != nil {
+		return nil, "", err
+	}
+	var best *domain.User
+	bestEtag, n := "", 0
+	for _, k := range keys {
+		u, etag, err := load[domain.User](ctx, a.Docs, k)
+		if errors.Is(err, domain.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return nil, "", err
+		}
+		if domain.NormalizeEmail(u.Email) != email {
+			continue
+		}
+		n++
+		if best == nil || best.Revoked && !u.Revoked ||
+			best.Revoked == u.Revoked && u.LastLoginAt.After(best.LastLoginAt) {
+			best, bestEtag = u, etag
+		}
+	}
+	if n > 1 {
+		a.Log.Warn("several users share an email; using the most recent", "user", best.ID, "count", n)
+	}
+	return best, bestEtag, nil
+}
+
+// addIdentity records an identity matched to u by email; it reports whether
+// the identity is new.
+func (a *App) addIdentity(u *domain.User, id ports.Identity) bool {
+	ref := domain.Identity{Issuer: id.Issuer, Subject: id.Subject}
+	if (u.Issuer == ref.Issuer && u.Subject == ref.Subject) || slices.Contains(u.Identities, ref) {
+		return false
+	}
+	u.Identities = append(u.Identities, ref)
+	return true
 }
 
 func etagOrCreate(etag string, isNew bool) string {

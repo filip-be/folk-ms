@@ -27,19 +27,29 @@ import (
 )
 
 // fakeIdP signs in whoever the test chooses.
-type fakeIdP struct{ email string }
+type fakeIdP struct {
+	email, issuer string
+	noSA          bool // like Facebook
+	logins        int
+}
 
 func (f *fakeIdP) AuthCodeURL(_ context.Context, state, nonce, challenge, redirect string) (string, error) {
+	f.logins++
 	return redirect + "?" + url.Values{"code": {"c"}, "state": {state}}.Encode(), nil
 }
 
 func (f *fakeIdP) Exchange(context.Context, string, string, string, string) (ports.Identity, error) {
-	return ports.Identity{Issuer: "test", Subject: f.email, Email: f.email, EmailVerified: true}, nil
+	iss := f.issuer
+	if iss == "" {
+		iss = "test"
+	}
+	return ports.Identity{Issuer: iss, Subject: f.email, Email: f.email, EmailVerified: f.email != "", NoSuperAdmin: f.noSA}, nil
 }
 
 type harness struct {
 	ts     *httptest.Server
 	idp    *fakeIdP
+	fb     *fakeIdP
 	app    *app.App
 	social *meta.Recorder
 }
@@ -52,11 +62,11 @@ func newHarness(t *testing.T) *harness {
 	rec := &meta.Recorder{}
 	a.Docs, a.Pub, a.Audit, a.Social, a.Images = memory.NewDocumentStore(), memory.NewPublicStore("http://x/pub"), memory.NewAppendLog(), rec, img.Processor{}
 	a.SuperAdminEmail = "admin@example.org"
-	h := &harness{idp: &fakeIdP{email: "admin@example.org"}, app: a, social: rec}
+	h := &harness{idp: &fakeIdP{email: "admin@example.org"}, fb: &fakeIdP{issuer: "fb", noSA: true}, app: a, social: rec}
 	h.ts = httptest.NewUnstartedServer(nil)
 	h.ts.Start()
 	srv, err := NewServer(&Server{
-		App: a, IdP: h.idp, BaseURL: h.ts.URL,
+		App: a, IdP: h.idp, Facebook: h.fb, BaseURL: h.ts.URL,
 		Admin: fstest.MapFS{"index.html": {Data: []byte("<!doctype html>spa")}, "app.js": {Data: []byte("js")},
 			"autofill.user.js": {Data: []byte("// @match __FOLKMS_CMS_ORIGIN__/app/*")}},
 	}, bytes.Repeat([]byte{3}, 32))
@@ -403,5 +413,47 @@ func TestPostOutcomesMatchAdmin(t *testing.T) {
 		if !strings.Contains(string(src), `case "`+code+`":`) {
 			t.Errorf("cms/admin/src/views/post.ts has no message for the outcome %q", code)
 		}
+	}
+}
+
+func TestFacebookSignIn(t *testing.T) {
+	h := newHarness(t)
+	admin := h.client(t)
+	h.signIn(t, admin)
+	if resp, body := h.do(t, admin, "POST", "/api/invitations", `{"email":"ola@example.org","orgs":["org-a"]}`,
+		map[string]string{"Origin": h.ts.URL}); resp.StatusCode/100 != 2 {
+		t.Fatalf("invite: %d %s", resp.StatusCode, body)
+	}
+
+	c := h.client(t)
+	get := func(path string) (*http.Response, string) {
+		t.Helper()
+		return h.do(t, c, "GET", path, "", nil)
+	}
+	h.fb.email = "ola@example.org"
+	if resp, _ := get("/auth/login?provider=facebook&return=/app/events"); resp.Request.URL.Path != "/app/events" || h.fb.logins != 1 {
+		t.Fatalf("facebook sign-in landed on %s", resp.Request.URL)
+	}
+	if _, body := get("/api/me"); !strings.Contains(body, `"email":"ola@example.org"`) {
+		t.Fatalf("me: %s", body)
+	}
+	// An expired session goes back to the provider used last.
+	h.do(t, c, "POST", "/auth/logout", "", map[string]string{"Origin": h.ts.URL})
+	googleBefore := h.idp.logins
+	get("/auth/login")
+	if h.fb.logins != 2 || h.idp.logins != googleBefore {
+		t.Fatalf("remembered provider: fb %d google %d", h.fb.logins, h.idp.logins)
+	}
+
+	if resp, body := get("/auth/login?provider=apple"); resp.StatusCode != 403 || !strings.Contains(body, "not available") {
+		t.Fatalf("unknown provider: %d %s", resp.StatusCode, body)
+	}
+	h.fb.email = ""
+	if resp, body := get("/auth/login?provider=facebook"); resp.StatusCode != 403 || !strings.Contains(body, "did not share an email") {
+		t.Fatalf("no email: %d %s", resp.StatusCode, body)
+	}
+	h.fb.email = "admin@example.org"
+	if resp, body := get("/auth/login?provider=facebook"); resp.StatusCode != 403 || !strings.Contains(body, "only with the Google account") {
+		t.Fatalf("super admin via facebook: %d %s", resp.StatusCode, body)
 	}
 }

@@ -70,9 +70,13 @@ type Identity struct {
 	Email         string
 	EmailVerified bool
 	Name          string
+	// NoSuperAdmin marks a provider whose email check is not strong enough
+	// for the Super Admin: such an identity can never bind or act as it.
+	NoSuperAdmin bool
 }
 
-// IdentityProvider runs the OIDC authorization code flow.
+// IdentityProvider runs an authorization code flow with PKCE and state (and,
+// for OIDC, a nonce) and returns the verified identity.
 type IdentityProvider interface {
 	// AuthCodeURL returns where to send the browser.
 	AuthCodeURL(ctx context.Context, state, nonce, codeChallenge, redirectURI string) (string, error)

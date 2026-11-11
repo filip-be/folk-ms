@@ -44,7 +44,11 @@ header nav {
 }
 main#view { max-width: var(--page-width); margin: 0 auto; padding: var(--space-12); }
 main.narrow, .card.narrow { max-width: var(--narrow-width); margin: var(--space-40) auto; }
-.signin { text-align: center; }
+.signin {
+  text-align: center;
+
+  & .providers { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-6); }
+}
 
 /* Cards and toolbars */
 .card {

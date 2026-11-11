@@ -45,11 +45,11 @@ class AccessView extends View {
       <section class="card">
         <h2>${L("Zaproś moderatora", "Invite a moderator")}</h2>
         <form id="invite">
-          <div class="field"><label>${L("E-mail konta Google", "Google account email")}<input name="email" type="email" required></label></div>
+          <div class="field"><label>${L("E-mail konta Google lub Facebook", "Google or Facebook account email")}<input name="email" type="email" required></label></div>
           <fieldset><legend>${L("Organizacje", "Organizations")}</legend>${this.orgBoxes([])}</fieldset>
           <button class="primary" type="submit">${L("Zaproś", "Invite")}</button>
         </form>
-        <p class="muted small">${L("CMS nie wysyła e-maili. Przekaż osobie link", "The CMS sends no email. Give the person the link")} <code>${loginUrl}</code> – ${L("zaproszenie wiąże się z jej kontem Google przy pierwszym logowaniu i wygasa po 14 dniach.", "the invitation is bound to their Google account on first sign-in and expires after 14 days.")}</p>
+        <p class="muted small">${L("CMS nie wysyła e-maili. Przekaż osobie link", "The CMS sends no email. Give the person the link")} <code>${loginUrl}</code> – ${L("zaproszenie wiąże się z kontem, którym zaloguje się pierwszy raz, i wygasa po 14 dniach. Potem może logować się przez Google lub Facebooka, o ile konto zwraca ten sam adres e-mail.", "the invitation is bound to the account they first sign in with and expires after 14 days. After that they can sign in with Google or Facebook, as long as the account returns the same email address.")}</p>
       </section>
 
       <section class="card">

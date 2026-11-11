@@ -22,10 +22,10 @@ import (
 var practice embed.FS
 
 func init() {
-	devIdentity = func(string) (ports.IdentityProvider, http.Handler) {
+	devIdentity = func(string) (ports.IdentityProvider, ports.IdentityProvider, http.Handler) {
 		p := devoidc.New("/auth/dev/login")
 		polish := func(r *http.Request) bool { return httpapi.RequestLang(r) == domain.PL }
-		return p, p.Handler(os.Getenv("SUPER_ADMIN_EMAIL"), polish)
+		return p, p.Facebook(), p.Handler(os.Getenv("SUPER_ADMIN_EMAIL"), polish)
 	}
 	devPages = func() http.Handler {
 		sub, _ := fs.Sub(practice, "practice")

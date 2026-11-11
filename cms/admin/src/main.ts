@@ -139,7 +139,11 @@ function signInScreen(): void {
     <main class="card narrow signin">
       <h1>folk-ms</h1>
       <p>${L("Zarządzanie wydarzeniami organizacji folkowych.", "Event management for folk organizations.")}</p>
-      <a class="button primary" href="/auth/login?return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
+      <div class="providers">
+        <a class="button primary" href="/auth/login?provider=google&return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
+        <a class="button" href="/auth/login?provider=facebook&return=${ret}">${L("Zaloguj się przez Facebooka", "Sign in with Facebook")}</a>
+      </div>
+      <p class="muted small">${L("Logowanie przez Facebooka działa dla osób dodanych jako testerzy aplikacji Meta. Administrator loguje się tylko przez Google.", "Facebook sign-in works for people added as Testers of the Meta app. The administrator signs in with Google only.")}</p>
       <p class="muted small">${L("Dostęp mają wyłącznie osoby zaproszone przez administratora.", "Only people invited by the administrator have access.")}</p>
       ${langSwitch()}
     </main>`.value;

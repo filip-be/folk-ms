@@ -32,8 +32,9 @@ import (
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
-// devIdentity is set by dev.go in builds with the "dev" tag.
-var devIdentity func(baseURL string) (ports.IdentityProvider, http.Handler)
+// devIdentity is set by dev.go in builds with the "dev" tag: the dev OIDC
+// stub standing in for Google and for Facebook, and its login page.
+var devIdentity func(baseURL string) (google, facebook ports.IdentityProvider, login http.Handler)
 
 // devPages is set by dev.go: the Autofill practice page under /dev/facebook/.
 var devPages func() http.Handler
@@ -102,11 +103,12 @@ func run(log *slog.Logger) error {
 		log.Warn("SUPER_ADMIN_EMAIL is not set: nobody can administer access")
 	}
 
+	var devFacebook ports.IdentityProvider
 	if id := os.Getenv("GOOGLE_CLIENT_ID"); id != "" {
 		srv.IdP = google.New(id, os.Getenv("GOOGLE_CLIENT_SECRET"))
 	} else if mode == "local" && devIdentity != nil {
-		idp, h := devIdentity(baseURL)
-		srv.IdP, srv.DevLogin = idp, h
+		idp, fb, h := devIdentity(baseURL)
+		srv.IdP, srv.DevLogin, devFacebook = idp, h, fb
 		if devPages != nil {
 			srv.DevPages = devPages()
 		}
@@ -116,10 +118,13 @@ func run(log *slog.Logger) error {
 	}
 
 	if id := os.Getenv("META_APP_ID"); id != "" {
-		a.Social = meta.New(id, os.Getenv("META_APP_SECRET"), os.Getenv("META_GRAPH_VERSION"))
+		c := meta.New(id, os.Getenv("META_APP_SECRET"), os.Getenv("META_GRAPH_VERSION"))
+		// Facebook sign-in uses the same Meta app (Testers only, see README).
+		a.Social, srv.Facebook = c, meta.SignIn{C: c}
 	} else if mode == "local" && devIdentity != nil {
 		// Dev builds only: fake successes must never reach a real deployment.
 		a.Social = &meta.Recorder{}
+		srv.Facebook = devFacebook
 		log.Warn("META_APP_ID not set: Social Posts are recorded, not sent")
 	} else {
 		return errors.New("META_APP_ID is required (or build with -tags dev to record posts locally)")

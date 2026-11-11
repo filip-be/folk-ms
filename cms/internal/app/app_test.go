@@ -368,3 +368,96 @@ func TestSocialPosting(t *testing.T) {
 		t.Fatal("disconnected")
 	}
 }
+
+func (e *env) signInWith(t *testing.T, id ports.Identity) (domain.Principal, error) {
+	t.Helper()
+	id.EmailVerified = id.Email != ""
+	u, err := e.a.SignIn(e.ctx, id)
+	if err != nil {
+		return domain.Principal{}, err
+	}
+	return e.a.Principal(e.ctx, u.ID, e.clock.t)
+}
+
+func fb(sub, email string) ports.Identity {
+	return ports.Identity{Issuer: meta.Issuer, Subject: sub, Email: email, NoSuperAdmin: true}
+}
+
+func TestSignInMatchesUsersByEmail(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa-sub", "admin@example.org"))
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "ola@example.org", []string{"org-a"}))
+	ola := must[domain.Principal](t)(e.signIn(t, "ola-sub", "ola@example.org"))
+
+	// Facebook with the same email is the same user, with the same access.
+	viaFB := must[domain.Principal](t)(e.signInWith(t, fb("fb-ola", "Ola@Example.org")))
+	if viaFB.User.ID != ola.User.ID || !viaFB.CanManageOrg("org-a") {
+		t.Fatalf("matched %+v", viaFB.User)
+	}
+	if len(viaFB.User.Identities) != 1 || viaFB.User.Identities[0].Subject != "fb-ola" {
+		t.Fatalf("identities %+v", viaFB.User.Identities)
+	}
+	must[domain.Principal](t)(e.signInWith(t, fb("fb-ola", "ola@example.org")))
+	day := e.clock.t.Format("2006-01-02")
+	matched := 0
+	for _, a := range must[[]app.AuditEntry](t)(e.a.ReadAudit(e.ctx, sa, day)) {
+		if a.Action == "identity.matched" {
+			matched++
+		}
+	}
+	if matched != 1 {
+		t.Fatalf("identity.matched logged %d times", matched)
+	}
+
+	// No email, or an email nobody has: refused.
+	if _, err := e.signInWith(t, fb("fb-x", "")); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("no email: %v", err)
+	}
+	if _, err := e.signInWith(t, fb("fb-y", "nobody@example.org")); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("stranger: %v", err)
+	}
+
+	// An Invitation can be redeemed through Facebook; Google then matches.
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "jan@example.org", []string{"org-b"}))
+	jan := must[domain.Principal](t)(e.signInWith(t, fb("fb-jan", "jan@example.org")))
+	if !jan.CanManageOrg("org-b") {
+		t.Fatal("invitation via facebook")
+	}
+	if g := must[domain.Principal](t)(e.signIn(t, "jan-google", "jan@example.org")); g.User.ID != jan.User.ID {
+		t.Fatal("google matches the facebook user")
+	}
+
+	// A revoked user matched by email needs a new Invitation, bound to them.
+	must[*domain.User](t)(e.a.RevokeUser(e.ctx, sa, ola.User.ID))
+	if _, err := e.signInWith(t, fb("fb-ola", "ola@example.org")); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("revoked: %v", err)
+	}
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "ola@example.org", []string{"org-b"}))
+	back := must[domain.Principal](t)(e.signInWith(t, fb("fb-ola2", "ola@example.org")))
+	if back.User.ID != ola.User.ID || !back.CanManageOrg("org-b") || back.CanManageOrg("org-a") {
+		t.Fatalf("re-invited %+v", back.User)
+	}
+}
+
+func TestFacebookNeverSuperAdmin(t *testing.T) {
+	e := newEnv(t)
+	// Not even before the Super Admin is bound.
+	if _, err := e.signInWith(t, fb("fb-sa", "admin@example.org")); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("unbound: %v", err)
+	}
+	sa := must[domain.Principal](t)(e.signIn(t, "sa-sub", "admin@example.org"))
+	if _, err := e.signInWith(t, fb("fb-sa", "admin@example.org")); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("bound: %v", err)
+	}
+	// The Super Admin's Google email changes; the binding is by user id.
+	moved := must[domain.Principal](t)(e.signIn(t, "sa-sub", "new@example.org"))
+	if moved.User.ID != sa.User.ID || !moved.SuperAdmin {
+		t.Fatal("still the super admin")
+	}
+	if _, err := e.signInWith(t, fb("fb-new", "new@example.org")); !errors.Is(err, app.ErrSuperAdminIdentity) {
+		t.Fatalf("changed email: %v", err)
+	}
+	if _, err := e.signIn(t, "other-google", "new@example.org"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("another google identity: %v", err)
+	}
+}

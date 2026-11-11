@@ -91,10 +91,10 @@ An optional browser helper a Moderator installs, which types a Facebook Event Ha
 ## Access
 
 **Super Admin**
-The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization.
+The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization. Signs in only with the Google identity it was bound to.
 
 **Moderator**
-A person allowed to manage the Events of the Organizations they were granted. Access is scoped per Organization.
+A person allowed to manage the Events of the Organizations they were granted. Access is scoped per Organization. Signs in with Google or Facebook; any identity that returns the Moderator's email is the same Moderator.
 
 **Invitation**
 A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
