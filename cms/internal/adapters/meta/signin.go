@@ -16,9 +16,11 @@ const Issuer = "https://www.facebook.com"
 const SignInScopes = "email,public_profile"
 
 // SignIn implements ports.IdentityProvider with Facebook Login on the same
-// Meta app as posting: the authorization code flow with PKCE and state, then
-// the user's id, name and email from Graph. The user token is dropped at
-// once. Facebook returns no ID token here, so there is no nonce to check.
+// Meta app as posting: the authorization code flow with state, the code
+// redeemed with the app secret, then the user's id, name and email from
+// Graph. The user token is dropped at once. The PKCE parameters are sent too,
+// though Meta documents enforcing them only for its OIDC variant (scope
+// openid), which this flow does not use; so there is no ID token or nonce.
 type SignIn struct{ C *Client }
 
 // AuthCodeURL implements ports.IdentityProvider. auth_type=rerequest asks

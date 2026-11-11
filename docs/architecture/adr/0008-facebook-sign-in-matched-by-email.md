@@ -16,7 +16,7 @@ The Meta app is a Business app in Standard Access, so only people with a role on
 
 ## Decision
 
-- **Facebook is a second identity provider** on the same Meta app as posting. It uses the authorization code flow with PKCE and state, then calls Graph `/me` with `appsecret_proof`. The user token is dropped at once. The scopes are `email,public_profile`.
+- **Facebook is a second identity provider** on the same Meta app as posting. It uses the authorization code flow with state, and redeems the code server-side with the app secret. It then calls Graph `/me` with `appsecret_proof`. It also sends the PKCE parameters, but Meta documents PKCE only for its OIDC variant (`scope=openid`), so Meta may not enforce it here; the app secret and the signed state cookie are what protect the exchange. The user token is dropped at once. The scopes are `email,public_profile`.
 - **Users are matched by email across providers.** A sign-in first looks for the user of its own identity. If there is none, it looks for a user with the same email, and it does this again on every sign-in, with no stored alias, so a changed email stops matching at once. A matched identity is recorded on the user, and the first match is written to the Audit Log (`identity.matched`). An Invitation is still bound to whichever identity redeems it first.
 - **An email from Facebook counts as confirmed for Moderators.** We accept Meta's "valid primary email" as proof that the person owns the address. A Facebook identity with no email is refused.
 - **The Super Admin stays on its one bound identity.** Facebook identities are marked `NoSuperAdmin`, and three rules follow:
