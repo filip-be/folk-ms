@@ -56,7 +56,7 @@ class SocialView extends View {
         ? html`<section class="card"><h2>${L("Wybierz stronę na Facebooku", "Choose a Facebook page")}</h2>
             <ul class="pages">${st.pendingPages.map(
               (p) => html`<li><strong>${p.name}</strong> ${p.igUsername ? html`<span class="muted">· Instagram @${p.igUsername}</span>` : html`<span class="muted">${L("· bez Instagrama", "· no Instagram")}</span>`}
-                <button type="button" class="primary" data-page="${p.id}">${L("Wybierz", "Choose")}</button></li>`,
+                <button type="button" class="secondary" data-page="${p.id}">${L("Wybierz", "Choose")}</button></li>`,
             )}</ul></section>`
         : ""}
       <section class="card">

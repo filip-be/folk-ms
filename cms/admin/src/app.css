@@ -210,8 +210,11 @@ main.narrow, .card.narrow { max-width: var(--narrow-width); margin: var(--space-
 }
 .actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); }
 
-/* ── Buttons. Not nested under the selector list: nesting would compile to
-   :is(button, .button), which raises the specificity. */
+/* ── Buttons. One class per role (README, Buttons): .primary (the main action,
+   one per form), .secondary (a further positive action), none (neutral:
+   cancel, edit, navigation), .danger (removes or revokes). Not nested under the
+   selector list: nesting would compile to :is(button, .button), which raises
+   the specificity. */
 button, .button {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--space-8);
   min-height: var(--control-height); padding: var(--space-8) var(--space-16);
@@ -223,16 +226,28 @@ button, .button {
 button:hover, .button:hover { background: var(--surface-sunken); }
 button.primary, .button.primary { background: var(--action); border-color: var(--action); color: var(--action-text); }
 button.primary:hover, .button.primary:hover { background: var(--action-hover); border-color: var(--action-hover); }
-button {
-  &.danger { color: var(--danger); }
-  &.link {
-    min-height: 0; padding: 0 var(--space-2); border: none; box-shadow: none;
-    font-weight: var(--weight-medium); background: none; color: var(--accent); text-decoration: underline;
-
-    &.danger { color: var(--danger); }
-  }
-  &:disabled { opacity: .5; cursor: not-allowed; }
+button.secondary, .button.secondary {
+  background: var(--action-secondary); border-color: var(--action-secondary-line); color: var(--action-secondary-text);
 }
+button.secondary:hover, .button.secondary:hover { background: var(--action-secondary-hover); }
+button.danger, .button.danger { border-color: var(--danger-line); color: var(--danger); }
+button.danger:hover, .button.danger:hover { background: var(--danger-hover); }
+button.link {
+  min-height: 0; padding: 0 var(--space-2); border: none; box-shadow: none;
+  font-weight: var(--weight-medium); background: none; color: var(--accent); text-decoration: underline;
+
+  &:hover { background: none; }
+  &.danger { color: var(--danger); }
+}
+/* Disabled, whatever the role: flat and grey, so it never reads as an action.
+   A file picker (label.button around a disabled input) and a link-styled
+   .button marked aria-disabled look the same. */
+button:disabled, button:disabled:hover, .button[aria-disabled=true], .button:has(input:disabled) {
+  background: var(--disabled-bg); border-color: var(--disabled-line); color: var(--disabled-text);
+  box-shadow: none; cursor: not-allowed;
+}
+.button[aria-disabled=true] { pointer-events: none; }
+button.link:disabled, button.link:disabled:hover { background: none; text-decoration: none; }
 .icon-button {
   flex: none; width: var(--control-height); padding: 0; border-color: transparent; box-shadow: none; background: none; color: var(--muted);
 
@@ -265,6 +280,37 @@ input, select, textarea {
 }
 input::placeholder, textarea::placeholder { color: var(--placeholder); }
 input:focus, select:focus, textarea:focus { border-color: var(--accent); outline: none; box-shadow: var(--shadow-focus); }
+/* Disabled and read-only fields: grey and flat. Read-only text stays legible
+   (it can still be selected and copied); disabled text is greyed too. */
+input:disabled, select:disabled, textarea:disabled,
+input:read-only:not([type=checkbox], [type=radio], [type=file]), textarea:read-only {
+  background-color: var(--disabled-bg); border-color: var(--disabled-line); box-shadow: none; cursor: not-allowed;
+}
+input:disabled, select:disabled, textarea:disabled { color: var(--disabled-text); }
+/* A read-only field can still be focused (to select and copy): keep the focus border. */
+input:read-only:not([type=checkbox], [type=radio], [type=file]):focus, textarea:read-only:focus {
+  border-color: var(--accent); box-shadow: var(--shadow-focus);
+}
+/* Required fields: an asterisk after the label (the control's `required`
+   attribute is what screen readers announce). Automatic for a .field whose
+   label comes before its control; .required marks any other label or legend. */
+.field:has(> :is(input, select, textarea):required) > label::after, label.required::after, legend.required::after {
+  content: "*" / ""; margin-left: var(--space-2); color: var(--danger); font-weight: var(--weight-semibold);
+}
+.required-note { font-size: var(--text-xs); line-height: var(--leading-xs); color: var(--muted); }
+.required-note::before { content: "* "; color: var(--danger); font-weight: var(--weight-semibold); }
+/* A field with a validation error (ui.ts, markProblems): red border, the
+   message right below it. */
+input[aria-invalid=true], select[aria-invalid=true], textarea[aria-invalid=true] { border-color: var(--danger); }
+input[aria-invalid=true]:focus, select[aria-invalid=true]:focus, textarea[aria-invalid=true]:focus {
+  border-color: var(--danger); box-shadow: var(--shadow-focus-invalid);
+}
+.field-error {
+  display: flex; gap: var(--space-4); margin: var(--space-4) 0 0;
+  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: var(--weight-medium); color: var(--danger);
+
+  & .icon { width: var(--space-16); height: var(--space-16); }
+}
 /* Select: the native arrow is replaced by a chevron drawn with two gradients
    (no image: the CSP's img-src does not allow data: URLs). */
 select {
@@ -303,19 +349,24 @@ input[type=checkbox], input[type=radio] {
 }
 textarea { resize: vertical; }
 fieldset { margin: 0 0 var(--space-16); padding: 0; border: none; }
-legend { margin-bottom: var(--space-6); font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
+legend { margin-bottom: var(--space-6); padding: 0; font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 var(--space-24); }
 .chip {
   display: inline-flex; align-items: center; margin: 0 var(--space-6) var(--space-6) 0; padding: var(--space-6) var(--space-12);
   border: 1px solid var(--line); border-radius: var(--radius-pill); font-weight: var(--weight-medium); color: var(--text); cursor: pointer;
 
-  &:has(input:checked) { border-color: var(--action); background: var(--surface-sunken); }
+  &:has(input:checked) { border-color: var(--action); background: var(--accent-soft); }
+  &:has(input:disabled) { border-style: dashed; border-color: var(--disabled-line); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
 }
 label.inline {
   display: inline-flex; align-items: center; gap: var(--space-6); margin-right: var(--space-16); font-weight: var(--weight-regular); color: var(--text);
 
   & input:not([type=checkbox]) { width: auto; margin: 0; }
 }
+/* A label around a disabled checkbox or radio: greyed, not clickable. */
+label:has(> input:is([type=checkbox], [type=radio]):disabled) { color: var(--disabled-text); cursor: not-allowed; }
+/* The native disabled box keeps the accent colour in some browsers; fade it. */
+input:is([type=checkbox], [type=radio]):disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────── */
 .tabs {
@@ -371,6 +422,8 @@ table.audit td.small { max-width: 30rem; word-break: break-word; }
   background: var(--danger-soft); color: var(--danger);
 
   & ul { margin: var(--space-4) 0 0; padding-left: var(--space-20); }
+  /* Links to the fields (ui.ts, markProblems). */
+  & button.link { display: inline; padding: 0; font: inherit; font-weight: var(--weight-semibold); color: inherit; }
 }
 .hint { margin: 0 0 var(--space-8); padding-left: var(--space-20); color: var(--warn); }
 
@@ -473,7 +526,11 @@ ul.pages li {
 
   & button { margin-left: auto; }
 }
-.inline-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); }
+.inline-form {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6);
+
+  & .field-error { flex-basis: 100%; margin: 0; }
+}
 dl.facts {
   display: grid; grid-template-columns: max-content 1fr; gap: var(--space-6) var(--space-16);
 

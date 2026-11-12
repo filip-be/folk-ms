@@ -120,9 +120,23 @@
   --placeholder: light-dark(var(--neutral-600), var(--neutral-600));
   --line: light-dark(var(--neutral-300), var(--neutral-800));
   --line-subtle: light-dark(var(--neutral-200), var(--neutral-850));
-  --action: light-dark(var(--black), var(--neutral-100));        /* primary button */
-  --action-hover: light-dark(var(--neutral-800), var(--white));
+  /* Buttons by role (docs/design-system/README.md, Buttons). Primary: the one
+     main action of a screen or form; also checked controls and the active tab. */
+  --action: light-dark(var(--primary-600), var(--primary-300));
+  --action-hover: light-dark(var(--primary-700), var(--primary-200));
   --action-text: light-dark(var(--white), var(--black));
+  /* Secondary: a further positive action beside the primary one (tonal). */
+  --action-secondary: light-dark(var(--secondary-50), var(--secondary-900));
+  --action-secondary-hover: light-dark(var(--secondary-100), var(--secondary-800));
+  --action-secondary-text: light-dark(var(--secondary-700), var(--secondary-200));
+  --action-secondary-line: light-dark(var(--secondary-200), var(--secondary-700));
+  /* Danger: an action that removes, revokes or disconnects. */
+  --danger-line: light-dark(var(--error-200), var(--error-700));
+  --danger-hover: light-dark(var(--error-50), var(--error-900));
+  /* Disabled and read-only controls: flat, greyed, no colour of their role. */
+  --disabled-bg: light-dark(var(--neutral-200), var(--neutral-900));
+  --disabled-text: light-dark(var(--neutral-500), var(--neutral-600));
+  --disabled-line: light-dark(var(--neutral-300), var(--neutral-800));
   --accent: light-dark(var(--primary-600), var(--primary-300));  /* links, focus, selection */
   --accent-text: light-dark(var(--white), var(--black));
   --accent-soft: light-dark(var(--primary-50), var(--primary-900));
@@ -198,6 +212,7 @@
   --shadow-md: 0 8px 24px rgb(16 24 40 / .12);
   --shadow-lg: 0 16px 40px rgb(16 24 40 / .2);
   --shadow-focus: 0 0 0 1px var(--accent); /* focused inputs: thickens the border to 2px, one ring */
+  --shadow-focus-invalid: 0 0 0 1px var(--danger); /* the same, on a field with an error */
   --z-toolbar: 5;
   --z-header: 10;
   --z-menu: 20;

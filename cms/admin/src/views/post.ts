@@ -134,10 +134,10 @@ class PostView extends View {
           <h2><label><input type="checkbox" data-include="${pl}" ${checked ? "checked" : ""} ${ok ? "" : "disabled"}> ${NAME[pl]}</label></h2>
           ${img ? html`<img class="post-image ${pl}" src="${img}" alt="${L("Obraz posta", "Post image")}">` : html`<p class="muted">${L("Brak obrazu – dodaj zdjęcie główne i opublikuj wydarzenie ponownie.", "No image – add a cover image and publish the event again.")}</p>`}
           <div class="field"><label for="caption-${pl}">${L("Treść posta", "Post text")}</label>
-            <textarea id="caption-${pl}" data-platform="${pl}" rows="10">${last?.caption ?? d.captions.pl}</textarea>
+            <textarea id="caption-${pl}" data-platform="${pl}" rows="10" ${ok ? "" : "readonly"}>${last?.caption ?? d.captions.pl}</textarea>
             <div class="row"><span class="muted small" id="count-${pl}"></span>
-              <span><button type="button" class="link" data-platform="${pl}" data-caption-lang="pl">${L("wygeneruj PL", "generate PL")}</button>
-              <button type="button" class="link" data-platform="${pl}" data-caption-lang="en">${L("wygeneruj EN", "generate EN")}</button></span></div>
+              <span><button type="button" class="link" data-platform="${pl}" data-caption-lang="pl" ${ok ? "" : "disabled"}>${L("wygeneruj PL", "generate PL")}</button>
+              <button type="button" class="link" data-platform="${pl}" data-caption-lang="en" ${ok ? "" : "disabled"}>${L("wygeneruj EN", "generate EN")}</button></span></div>
           </div>
           ${pl === "instagram" ? html`<p class="muted small">${L("Linki w opisie na Instagramie nie są klikalne.", "Links in an Instagram caption are not clickable.")}</p>` : ""}
           ${hist.length
