@@ -94,7 +94,7 @@ The CMS address contains a hash that `main.bicep` derives from the resource grou
 4. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`).
 5. Add the redirect URIs and the other `<CMS_BASE_URL>` addresses to the Google OAuth client and the Meta app as described in their sections below.
 6. Run `deploy-cms` (its smoke test calls `CMS_BASE_URL`), then `deploy-site`.
-7. Add each Site's custom domain to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
+7. The Sites now work at their `*.azurestaticapps.net` addresses (output `staticSites`): CORS allows each Static Web App's default address without any configuration. Once a Site has a custom domain, add it to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
 
 After that, pushes to `main` redeploy whatever changed: `infra/azure/**` runs `deploy-infra`, `cms/**` and `contract/**` run `deploy-cms`, `sites/**` and `contract/client/**` run `deploy-site`, and `config/sites.json` runs all three. Nothing needs to be installed locally to deploy.
 

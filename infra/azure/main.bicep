@@ -18,7 +18,7 @@ param prefix string = 'folkms'
 @description('Site ids from config/sites.json; one Static Web App each.')
 param siteIds array
 
-@description('Every Site origin from config/sites.json (CORS on the pub container).')
+@description('Every Site origin from config/sites.json (CORS on the pub container). Each Static Web App default origin is added to CORS automatically.')
 param siteOrigins array
 
 @description('Public origin of the CMS, e.g. https://cms.example.org. Empty: the Function app default host name.')
@@ -67,6 +67,15 @@ resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01'
       corsRules: [
         {
           allowedOrigins: siteOrigins
+          allowedMethods: [ 'GET', 'HEAD' ]
+          allowedHeaders: [ '*' ]
+          exposedHeaders: [ 'ETag' ]
+          maxAgeInSeconds: 3600
+        }
+        {
+          // The *.azurestaticapps.net address of every Site, so a Site reads
+          // its snapshot before (and without) a custom domain.
+          allowedOrigins: [for (id, i) in siteIds: 'https://${sites[i].properties.defaultHostname}']
           allowedMethods: [ 'GET', 'HEAD' ]
           allowedHeaders: [ '*' ]
           exposedHeaders: [ 'ETag' ]

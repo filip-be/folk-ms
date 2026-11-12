@@ -48,7 +48,7 @@ See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md) for what may be depen
 
 ### Infrastructure and CI/CD
 
-Bicep in [`infra/azure/main.bicep`](../../infra/azure/main.bicep) declares the storage account (containers, CORS on blobs for Site origins, versioning, soft delete, lifecycle), the Flex app with its system-assigned identity and `Storage Blob Data Owner` role (the Functions host keeps its leases in the same account, which needs Owner), and one Static Web App per Site. GitHub Actions deploys through OIDC federated credentials, so no Azure secret is stored. Secrets (session key, Google and Meta client secrets, `SUPER_ADMIN_EMAIL`) are app settings set at deploy from GitHub environment secrets; none is in the repository.
+Bicep in [`infra/azure/main.bicep`](../../infra/azure/main.bicep) declares the storage account (containers, CORS on blobs for Site origins and each Static Web App's default `*.azurestaticapps.net` origin, versioning, soft delete, lifecycle), the Flex app with its system-assigned identity and `Storage Blob Data Owner` role (the Functions host keeps its leases in the same account, which needs Owner), and one Static Web App per Site. GitHub Actions deploys through OIDC federated credentials, so no Azure secret is stored. Secrets (session key, Google and Meta client secrets, `SUPER_ADMIN_EMAIL`) are app settings set at deploy from GitHub environment secrets; none is in the repository.
 
 Workflows in [`.github/workflows`](../../.github/workflows/):
 

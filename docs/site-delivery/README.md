@@ -40,7 +40,7 @@ flowchart LR
 | --- | --- | --- |
 | The schema, the Go snapshot builder and the TypeScript reader describe the same document | `contract/events.schema.json`, `contract/fixtures/`, `cms/internal/domain/`, `contract/client/` | Sites fail to read or misread Events. Enforced in CI: `cms/internal/schema` validates the fixtures, `cms/internal/domain` validates a built snapshot against the schema, `contract/client/test` reads the fixtures. |
 | The Permalink pattern the CMS uses in Captions matches the Sites' routes | `config/sites.json`, `sites/shared/router.ts` | Social Posts link to pages that do not exist. Enforced by `sites/shared/router.test.ts` (and `cms/internal/config` tests the CMS side). |
-| Every Site origin is allowed by CORS on `pub` | `config/sites.json`, `infra/azure/main.bicep` | The Site cannot fetch its snapshot. Enforced: `deploy-infra.yml` passes the origins from `config/sites.json`, and the local CMS applies the same list at `/pub/`. |
+| Every Site origin is allowed by CORS on `pub` | `config/sites.json`, `infra/azure/main.bicep` | The Site cannot fetch its snapshot. Enforced: `deploy-infra.yml` passes the origins from `config/sites.json`, and the local CMS applies the same list at `/pub/`; `main.bicep` adds each Static Web App's default `*.azurestaticapps.net` origin itself. |
 
 ## Read next
 
