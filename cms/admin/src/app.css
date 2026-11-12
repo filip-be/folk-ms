@@ -287,6 +287,10 @@ input:read-only:not([type=checkbox], [type=radio], [type=file]), textarea:read-o
   background-color: var(--disabled-bg); border-color: var(--disabled-line); box-shadow: none; cursor: not-allowed;
 }
 input:disabled, select:disabled, textarea:disabled { color: var(--disabled-text); }
+/* A read-only field can still be focused (to select and copy): keep the focus border. */
+input:read-only:not([type=checkbox], [type=radio], [type=file]):focus, textarea:read-only:focus {
+  border-color: var(--accent); box-shadow: var(--shadow-focus);
+}
 /* Required fields: an asterisk after the label (the control's `required`
    attribute is what screen readers announce). Automatic for a .field whose
    label comes before its control; .required marks any other label or legend. */

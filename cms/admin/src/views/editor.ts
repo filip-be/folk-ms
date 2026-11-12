@@ -10,7 +10,7 @@ import {
   type Text,
   type Venue,
 } from "../api.ts";
-import { badge, busy, fmtDateTime, html, markProblems, navigate, setFieldError, showError, t, toast, WEEKDAYS } from "../ui.ts";
+import { badge, busy, clearFieldError, fmtDateTime, html, markProblems, navigate, setFieldError, showError, t, toast, WEEKDAYS } from "../ui.ts";
 import { View } from "../view.ts";
 import { inLang, L, lang } from "../i18n.ts";
 
@@ -361,7 +361,10 @@ class EditorView extends View {
   private toggleNewVenue(open: boolean): void {
     const panel = this.$<HTMLElement>(".new-venue");
     panel.hidden = !open;
-    panel.querySelectorAll<HTMLInputElement>("[data-nv]").forEach((i) => (i.value = ""));
+    panel.querySelectorAll<HTMLInputElement>("[data-nv]").forEach((i) => {
+      i.value = "";
+      clearFieldError(i);
+    });
     if (open) panel.querySelector<HTMLInputElement>("[data-nv=name]")!.focus();
   }
 

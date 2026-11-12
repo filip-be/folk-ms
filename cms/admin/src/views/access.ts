@@ -45,6 +45,7 @@ class AccessView extends View {
       <section class="card">
         <h2>${L("Zaproś moderatora", "Invite a moderator")}</h2>
         <form id="invite">
+          <p class="required-note">${L("wymagane", "required")}</p>
           <div class="field"><label for="invite-email">${L("E-mail konta Google lub Facebook", "Google or Facebook account email")}</label><input id="invite-email" name="email" type="email" required></div>
           <fieldset data-field="orgs"><legend class="required">${L("Organizacje", "Organizations")}</legend>${this.orgBoxes([])}</fieldset>
           <button class="primary" type="submit">${L("Zaproś", "Invite")}</button>

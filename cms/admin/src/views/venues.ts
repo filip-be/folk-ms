@@ -28,6 +28,7 @@ class VenuesView extends View {
   private form(v?: Venue): ReturnType<typeof html> {
     const id = (name: string) => `venue-${v?.id ?? "new"}-${name}`;
     return html`<form class="venue-form card" data-id="${v?.id ?? ""}">
+      <p class="required-note">${L("wymagane", "required")}</p>
       <div class="grid">
         <div class="field"><label for="${id("name")}">${L("Nazwa", "Name")}</label><input id="${id("name")}" name="name" required maxlength="200" value="${v?.name ?? ""}"></div>
         <div class="field"><label for="${id("address")}">${L("Adres", "Address")}</label><input id="${id("address")}" name="address" required maxlength="500" value="${v?.address ?? ""}"></div>
