@@ -4,7 +4,7 @@ The visual language of the admin SPA: colour scales, the Figtree type scale, a 4
 
 ## Credits
 
-The design system is based on the work of **Felipe Cardona**: his colour, typography and "Add new user" admin shots on Dribbble — <https://dribbble.com/felipecardona/>. The colour scales, the type scale with its four weights, the spacing, the monochrome controls and the collapsible left-hand menu with its tree of sub-items follow those designs; the tokens, the dark theme, the mobile drawer and the components are folk-ms's adaptation.
+The design system is based on the work of **Felipe Cardona**: his colour, typography and "Add new user" admin shots on Dribbble — <https://dribbble.com/felipecardona/>. The colour scales, the type scale with its four weights, the spacing and the collapsible left-hand menu with its tree of sub-items follow those designs; the tokens, the dark theme, the mobile drawer, the components and the colouring of buttons by role are folk-ms's adaptation.
 
 The typeface is [Figtree](https://github.com/erikdkennedy/figtree) by Erik Kennedy, under the SIL Open Font License 1.1 ([`fonts/OFL.txt`](../../cms/admin/src/fonts/OFL.txt)).
 
@@ -32,12 +32,15 @@ Surfaces are layered one step apart so that each plane reads on its own: **page*
 | `--surface-sunken` | neutral-200 | neutral-850 | Hover, active nav item, segmented controls |
 | `--text` / `--text-secondary` / `--muted` | black / neutral-800 / neutral-700 | neutral-100 / 300 / 500 | Body, labels, secondary text |
 | `--line` / `--line-subtle` | neutral-300 / 200 | neutral-800 / 850 | Borders, row dividers |
-| `--action` | black | neutral-100 | Primary buttons, checked controls, active tab |
+| `--action` (+ `-hover`, `-text`) | primary-600 | primary-300 | Primary buttons, checked controls, active tab |
+| `--action-secondary` (+ `-hover`, `-text`, `-line`) | secondary-50, text 700 | secondary-900, text 200 | Secondary buttons (tonal) |
+| `--danger-line`, `--danger-hover` | error-200 / 50 | error-700 / 900 | Danger buttons' border and hover |
+| `--disabled-bg` / `--disabled-text` / `--disabled-line` | neutral-200 / 500 / 300 | neutral-900 / 600 / 800 | Disabled buttons, disabled and read-only fields |
 | `--accent` | primary-600 | primary-300 | Links, focus rings |
 | `--brand` | secondary-500 | secondary-400 | The folk-ms mark |
 | `--ok`, `--warn`, `--danger`, `--info` (+ `-soft`) | 700/600 on 50 | 300 on 900 | Badges, banners, toasts |
 
-Controls are monochrome, as in the reference: the primary button is near-black (white in dark mode); blue is kept for links and focus, so it always means "you can go there".
+Buttons take the colour of their role (see [Buttons](#buttons)): primary blue, secondary violet, neutral white, danger red. A disabled control loses its role's colour and turns grey.
 
 ### Typography
 
@@ -71,7 +74,31 @@ The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the p
 
 Focused fields get one 2px accent border (`--shadow-focus` thickens the 1px border), never a second ring. Selects draw their chevron with CSS gradients (the CSP allows no `data:` images); with a mouse, browsers that support customizable selects (`appearance: base-select`) also get a styled option list, while touch screens keep the native picker.
 
-Buttons (default, `.primary`, `.danger`, `.link`, `.icon-button`), fields (`label` + `input`/`select`/`textarea`, `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus and `.toast`. Each is shown on `/app/design`.
+Buttons (see below), fields (see [Forms](#forms); `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus and `.toast`. Each is shown on `/app/design`.
+
+### Buttons
+
+Every button has exactly one role, picked by what it does, not by how prominent it should look:
+
+| Role | Class | Look | Use |
+| --- | --- | --- | --- |
+| Primary | `.primary` | Blue fill (`--action`) | The one main action of a screen or form: Publish, Save, Invite, Add venue. At most one per form or toolbar. |
+| Secondary | `.secondary` | Violet tonal (`--action-secondary`) | A further positive action beside the primary one (Save draft next to Publish), or a repeated action in a list (Choose for each Facebook page). |
+| Neutral | none | White, grey border | Cancel, Edit, More, navigation (`a.button` to another screen), file pickers. |
+| Danger | `.danger` | Red text and border | Removes, revokes or disconnects. Inside a `details.more` menu it is red text only. |
+| Link | `.link` (+ `.danger`) | Underlined text | Small inline actions: Copy, + New venue, Revoke. |
+| Icon | `.icon-button` | Icon only, with `aria-label` | Toolbar and shell controls. |
+
+**Disabled** (`disabled`; for an `a.button`, `aria-disabled="true"`; a `label.button` around a disabled file input) is the same for every role: grey fill `--disabled-bg`, grey text, no shadow, `cursor: not-allowed`. `busy()` in `ui.ts` disables a button while its request runs, so the look also says "working".
+
+### Forms
+
+- **Labels.** A field is `<div class="field"><label for=…>…</label><input id=…>…</div>`. Use the `for` pattern, not a label wrapped around the control: the required mark and the error message are placed relative to it.
+- **Required.** Give the control `required`. A `.field` whose label precedes a required control shows a red asterisk after the label automatically; for a group (checkboxes in a `fieldset`) or any other label, add `class="required"` to the `legend` or `label`. A form with required fields shows a `<p class="required-note">` key ("required", or "required to publish" in the event editor, which is `novalidate` so a Draft saves without them while publishing enforces them on the server).
+- **Validation errors** appear right below their field as `.field-error` (alert icon and message), with `aria-invalid` and `aria-describedby` on the control and a red border; editing the field clears it. `ui.ts` does this for both sources:
+  - The browser's checks (`required`, `type=email|url`, `maxlength`) on a form without `novalidate`: the native bubble is replaced by the same inline message, in the admin UI language.
+  - Problems from the API: `showError(err, summary, form)` calls `markProblems`, which matches each problem's `field` path to a control by `data-field` (space-separated paths) or `name`, falling back to the Polish variant (`title` → `title.pl`). A `data-field` on a `fieldset` marks the group. Given a `summary` element it also lists every problem, each linked to its field (a field in the other language tab is revealed via the `folk:reveal` event). A problem with no matching control is listed only in the summary, so add a `data-field` when a new problem path appears.
+- **Disabled and read-only.** A field the Moderator cannot change is grey (`--disabled-bg`) and flat. Prefer `readonly` for text a Moderator may still want to copy; use `disabled` for selects, checkboxes, radios and buttons. A `label` or `.chip` around a disabled checkbox is greyed (a chip also gets a dashed border). A whole screen that cannot be edited (an Event in the bin) says so in a `.banner` and makes its controls read-only or disabled.
 
 ## Where it lives
 
@@ -81,6 +108,7 @@ Buttons (default, `.primary`, `.danger`, `.link`, `.icon-button`), fields (`labe
 | Rules, the shell layout and breakpoints | [`cms/admin/src/app.css`](../../cms/admin/src/app.css) |
 | Shell markup and behaviour | [`cms/admin/src/shell.ts`](../../cms/admin/src/shell.ts) |
 | Icons | [`cms/admin/src/icons.ts`](../../cms/admin/src/icons.ts) |
+| Validation (`markProblems`, `showError`, native checks) | [`cms/admin/src/ui.ts`](../../cms/admin/src/ui.ts) |
 | Live reference (`/app/design`) | [`cms/admin/src/views/design.ts`](../../cms/admin/src/views/design.ts) |
 | Figtree and its licence | [`cms/admin/src/fonts/`](../../cms/admin/src/fonts/) |
 | Token check | [`scripts/styles.test.ts`](../../scripts/styles.test.ts) |
@@ -91,6 +119,7 @@ Buttons (default, `.primary`, `.danger`, `.link`, `.icon-button`), fields (`labe
 | --- | --- | --- |
 | The drawer breakpoint is 767px in both places | `app.css` (`max-width: 767px`), `shell.ts` (`narrow`) | Resizing across it leaves the page inert or the drawer open |
 | `theme-color` matches `--sidebar` | `index.html`, `tokens.css` | The phone's browser chrome no longer matches the page |
+| A validation problem's `field` path has a matching `data-field` or `name` | `cms/internal/domain/*.go` (`p.add`, `Problem`), the view's form | The problem is listed only in the summary, not next to its field |
 | Fonts are served from `/app/fonts/` | `tokens.css` (`@font-face`), `build.ts` (copies `src/fonts/`, keeps the URLs external), `index.html` (preload) | Text falls back to the system font |
 
 ## Read next

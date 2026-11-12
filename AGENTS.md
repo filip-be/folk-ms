@@ -30,6 +30,15 @@ Applies to every stylesheet: `cms/admin/src/`, `sites/<id>/src/`, `autofill/src/
 - Admin SPA breakpoints, `theme-color` and fonts are bound across files: see
   [Design system, Change together](docs/design-system/README.md#change-together).
 
+## Admin UI
+
+Views in `cms/admin/src/views/` follow [Design system, Buttons and Forms](docs/design-system/README.md#buttons):
+one `.primary` per form (`.secondary`, neutral, `.danger` for the rest), `required` controls
+with a `<label for>`, errors next to their fields via `showError(err, summary, form)`, and
+inactive controls `disabled`/`readonly`, never only faded. Show a new pattern on `/app/design`
+and check it in light and dark. A new validation problem path in `cms/internal/domain/` needs a
+matching `data-field`: see [Design system, Change together](docs/design-system/README.md#change-together).
+
 ## Memory files
 
 Repository memory lives in this `AGENTS.md`. Never create a `CLAUDE.md` anywhere in

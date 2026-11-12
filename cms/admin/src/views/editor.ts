@@ -10,7 +10,7 @@ import {
   type Text,
   type Venue,
 } from "../api.ts";
-import { badge, busy, fmtDateTime, html, navigate, problemsHtml, showError, t, toast, WEEKDAYS } from "../ui.ts";
+import { badge, busy, fmtDateTime, html, markProblems, navigate, setFieldError, showError, t, toast, WEEKDAYS } from "../ui.ts";
 import { View } from "../view.ts";
 import { inLang, L, lang } from "../i18n.ts";
 
@@ -65,15 +65,18 @@ class EditorView extends View {
     return path ? `${this.me.publicUrl.replace(/\/$/, "")}/${path}` : "";
   }
 
-  private textFields(name: string, label: string, value: Text | undefined, kind: "input" | "short" | "long", max: number): ReturnType<typeof html> {
+  /** A Polish and an English field; `path` is the field's path in validation problems. */
+  private textFields(name: string, label: string, value: Text | undefined, kind: "input" | "short" | "long", max: number, path = name): ReturnType<typeof html> {
     return html`${(["pl", "en"] as const).map((l) => {
       const id = `f-${name}-${l}`;
       const v = value?.[l] ?? "";
+      // The Polish title is required to publish; novalidate lets a draft be saved without it.
+      const required = l === "pl" && name === "title";
       const field =
         kind === "input"
-          ? html`<input id="${id}" name="${name}.${l}" value="${v}" maxlength="${max}" ${l === "pl" && name === "title" ? "required" : ""}>`
-          : html`<textarea id="${id}" name="${name}.${l}" rows="${kind === "short" ? 2 : 8}" maxlength="${max}">${v}</textarea>`;
-      return html`<div class="field lang-${l}"><label for="${id}">${label} ${l === "en" ? html`<span class="muted">${L("(EN, opcjonalnie)", "(EN, optional)")}</span>` : ""}</label>${field}</div>`;
+          ? html`<input id="${id}" name="${name}.${l}" data-field="${path}.${l}" value="${v}" maxlength="${max}" ${required ? "required" : ""}>`
+          : html`<textarea id="${id}" name="${name}.${l}" data-field="${path}.${l}" rows="${kind === "short" ? 2 : 8}" maxlength="${max}">${v}</textarea>`;
+      return html`<div class="field lang-${l}"><label for="${id}">${label}${l === "en" ? html` <span class="muted">${L("(EN, opcjonalnie)", "(EN, optional)")}</span>` : ""}</label>${field}</div>`;
     })}`;
   }
 
@@ -114,9 +117,9 @@ class EditorView extends View {
           </div>
           <div class="actions">
             ${binned
-              ? this.me.superAdmin ? html`<button type="button" data-action="restore">${L("Przywróć z kosza", "Restore from the bin")}</button>` : ""
+              ? this.me.superAdmin ? html`<button type="button" class="primary" data-action="restore">${L("Przywróć z kosza", "Restore from the bin")}</button>` : ""
               : html`
-                <button type="submit" class="primary" id="save">${L("Zapisz szkic", "Save draft")}</button>
+                <button type="submit" class="${v ? "secondary" : "primary"}" id="save">${L("Zapisz szkic", "Save draft")}</button>
                 ${v ? html`<button type="button" class="primary publish" data-action="publish">${status !== "published" ? L("Opublikuj", "Publish") : v!.event.draftRevision !== v!.event.publishedRevision ? L("Opublikuj zmiany", "Publish changes") : L("Opublikuj ponownie", "Publish again")}</button>` : ""}
                 ${status === "published" ? html`<a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/post">${L("Ogłoś w mediach", "Announce on social media")}</a>
                   <a class="button" href="/app/orgs/${this.org}/events/${v!.event.id}/facebook">${L("Wydarzenie na Facebooku", "Facebook event")}</a>` : ""}
@@ -127,7 +130,8 @@ class EditorView extends View {
                 </div></details>` : ""}`}
           </div>
         </div>
-        <div id="problems">${v ? problemsHtml(v.problems) : ""}</div>
+        ${binned ? html`<div class="banner warn">${L("Wydarzenie jest w koszu i można je tylko przeglądać.", "The event is in the bin and can only be viewed.")}${this.me.superAdmin ? L(" Przywróć je, aby edytować.", " Restore it to edit it.") : ""}</div>` : ""}
+        <div id="problems"></div>
         ${v ? html`<p class="permalink muted small">${L("Adres na stronie", "Address on the site")}: <a href="${v.permalink[lang]}" target="_blank" rel="noopener">${v.permalink[lang]}</a></p>` : ""}
 
         <section class="card">
@@ -137,18 +141,19 @@ class EditorView extends View {
               <button type="button" role="tab" data-lang="en" aria-selected="${this.editLang === "en"}">English</button>
             </div>
           </div>
+          <p class="required-note">${L("wymagane do publikacji", "required to publish")}</p>
           <p class="muted small lang-en">${L("Puste pola angielskie są na stronie zastępowane polskimi.", "Empty English fields are replaced with Polish ones on the site.")}</p>
           ${this.textFields("title", L("Tytuł", "Title"), c.title, "input", 200)}
           ${this.textFields("summary", L("Krótki opis", "Summary"), c.summary, "short", 500)}
           ${this.textFields("description", L("Opis", "Description"), c.description, "long", 10000)}
           <div class="field"><label for="f-slug">${L("Końcówka adresu", "Address ending")}</label>
-            <input id="f-slug" name="slug" value="${c.slug}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="${L("tworzona z tytułu", "made from the title")}">
+            <input id="f-slug" name="slug" data-field="slug" value="${c.slug}" pattern="[a-z0-9]+(-[a-z0-9]+)*" maxlength="80" placeholder="${L("tworzona z tytułu", "made from the title")}">
             <p class="muted small">${L("Można zmieniać – stare linki nadal działają dzięki stałemu identyfikatorowi", "It can change – old links keep working thanks to the fixed identifier")} ${v ? html`<code>${v.event.shortId}</code>` : ""}.</p></div>
         </section>
 
         <section class="card schedule">
           <h2>${L(L("Termin", "Date"), "Date")}</h2>
-          <fieldset class="kinds"><legend class="sr-only">${L("Rodzaj", "Type")}</legend>
+          <fieldset class="kinds" data-field="schedule.kind"><legend class="sr-only">${L("Rodzaj", "Type")}</legend>
             ${(
               [
                 ["single", L("Jednorazowe", "Single")],
@@ -158,22 +163,22 @@ class EditorView extends View {
             ).map(([k, label]) => html`<label class="chip"><input type="radio" name="kind" value="${k}" ${s.kind === k ? "checked" : ""}> ${label}</label>`)}
           </fieldset>
           <div class="grid">
-            <div class="field"><label for="f-startDate">${L("Data rozpoczęcia", "Start date")}</label><input type="date" id="f-startDate" name="startDate" value="${s.startDate}"></div>
-            <div class="field"><label for="f-startTime">${L("Początek", "Start")}</label><input type="time" id="f-startTime" name="startTime" value="${s.startTime}"></div>
-            <div class="field k-multiDay"><label for="f-endDate">${L("Data końca", "End date")}</label><input type="date" id="f-endDate" name="endDate" value="${s.endDate ?? ""}"></div>
-            <div class="field"><label for="f-endTime">${L("Koniec", "End")}</label><input type="time" id="f-endTime" name="endTime" value="${s.endTime}"></div>
+            <div class="field"><label for="f-startDate">${L("Data rozpoczęcia", "Start date")}</label><input type="date" id="f-startDate" name="startDate" data-field="schedule.startDate" value="${s.startDate}" required></div>
+            <div class="field"><label for="f-startTime">${L("Początek", "Start")}</label><input type="time" id="f-startTime" name="startTime" data-field="schedule.startTime" value="${s.startTime}" required></div>
+            <div class="field k-multiDay"><label for="f-endDate">${L("Data końca", "End date")}</label><input type="date" id="f-endDate" name="endDate" data-field="schedule.endDate" value="${s.endDate ?? ""}" required></div>
+            <div class="field"><label for="f-endTime">${L("Koniec", "End")}</label><input type="time" id="f-endTime" name="endTime" data-field="schedule.endTime" value="${s.endTime}" required></div>
           </div>
           <p class="muted small k-single">${L("Godzina końca wcześniejsza niż początek oznacza zakończenie następnego dnia.", "An end time earlier than the start time means it ends the next day.")}</p>
           <div class="grid k-recurring">
-            <div class="field"><label for="f-freq">${L("Powtarzanie", "Repeats")}</label><select id="f-freq" name="freq">
+            <div class="field"><label for="f-freq">${L("Powtarzanie", "Repeats")}</label><select id="f-freq" name="freq" data-field="schedule.recurrence.freq schedule.recurrence" required>
               <option value="weekly" ${r.freq === "weekly" ? "selected" : ""}>${L("co tydzień", "weekly")}</option>
               <option value="biweekly" ${r.freq === "biweekly" ? "selected" : ""}>${L("co dwa tygodnie", "every two weeks")}</option>
               <option value="monthly" ${r.freq === "monthly" ? "selected" : ""}>${L("co miesiąc", "monthly")}</option></select></div>
-            <div class="field nth"><label for="f-nth">${L("Który", "Which")}</label><select id="f-nth" name="nth">
+            <div class="field nth"><label for="f-nth">${L("Który", "Which")}</label><select id="f-nth" name="nth" data-field="schedule.recurrence.nth" required>
               ${NTH.map(([n, label]) => html`<option value="${n}" ${r.nth === n ? "selected" : ""}>${label}</option>`)}</select></div>
-            <div class="field"><label for="f-weekday">${L("Dzień tygodnia", "Weekday")}</label><select id="f-weekday" name="weekday">
+            <div class="field"><label for="f-weekday">${L("Dzień tygodnia", "Weekday")}</label><select id="f-weekday" name="weekday" data-field="schedule.recurrence.weekday" required>
               ${WEEKDAYS.map((d, i) => html`<option value="${i}" ${r.weekday === i ? "selected" : ""}>${d}</option>`)}</select></div>
-            <div class="field"><label for="f-until">${L("Do dnia (najwyżej 24 miesiące)", "Until (at most 24 months)")}</label><input type="date" id="f-until" name="until" value="${r.endDate}"></div>
+            <div class="field"><label for="f-until">${L("Do dnia (najwyżej 24 miesiące)", "Until (at most 24 months)")}</label><input type="date" id="f-until" name="until" data-field="schedule.recurrence.endDate" value="${r.endDate}" required></div>
           </div>
           <div id="occurrences">${this.occurrencesHtml()}</div>
         </section>
@@ -181,7 +186,7 @@ class EditorView extends View {
         <section class="card">
           <h2>${L("Miejsce i cena", "Venue and price")}</h2>
           <div class="field"><label for="f-venue">${L("Miejsce", "Venue")}</label>
-            <select id="f-venue" name="venueId"><option value="">${L("— wybierz —", "— choose —")}</option>
+            <select id="f-venue" name="venueId" data-field="venueId" required><option value="">${L("— wybierz —", "— choose —")}</option>
               ${activeVenues.map((x) => html`<option value="${x.id}" ${c.venueId === x.id ? "selected" : ""}>${x.name} – ${x.address}${x.archived ? L(" (zarchiwizowane)", " (archived)") : ""}</option>`)}
             </select>
             <p class="muted small"><button type="button" class="link" data-new-venue>${L("+ Nowe miejsce", "+ New venue")}</button>
@@ -189,15 +194,15 @@ class EditorView extends View {
           <div class="new-venue" hidden>
             <h3>${L("Nowe miejsce", "New venue")}</h3>
             <div class="grid">
-              <div class="field"><label for="nv-name">${L("Nazwa", "Name")}</label><input id="nv-name" data-nv="name" maxlength="200"></div>
-              <div class="field"><label for="nv-address">${L("Adres", "Address")}</label><input id="nv-address" data-nv="address" maxlength="500"></div>
+              <div class="field"><label for="nv-name">${L("Nazwa", "Name")}</label><input id="nv-name" data-nv="name" maxlength="200" required></div>
+              <div class="field"><label for="nv-address">${L("Adres", "Address")}</label><input id="nv-address" data-nv="address" maxlength="500" required></div>
               <div class="field"><label for="nv-map">${L("Link do mapy (opcjonalnie)", "Map link (optional)")}</label><input id="nv-map" data-nv="mapUrl" type="url" placeholder="https://"></div>
             </div>
-            <button type="button" class="primary" data-nv-add>${L("Dodaj i wybierz", "Add and select")}</button>
-            <button type="button" data-nv-cancel>${L("Anuluj", "Cancel")}</button>
+            <div class="actions"><button type="button" class="primary" data-nv-add>${L("Dodaj i wybierz", "Add and select")}</button>
+            <button type="button" data-nv-cancel>${L("Anuluj", "Cancel")}</button></div>
           </div>
-          ${this.textFields("price", L("Cena / wstęp", "Price / admission"), c.price?.text, "input", 500)}
-          <div class="field"><label for="f-priceUrl">${L("Link do biletów lub zapisów", "Tickets or registration link")}</label><input type="url" id="f-priceUrl" name="priceUrl" value="${c.price?.url ?? ""}" placeholder="https://"></div>
+          ${this.textFields("price", L("Cena / wstęp", "Price / admission"), c.price?.text, "input", 500, "price.text")}
+          <div class="field"><label for="f-priceUrl">${L("Link do biletów lub zapisów", "Tickets or registration link")}</label><input type="url" id="f-priceUrl" name="priceUrl" data-field="price.url" value="${c.price?.url ?? ""}" placeholder="https://"></div>
         </section>
 
         <section class="card images">
@@ -206,6 +211,21 @@ class EditorView extends View {
           ${this.imageBlock("social", c.socialImage)}
         </section>
       </form>`);
+    // What blocks publishing; an event in the bin is restored before it can be published.
+    if (v && !binned) markProblems(this.$("#editor"), v.problems, this.$("#problems"));
+    if (binned) this.readOnly();
+  }
+
+  /** An event in the bin is shown read-only: text can be selected and copied,
+   *  other controls are disabled. The language tabs keep working. */
+  private readOnly(): void {
+    this.$("#editor")
+      .querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement | HTMLButtonElement>("section :is(input, select, textarea, button)")
+      .forEach((el) => {
+        if (el.getAttribute("role") === "tab") return;
+        if ((el instanceof HTMLInputElement && !["checkbox", "radio", "file", "date", "time"].includes(el.type)) || el instanceof HTMLTextAreaElement) el.readOnly = true;
+        else el.disabled = true;
+      });
   }
 
   private occurrencesHtml(): ReturnType<typeof html> {
@@ -350,10 +370,10 @@ class EditorView extends View {
     const panel = this.$<HTMLElement>(".new-venue");
     const inputs = [...panel.querySelectorAll<HTMLInputElement>("[data-nv]")];
     const data = Object.fromEntries(inputs.map((i) => [i.dataset.nv!, i.value.trim()]));
-    const missing = inputs.find((i) => i.dataset.nv !== "mapUrl" && !i.value.trim());
-    if (missing) {
-      missing.focus();
-      toast(L("Podaj nazwę i adres miejsca.", "Enter the venue's name and address."), "error");
+    const missing = inputs.filter((i) => i.required && !i.value.trim());
+    missing.forEach((i) => setFieldError(i, L("to pole jest wymagane", "this field is required")));
+    if (missing.length) {
+      missing[0]!.focus();
       return;
     }
     await busy(btn, async () => {
@@ -368,7 +388,7 @@ class EditorView extends View {
         this.$<HTMLSelectElement>("#f-venue").focus();
         toast(L("Dodano miejsce i wybrano je dla wydarzenia", "Venue added and selected for the event"));
       } catch (err) {
-        showError(err);
+        showError(err, null, panel);
       }
     });
   }
@@ -409,9 +429,13 @@ class EditorView extends View {
     this.on("[data-lang]", "click", (e, el) => {
       if (el.tagName !== "BUTTON") return;
       e.preventDefault();
-      this.editLang = el.dataset.lang as "pl" | "en";
-      this.$("#editor").dataset.lang = this.editLang;
-      this.querySelectorAll("[role=tab]").forEach((t) => t.setAttribute("aria-selected", String((t as HTMLElement).dataset.lang === this.editLang)));
+      this.setLang(el.dataset.lang as "pl" | "en");
+    });
+    // A link in the problem summary to a field of the other language switches to it.
+    this.addEventListener("folk:reveal", (e) => {
+      const l = (e.target as HTMLElement).closest(".lang-pl, .lang-en");
+      if (l) this.setLang(l.classList.contains("lang-en") ? "en" : "pl");
+      if ((e.target as HTMLElement).closest(".new-venue")) this.$<HTMLElement>(".new-venue").hidden = false;
     });
     this.on("[data-new-venue]", "click", () => this.toggleNewVenue(true));
     this.on("[data-nv-cancel]", "click", () => this.toggleNewVenue(false));
@@ -469,6 +493,12 @@ class EditorView extends View {
       if (t.name === "freq") this.$("#editor").dataset.freq = t.value;
     });
     addEventListener("beforeunload", this.guard);
+  }
+
+  private setLang(l: "pl" | "en"): void {
+    this.editLang = l;
+    this.$("#editor").dataset.lang = l;
+    this.querySelectorAll("[role=tab]").forEach((t) => t.setAttribute("aria-selected", String((t as HTMLElement).dataset.lang === l)));
   }
 
   private guard = (e: BeforeUnloadEvent) => {

@@ -26,15 +26,16 @@ class VenuesView extends View {
   }
 
   private form(v?: Venue): ReturnType<typeof html> {
+    const id = (name: string) => `venue-${v?.id ?? "new"}-${name}`;
     return html`<form class="venue-form card" data-id="${v?.id ?? ""}">
       <div class="grid">
-        <div class="field"><label>${L("Nazwa", "Name")}<input name="name" required maxlength="200" value="${v?.name ?? ""}"></label></div>
-        <div class="field"><label>${L("Adres", "Address")}<input name="address" required maxlength="500" value="${v?.address ?? ""}"></label></div>
-        <div class="field"><label>${L("Link do mapy (opcjonalnie)", "Map link (optional)")}<input name="mapUrl" type="url" value="${v?.mapUrl ?? ""}" placeholder="https://"></label></div>
+        <div class="field"><label for="${id("name")}">${L("Nazwa", "Name")}</label><input id="${id("name")}" name="name" required maxlength="200" value="${v?.name ?? ""}"></div>
+        <div class="field"><label for="${id("address")}">${L("Adres", "Address")}</label><input id="${id("address")}" name="address" required maxlength="500" value="${v?.address ?? ""}"></div>
+        <div class="field"><label for="${id("mapUrl")}">${L("Link do mapy (opcjonalnie)", "Map link (optional)")}</label><input id="${id("mapUrl")}" name="mapUrl" type="url" value="${v?.mapUrl ?? ""}" placeholder="https://"></div>
       </div>
       ${v ? html`<p class="muted small">${L("Zmiana dotyczy od razu wszystkich nadchodzących terminów w tym miejscu. Terminy, które już się odbyły, zachowają poprzednie dane.", "The change applies at once to all upcoming dates at this venue. Dates that already happened keep the previous details.")}</p>` : ""}
-      <button class="primary" type="submit">${v ? L("Zapisz", "Save") : L("Dodaj miejsce", "Add venue")}</button>
-      ${v ? html`<button type="button" data-cancel>${L("Anuluj", "Cancel")}</button>` : ""}
+      <div class="actions"><button class="primary" type="submit">${v ? L("Zapisz", "Save") : L("Dodaj miejsce", "Add venue")}</button>
+      ${v ? html`<button type="button" data-cancel>${L("Anuluj", "Cancel")}</button>` : ""}</div>
     </form>`;
   }
 
@@ -73,7 +74,7 @@ class VenuesView extends View {
         this.venues = await api.venues(this.org);
         this.render();
       } catch (err) {
-        showError(err);
+        showError(err, null, f);
       }
     });
   }

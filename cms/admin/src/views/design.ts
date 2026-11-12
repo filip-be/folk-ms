@@ -4,7 +4,7 @@
 
 import { L } from "../i18n.ts";
 import { icon, ICON_NAMES } from "../icons.ts";
-import { html } from "../ui.ts";
+import { html, setFieldError } from "../ui.ts";
 import { View } from "../view.ts";
 
 const STEPS = ["25", "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
@@ -66,22 +66,41 @@ class DesignView extends View {
       <section class="card">
         <h2>${L("Komponenty", "Components")}</h2>
         <h3>${L("Przyciski", "Buttons")}</h3>
+        <p class="muted small">${L("Główny: jedno główne działanie formularza. Drugorzędny: kolejne działanie obok głównego. Neutralny: anuluj, edytuj, nawigacja. Niebezpieczny: usuwa lub odbiera.", "Primary: the one main action of a form. Secondary: a further action beside it. Neutral: cancel, edit, navigation. Danger: removes or revokes.")}</p>
         <div class="actions">
-          <button class="primary">${L("Zapisz", "Save")}</button>
+          <button class="primary">${L("Opublikuj", "Publish")}</button>
+          <button class="secondary">${L("Zapisz szkic", "Save draft")}</button>
           <button>${L("Anuluj", "Cancel")}</button>
           <button class="danger">${L("Usuń", "Delete")}</button>
           <button class="link">${L("Link", "Link")}</button>
-          <button disabled>${L("Wyłączony", "Disabled")}</button>
           <button class="icon-button" aria-label="${L("Dodaj", "Add")}">${icon("plus")}</button>
         </div>
-        <h3>${L("Pola", "Fields")}</h3>
-        <div class="grid">
-          <div class="field"><label>${L("Nazwa", "Name")}<input placeholder="${L("Wpisz nazwę", "Enter a name")}"></label></div>
-          <div class="field"><label>${L("Rola", "Role")}<select><option>${L("Wybierz rolę", "Select role")}</option></select></label></div>
-          <div class="field"><label>${L("Opis", "Description")}<textarea rows="1"></textarea></label></div>
+        <p class="muted small">${L("Wyłączone – wyglądają tak samo bez względu na rolę:", "Disabled – the same whatever the role:")}</p>
+        <div class="actions">
+          <button class="primary" disabled>${L("Opublikuj", "Publish")}</button>
+          <button class="secondary" disabled>${L("Zapisz szkic", "Save draft")}</button>
+          <button disabled>${L("Anuluj", "Cancel")}</button>
+          <button class="danger" disabled>${L("Usuń", "Delete")}</button>
+          <button class="link" disabled>${L("Link", "Link")}</button>
         </div>
-        <label class="chip"><input type="checkbox" checked> ${L("Zaznaczony", "Checked")}</label>
-        <label class="chip"><input type="checkbox"> ${L("Pusty", "Unchecked")}</label>
+        <h3>${L("Pola", "Fields")}</h3>
+        <p class="required-note">${L("wymagane", "required")}</p>
+        <div class="grid">
+          <div class="field"><label for="ds-name">${L("Nazwa", "Name")}</label><input id="ds-name" required placeholder="${L("Wpisz nazwę", "Enter a name")}"></div>
+          <div class="field"><label for="ds-role">${L("Rola", "Role")}</label><select id="ds-role"><option>${L("Wybierz rolę", "Select role")}</option></select></div>
+          <div class="field"><label for="ds-desc">${L("Opis", "Description")}</label><textarea id="ds-desc" rows="1"></textarea></div>
+          <div class="field"><label for="ds-invalid">${L("Z błędem", "With an error")}</label><input id="ds-invalid" required type="email" value="anna@"></div>
+          <div class="field"><label for="ds-readonly">${L("Tylko do odczytu", "Read-only")}</label><input id="ds-readonly" readonly value="${L("można skopiować", "can be copied")}"></div>
+          <div class="field"><label for="ds-disabled">${L("Wyłączone", "Disabled")}</label><select id="ds-disabled" disabled><option>${L("Niedostępne", "Unavailable")}</option></select></div>
+        </div>
+        <fieldset data-field="ds-group"><legend class="required">${L("Grupa", "Group")}</legend>
+          <label class="chip"><input type="checkbox" checked> ${L("Zaznaczony", "Checked")}</label>
+          <label class="chip"><input type="checkbox"> ${L("Pusty", "Unchecked")}</label>
+          <label class="chip"><input type="checkbox" checked disabled> ${L("Wyłączony", "Disabled")}</label>
+          <label class="chip"><input type="checkbox" disabled> ${L("Wyłączony", "Disabled")}</label>
+        </fieldset>
+        <label class="inline"><input type="checkbox" checked> ${L("Pole wyboru", "Checkbox")}</label>
+        <label class="inline"><input type="checkbox" checked disabled> ${L("Wyłączone", "Disabled")}</label>
         <h3>${L("Plakietki", "Badges")}</h3>
         <p class="actions"><span class="badge">neutral</span><span class="badge info">info</span><span class="badge published">ok</span>
           <span class="badge warn">warn</span><span class="badge failed">danger</span></p>
@@ -102,6 +121,7 @@ class DesignView extends View {
       el.style.setProperty("--ts-leading", `var(--leading-${el.dataset.size})`);
       el.style.setProperty("--ts-weight", `var(--weight-${el.dataset.weight})`);
     });
+    setFieldError(this.$("#ds-invalid"), L("podaj poprawny adres e-mail", "enter a valid email address"));
     this.querySelectorAll<HTMLElement>("[data-space]").forEach((el) => el.style.setProperty("--bar", `var(${el.dataset.space})`));
   }
 }

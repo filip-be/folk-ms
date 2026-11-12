@@ -190,9 +190,9 @@ class FacebookEventView extends View {
         <h2>${L("Zapisz link do wydarzenia na Facebooku", "Record a Facebook event link")}</h2>
         <p class="muted small">${L("Po utworzeniu wydarzenia wklej jego adres. Strona pokaże go przy terminie.", "After creating the event, paste its address. The site shows it next to the date.")}</p>
         <form class="inline-form" id="add-link">
-          <input type="url" id="new-url" required placeholder="https://www.facebook.com/events/…" aria-label="${L("Adres wydarzenia na Facebooku", "Facebook event address")}">
+          <input type="url" id="new-url" data-field="url" required placeholder="https://www.facebook.com/events/…" aria-label="${L("Adres wydarzenia na Facebooku", "Facebook event address")}">
           ${d.occurrences.length > 1
-            ? html`<select id="new-key" aria-label="${L("Termin", "Date")}">${d.occurrences
+            ? html`<select id="new-key" data-field="occurrenceKey" aria-label="${L("Termin", "Date")}">${d.occurrences
                 .filter((o) => !o.cancelled)
                 .map((o) => html`<option value="${o.key}" ${o.key === f?.occurrenceKey ? "selected" : ""}>${when(o.start, this.tz)}</option>`)}</select>`
             : ""}
@@ -274,7 +274,7 @@ class FacebookEventView extends View {
       try {
         this.update(await fn(), msg);
       } catch (err) {
-        showError(err);
+        showError(err, null, btn?.closest("form"));
       }
     });
   }
