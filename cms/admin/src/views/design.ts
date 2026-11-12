@@ -35,7 +35,7 @@ const SPACES = [2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64];
 class DesignView extends View {
   async load(): Promise<void> {
     this.set(html`
-      <div class="toolbar"><h1>${L("System projektowy", "Design system")}</h1></div>
+      <div class="toolbar"><h1>${L("Design system", "Design system")}</h1></div>
       <p class="muted">${L("Na podstawie projektu ", "Based on the design by ")}<a href="https://dribbble.com/felipecardona/" target="_blank" rel="noopener">Felipe Cardona</a>.
         ${L("Opis: docs/design-system/README.md.", "Reference: docs/design-system/README.md.")}</p>
 

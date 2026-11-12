@@ -106,7 +106,7 @@ function signInScreen(): void {
   document.getElementById("app")!.innerHTML = html`
     <main class="card narrow signin">
       <h1>folk-ms</h1>
-      <p>${L("Zarządzanie wydarzeniami organizacji folkowych.", "Event management for folk organizations.")}</p>
+      <p>${L("Zarządzanie dynamiczną treścią stron internetowych.", "Dynamic content management for websites.")}</p>
       <div class="providers">
         <a class="button primary" href="/auth/login?provider=google&return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
         <a class="button" href="/auth/login?provider=facebook&return=${ret}">${L("Zaloguj się przez Facebooka", "Sign in with Facebook")}</a>

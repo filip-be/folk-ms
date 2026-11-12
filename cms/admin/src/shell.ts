@@ -111,14 +111,14 @@ export function renderShell(me: Me, org: string): void {
         <ul>
           ${item(`/app/orgs/${org}/events`, "calendar", L("Wydarzenia", "Events"), "events")}
           ${item(`/app/orgs/${org}/venues`, "venue", L("Miejsca", "Venues"), "venues")}
-          ${item(`/app/orgs/${org}/social`, "social", L("Media społecznościowe", "Social media"), "social")}
+          ${item(`/app/orgs/${org}/social`, "social", L("Social media", "Social media"), "social")}
           ${me.superAdmin
             ? html`<li><details class="nav-group" id="nav-admin" ${adminOpen ? "open" : ""}>
                 <summary class="nav-item" title="${L("Administracja", "Administration")}">${icon("shield")}<span class="label">${L("Administracja", "Administration")}</span>${icon("chevronDown")}</summary>
                 <ul class="nav-tree">
                   ${item("/app/access", "users", L("Moderatorzy", "Moderators"), "access")}
-                  ${item("/app/audit", "log", L("Dziennik", "Audit log"), "audit")}
-                  ${item("/app/design", "palette", L("System projektowy", "Design system"), "design")}
+                  ${item("/app/audit", "log", L("Audyt", "Audit log"), "audit")}
+                  ${item("/app/design", "palette", L("Design system", "Design system"), "design")}
                 </ul>
               </details></li>`
             : ""}

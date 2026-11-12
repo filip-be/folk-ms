@@ -11,7 +11,7 @@ class AuditView extends View {
     const day = new URLSearchParams(location.search).get("day") ?? days[0] ?? "";
     const entries = day ? await api.audit(day) : [];
     this.set(html`
-      <div class="toolbar"><h1>${L("Dziennik zmian", "Audit log")}</h1>
+      <div class="toolbar"><h1>${L("Audyt", "Audit log")}</h1>
         <label>${L("Dzień (UTC)", "Day (UTC)")} <select id="day">${days.map((d) => html`<option ${d === day ? "selected" : ""}>${d}</option>`)}</select></label></div>
       ${entries.length
         ? html`<div class="table-wrap"><table class="list audit"><thead><tr><th>${L("Czas", "Time")}</th><th>${L("Kto", "Who")}</th><th>${L("Akcja", "Action")}</th><th>${L("Organizacja", "Organization")}</th><th>${L("Szczegóły", "Details")}</th></tr></thead><tbody>
