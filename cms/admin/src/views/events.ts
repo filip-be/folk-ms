@@ -32,7 +32,7 @@ class EventsView extends View {
       </nav>
       ${list.length === 0
         ? html`<div class="card empty"><p>${tab === "bin" ? L("Kosz jest pusty.", "The bin is empty.") : L("Brak wydarzeń w tym widoku.", "No events in this view.")}</p></div>`
-        : html`<table class="list">
+        : html`<div class="table-wrap"><table class="list">
             <thead><tr><th>${L("Tytuł", "Title")}</th><th>${L("Termin", "Date")}</th><th>${L("Rodzaj", "Type")}</th><th>${L("Stan", "Status")}</th></tr></thead>
             <tbody>${list.map(
               (e) => html`<tr data-id="${e.id}" tabindex="0">
@@ -45,7 +45,7 @@ class EventsView extends View {
                     ? html` <a class="badge warn" href="/app/orgs/${this.org}/events/${e.id}/facebook">${e.facebookDetached ? L("Facebook: link bez terminu", "Facebook: detached link") : L("Facebook: do aktualizacji", "Facebook: out of date")}</a>`
                     : ""}</td>
               </tr>`,
-            )}</tbody></table>`}
+            )}</tbody></table></div>`}
       ${tab === "bin" ? html`<p class="muted small">${L("Wydarzenia w koszu są usuwane na stałe po 30 dniach. Przywrócić może administrator.", "Events in the bin are deleted permanently after 30 days. The administrator can restore them.")}</p>` : ""}
     `);
     this.on("tr[data-id]", "click", (e, tr) => {

@@ -51,7 +51,8 @@ function currentOrg(): string {
   return me.orgs[0]?.id ?? "";
 }
 
-function route(): void {
+/** `moveFocus`: after a client-side navigation the shell is re-rendered, so focus goes to the new view. */
+function route(moveFocus = false): void {
   if (!me.orgs.length) {
     resetApp();
     document.getElementById("app")!.innerHTML = html`<main class="card narrow"><h1>${L("Brak organizacji", "No organizations")}</h1>
@@ -84,9 +85,11 @@ function route(): void {
     el.me = me;
     view.replaceChildren(el);
     window.scrollTo(0, 0);
+    if (moveFocus) view.focus({ preventScroll: true });
     return;
   }
   view.innerHTML = html`<div class="card"><h1>${L("Nie znaleziono", "Not found")}</h1><p><a href="/app/">${L("Wróć do listy wydarzeń", "Back to the event list")}</a></p></div>`.value;
+  if (moveFocus) view.focus({ preventScroll: true });
 }
 
 /** Drops the shell's layout for screens without it (sign-in, no organization). */
@@ -124,7 +127,7 @@ document.addEventListener("click", (e) => {
     navigate(href);
   }
 });
-addEventListener("popstate", route);
+addEventListener("popstate", () => route(true));
 
 async function start(): Promise<void> {
   try {

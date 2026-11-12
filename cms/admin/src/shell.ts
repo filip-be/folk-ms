@@ -98,8 +98,8 @@ export function renderShell(me: Me, org: string): void {
       <div class="sidebar-head">
         <a class="brand" href="/app/" title="folk-ms"><span class="brand-mark" aria-hidden="true">f</span><span class="label">folk-ms</span></a>
         <button type="button" class="icon-button collapse-toggle" id="nav-collapse" aria-controls="sidebar"
-          aria-expanded="${collapsed ? "false" : "true"}" aria-label="${L("Zwiń menu", "Collapse menu")}"
-          title="${collapsed ? L("Rozwiń menu", "Expand menu") : L("Zwiń menu", "Collapse menu")}">${icon("sidebar")}</button>
+          aria-expanded="${collapsed ? "false" : "true"}" aria-label="${collapseLabel(collapsed)}"
+          title="${collapseLabel(collapsed)}">${icon("sidebar")}</button>
         <button type="button" class="icon-button drawer-close" id="drawer-close"
           aria-label="${L("Zamknij menu", "Close menu")}">${icon("close")}</button>
       </div>
@@ -135,9 +135,11 @@ export function renderShell(me: Me, org: string): void {
       </div>
     </aside>
     <div class="scrim" id="scrim"></div>
-    <main id="view"></main>`.value;
+    <main id="view" tabindex="-1"></main>`.value;
   bind(app);
 }
+
+const collapseLabel = (collapsed: boolean) => (collapsed ? L("Rozwiń menu", "Expand menu") : L("Zwiń menu", "Collapse menu"));
 
 function bind(app: HTMLElement): void {
   const sidebar = document.getElementById("sidebar")!;
@@ -152,7 +154,7 @@ function bind(app: HTMLElement): void {
     openBtn.setAttribute("aria-expanded", String(open));
     view.inert = open;
     topbar.inert = open;
-    if (open) sidebar.querySelector<HTMLElement>("[aria-current=page], .nav-item")?.focus();
+    if (open) (sidebar.querySelector<HTMLElement>("[aria-current=page]") ?? sidebar.querySelector<HTMLElement>(".nav-item"))?.focus();
   };
   const close = () => {
     if (!app.dataset.drawer) return;
@@ -171,7 +173,8 @@ function bind(app: HTMLElement): void {
     const collapsed = app.dataset.nav !== "collapsed";
     app.dataset.nav = collapsed ? "collapsed" : "expanded";
     collapseBtn.setAttribute("aria-expanded", String(!collapsed));
-    collapseBtn.title = collapsed ? L("Rozwiń menu", "Expand menu") : L("Zwiń menu", "Collapse menu");
+    collapseBtn.title = collapseLabel(collapsed);
+    collapseBtn.setAttribute("aria-label", collapseLabel(collapsed));
     store(NAV_KEY, collapsed ? "collapsed" : "expanded");
   });
   const group = document.getElementById("nav-admin") as HTMLDetailsElement | null;
