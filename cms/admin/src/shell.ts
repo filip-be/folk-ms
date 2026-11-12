@@ -9,6 +9,7 @@ import { html, navigate, raw, t } from "./ui.ts";
 
 const NAV_KEY = "folkms.nav"; // "collapsed" or "expanded" (wide screens only)
 const ADMIN_KEY = "folkms.nav.admin"; // "closed" when the Administration group is folded
+const THEME_KEY = "folkms.theme"; // "light" or "dark"; absent follows the system
 // Keep in step with the breakpoint of the drawer in app.css.
 const narrow = matchMedia("(max-width: 767px)");
 
@@ -26,6 +27,34 @@ function store(key: string, value: string): void {
   } catch {
     /* storage unavailable */
   }
+}
+
+type Theme = "system" | "light" | "dark";
+const THEMES: Theme[] = ["system", "light", "dark"];
+const THEME_ICON: Record<Theme, IconName> = { system: "monitor", light: "sun", dark: "moon" };
+const themeLabel = (th: Theme) =>
+  ({ system: L("Motyw: systemowy", "Theme: system"), light: L("Motyw: jasny", "Theme: light"), dark: L("Motyw: ciemny", "Theme: dark") })[th];
+
+function currentTheme(): Theme {
+  const v = stored(THEME_KEY);
+  return v === "light" || v === "dark" ? v : "system";
+}
+
+/** Sets html[data-theme], on which tokens.css switches color-scheme, and
+    points the theme-color metas of index.html at the chosen scheme. */
+export function applyTheme(th: Theme = currentTheme()): void {
+  const root = document.documentElement;
+  if (th === "system") delete root.dataset.theme;
+  else root.dataset.theme = th;
+  document.querySelectorAll<HTMLMetaElement>("meta[name=theme-color][data-scheme]").forEach((m) => {
+    m.media = th === "system" ? `(prefers-color-scheme: ${m.dataset.scheme})` : m.dataset.scheme === th ? "all" : "not all";
+  });
+}
+applyTheme();
+
+function themeButton(): ReturnType<typeof html> {
+  const th = currentTheme();
+  return html`<button type="button" class="nav-item" id="theme-toggle" title="${themeLabel(th)}">${icon(THEME_ICON[th])}<span class="label">${themeLabel(th)}</span></button>`;
 }
 
 /** Switches to the other language; its label is in that language. */
@@ -100,6 +129,7 @@ export function renderShell(me: Me, org: string): void {
           <span class="avatar" aria-hidden="true">${initials(me)}</span>
           <span class="label"><strong>${me.name || me.email}</strong>${me.name ? html`<span class="muted">${me.email}</span>` : ""}</span>
         </div>
+        ${themeButton()}
         ${langSwitch(true)}
         <button type="button" class="nav-item" id="logout" title="${L("Wyloguj", "Sign out")}">${icon("logout")}<span class="label">${L("Wyloguj", "Sign out")}</span></button>
       </div>
@@ -151,6 +181,20 @@ function bind(app: HTMLElement): void {
     const id = (e.target as HTMLSelectElement).value;
     const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|venues|social)/)?.[1] ?? "events";
     navigate(`/app/orgs/${id}/${rest}`);
+  });
+  document.getElementById("theme-toggle")!.addEventListener("click", (e) => {
+    const next = THEMES[(THEMES.indexOf(currentTheme()) + 1) % THEMES.length]!;
+    if (next === "system") {
+      try {
+        localStorage.removeItem(THEME_KEY);
+      } catch {
+        /* storage unavailable */
+      }
+    } else store(THEME_KEY, next);
+    applyTheme(next);
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.innerHTML = html`${icon(THEME_ICON[next])}<span class="label">${themeLabel(next)}</span>`.value;
+    btn.title = themeLabel(next);
   });
   bindLangSwitch();
   document.getElementById("logout")!.addEventListener("click", async () => {

@@ -19,15 +19,19 @@ A Super Admin can see the whole system live at `/app/design` (Administration →
 
 ### Colour
 
-Six scales, each from 25 (lightest) to 900 (darkest): **neutral** (white, 100–950, black), **primary** (blue), **secondary** (violet), **error**, **success** and **warning**. Rules never use a scale step directly; they use semantic tokens that switch for dark mode (`prefers-color-scheme`):
+Six scales, each from 25 (lightest) to 900 (darkest): **neutral** (white, 100–950, black), **primary** (blue), **secondary** (violet), **error**, **success** and **warning**. Rules never use a scale step directly; they use semantic tokens written as `light-dark(light, dark)`, which follow `color-scheme`: the system's by default, or the Moderator's choice from the theme switch in the sidebar (System → Light → Dark, kept per browser in `localStorage`, `folkms.theme`, and applied as `html[data-theme]`).
+
+Surfaces are layered one step apart so that each plane reads on its own: **page** at the back, then the **sidebar** and **cards**, then **fields**, which sit inset (darker) in dark mode.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
-| `--bg` | neutral-100 | black | Sidebar, table heads, sunken areas |
-| `--surface` | white | neutral-950 | Page, cards, inputs |
-| `--surface-sunken` | neutral-200 | neutral-900 | Hover, active nav item, segmented controls |
+| `--page` | neutral-100 | black | Page background |
+| `--sidebar`, `--surface` | white | neutral-950 | Sidebar and top bar; cards, menus, buttons |
+| `--field` | white | black | Inputs, selects, text areas |
+| `--bg` | neutral-100 | neutral-900 | Tinted areas inside a surface: table heads |
+| `--surface-sunken` | neutral-200 | neutral-850 | Hover, active nav item, segmented controls |
 | `--text` / `--text-secondary` / `--muted` | black / neutral-800 / neutral-700 | neutral-100 / 300 / 500 | Body, labels, secondary text |
-| `--line` / `--line-subtle` | neutral-300 / 200 | neutral-850 / 900 | Borders, row dividers |
+| `--line` / `--line-subtle` | neutral-300 / 200 | neutral-800 / 850 | Borders, row dividers |
 | `--action` | black | neutral-100 | Primary buttons, checked controls, active tab |
 | `--accent` | primary-600 | primary-300 | Links, focus rings |
 | `--brand` | secondary-500 | secondary-400 | The folk-ms mark |
@@ -56,13 +60,15 @@ Weights: `--weight-regular` 400, `--weight-medium` 500, `--weight-semibold` 600,
 
 ### App shell
 
-The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the page: the brand and collapse button, the Organization switcher, the sections with line icons ([`icons.ts`](../../cms/admin/src/icons.ts)), a collapsible **Administration** group whose items hang off a tree line, and at the bottom the signed-in user, the language switch and Sign out.
+The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the page: the brand and collapse button, the Organization switcher, the sections with line icons ([`icons.ts`](../../cms/admin/src/icons.ts)), a collapsible **Administration** group whose items hang off a tree line, and at the bottom the signed-in user, the theme switch, the language switch and Sign out.
 
 - **Wide screens (768px and up).** The sidebar is sticky and full height. The collapse button folds it to a 72px icon rail; labels stay in the DOM for screen readers and show as tooltips. The choice is kept per browser (`localStorage`, `folkms.nav`), as is a folded Administration group (`folkms.nav.admin`).
 - **Narrow screens (below 768px).** A top bar with a menu button and the brand replaces the sidebar, which becomes an off-canvas drawer over a scrim. Opening it moves focus into it and makes the page inert; Escape, the close button, the scrim or following a link closes it and returns focus to the menu button. The rail is never used on phones.
 - **Phones (640px and below).** Headlines drop to `--text-xl`, inputs to 16px (which stops iOS from zooming into a focused field), controls grow to 44px, the sticky editor toolbar scrolls away, and tables hide their third column. The shell pads for the notch and home indicator with the `--safe-*` tokens (`viewport-fit=cover`), and `theme-color` tints the browser chrome to match.
 
 ### Components
+
+Focused fields get one 2px accent border (`--shadow-focus` thickens the 1px border), never a second ring. Selects draw their chevron with CSS gradients (the CSP allows no `data:` images); with a mouse, browsers that support customizable selects (`appearance: base-select`) also get a styled option list, while touch screens keep the native picker.
 
 Buttons (default, `.primary`, `.danger`, `.link`, `.icon-button`), fields (`label` + `input`/`select`/`textarea`, `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list`, `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus and `.toast`. Each is shown on `/app/design`.
 
@@ -83,7 +89,7 @@ Buttons (default, `.primary`, `.danger`, `.link`, `.icon-button`), fields (`labe
 | Rule | Files | What breaks |
 | --- | --- | --- |
 | The drawer breakpoint is 767px in both places | `app.css` (`max-width: 767px`), `shell.ts` (`narrow`) | Resizing across it leaves the page inert or the drawer open |
-| `theme-color` matches `--surface` | `index.html`, `tokens.css` | The phone's browser chrome no longer matches the page |
+| `theme-color` matches `--sidebar` | `index.html`, `tokens.css` | The phone's browser chrome no longer matches the page |
 | Fonts are served from `/app/fonts/` | `tokens.css` (`@font-face`), `build.ts` (copies `src/fonts/`, keeps the URLs external), `index.html` (preload) | Text falls back to the system font |
 
 ## Read next

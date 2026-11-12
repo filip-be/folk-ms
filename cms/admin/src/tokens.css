@@ -28,7 +28,7 @@
 
   /* ── Palette ──────────────────────────────────────────────────────────
      Raw scales. Rules never use these directly: they use the semantic
-     colours below, which switch for dark mode. */
+     colours below, which switch between light and dark. */
   --white: #fff;
   --neutral-100: #f8f8fa;
   --neutral-200: #f1f1f4;
@@ -103,68 +103,46 @@
   --warning-800: #6c3a0d;
   --warning-900: #47250a;
 
-  /* ── Semantic colours (light) ─────────────────────────────────────── */
-  --bg: var(--neutral-100);           /* page */
-  --surface: var(--white);            /* cards, sidebar, inputs */
-  --surface-sunken: var(--neutral-200); /* table heads, hovers, active nav item */
-  --text: var(--black);
-  --text-secondary: var(--neutral-800);
-  --muted: var(--neutral-700);        /* 5.4:1 on --surface: fine for small text */
-  --placeholder: var(--neutral-600);
-  --line: var(--neutral-300);
-  --line-subtle: var(--neutral-200);
-  --action: var(--black);             /* primary button */
-  --action-hover: var(--neutral-800);
-  --action-text: var(--white);
-  --accent: var(--primary-600);       /* links, focus, selection */
-  --accent-text: var(--white);
-  --accent-soft: var(--primary-50);
-  --brand: var(--secondary-500);      /* the folk-ms mark */
+  /* ── Semantic colours ─────────────────────────────────────────────────
+     light-dark(light, dark) follows color-scheme: the system's by default,
+     or the Moderator's choice (html[data-theme], set by shell.ts).
+     Layers, back to front: page, then sidebar and cards (surface), then
+     fields; each one step apart so that they read as separate planes. */
+  --page: light-dark(var(--neutral-100), var(--black));
+  --sidebar: light-dark(var(--white), var(--neutral-950));
+  --surface: light-dark(var(--white), var(--neutral-950));       /* cards, menus, buttons */
+  --field: light-dark(var(--white), var(--black));               /* inputs: inset in dark mode */
+  --bg: light-dark(var(--neutral-100), var(--neutral-900));      /* tinted areas inside a surface: table heads */
+  --surface-sunken: light-dark(var(--neutral-200), var(--neutral-850)); /* hovers, active nav item */
+  --text: light-dark(var(--black), var(--neutral-100));
+  --text-secondary: light-dark(var(--neutral-800), var(--neutral-300));
+  --muted: light-dark(var(--neutral-700), var(--neutral-500));  /* ≥ 4.5:1 on --surface */
+  --placeholder: light-dark(var(--neutral-600), var(--neutral-600));
+  --line: light-dark(var(--neutral-300), var(--neutral-800));
+  --line-subtle: light-dark(var(--neutral-200), var(--neutral-850));
+  --action: light-dark(var(--black), var(--neutral-100));        /* primary button */
+  --action-hover: light-dark(var(--neutral-800), var(--white));
+  --action-text: light-dark(var(--white), var(--black));
+  --accent: light-dark(var(--primary-600), var(--primary-300));  /* links, focus, selection */
+  --accent-text: light-dark(var(--white), var(--black));
+  --accent-soft: light-dark(var(--primary-50), var(--primary-900));
+  --brand: light-dark(var(--secondary-500), var(--secondary-400)); /* the folk-ms mark */
   --brand-text: var(--white);
-  --avatar-bg: var(--secondary-100);
-  --avatar-text: var(--secondary-700);
-  --info: var(--primary-700);
-  --info-soft: var(--primary-50);
-  --ok: var(--success-700);
-  --ok-soft: var(--success-50);
-  --warn: var(--warning-700);
-  --warn-soft: var(--warning-50);
-  --danger: var(--error-600);
-  --danger-soft: var(--error-50);
-  --on-status: var(--white);          /* text on an --ok or --danger fill */
-  --scrim: rgb(14 15 28 / .4);
+  --avatar-bg: light-dark(var(--secondary-100), var(--secondary-800));
+  --avatar-text: light-dark(var(--secondary-700), var(--secondary-100));
+  --info: light-dark(var(--primary-700), var(--primary-200));
+  --info-soft: light-dark(var(--primary-50), var(--primary-900));
+  --ok: light-dark(var(--success-700), var(--success-300));
+  --ok-soft: light-dark(var(--success-50), var(--success-900));
+  --warn: light-dark(var(--warning-700), var(--warning-300));
+  --warn-soft: light-dark(var(--warning-50), var(--warning-900));
+  --danger: light-dark(var(--error-600), var(--error-300));
+  --danger-soft: light-dark(var(--error-50), var(--error-900));
+  --on-status: light-dark(var(--white), var(--black));           /* text on an --ok or --danger fill */
+  --scrim: light-dark(rgb(14 15 28 / .4), rgb(0 0 0 / .6));
 
-  /* ── Semantic colours (dark) ──────────────────────────────────────── */
-  @media (prefers-color-scheme: dark) {
-    --bg: var(--black);
-    --surface: var(--neutral-950);
-    --surface-sunken: var(--neutral-900);
-    --text: var(--neutral-100);
-    --text-secondary: var(--neutral-300);
-    --muted: var(--neutral-500);
-    --placeholder: var(--neutral-600);
-    --line: var(--neutral-850);
-    --line-subtle: var(--neutral-900);
-    --action: var(--neutral-100);
-    --action-hover: var(--white);
-    --action-text: var(--black);
-    --accent: var(--primary-300);
-    --accent-text: var(--black);
-    --accent-soft: var(--primary-900);
-    --brand: var(--secondary-400);
-    --avatar-bg: var(--secondary-800);
-    --avatar-text: var(--secondary-100);
-    --info: var(--primary-200);
-    --info-soft: var(--primary-900);
-    --ok: var(--success-300);
-    --ok-soft: var(--success-900);
-    --warn: var(--warning-300);
-    --warn-soft: var(--warning-900);
-    --danger: var(--error-300);
-    --danger-soft: var(--error-900);
-    --on-status: var(--black);
-    --scrim: rgb(0 0 0 / .6);
-  }
+  &[data-theme=light] { color-scheme: light; }
+  &[data-theme=dark] { color-scheme: dark; }
 
   /* ── Spacing ──────────────────────────────────────────────────────────
      --space-N is N px at the default 16px root, written in rem so that it
@@ -219,7 +197,7 @@
   --shadow-sm: 0 1px 3px rgb(16 24 40 / .08), 0 1px 2px rgb(16 24 40 / .04);
   --shadow-md: 0 8px 24px rgb(16 24 40 / .12);
   --shadow-lg: 0 16px 40px rgb(16 24 40 / .2);
-  --shadow-focus: 0 0 0 3px var(--accent-soft); /* focused inputs */
+  --shadow-focus: 0 0 0 1px var(--accent); /* focused inputs: thickens the border to 2px, one ring */
   --z-toolbar: 5;
   --z-header: 10;
   --z-menu: 20;
