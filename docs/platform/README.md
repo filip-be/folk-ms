@@ -59,7 +59,7 @@ Workflows in [`.github/workflows`](../../.github/workflows/):
 
 ### Local development
 
-`scripts/dev.sh` runs the CMS on http://localhost:8080 with filesystem stores in `.data/`, the dev OIDC stub (any email signs in; `SUPER_ADMIN_EMAIL` defaults to `admin@example.org`) and the Meta recorder. It serves the public store at `/pub/` with the same cache headers and CORS as Azure, so a Site built by `bun sites/build.ts <site>` and served by `bun sites/serve.ts <site> 5173` reads its snapshot from the local CMS. An Azurite container, pinned by digest in `ci.yml`, runs the blob adapter tests; setting `STORAGE_BLOB_URL` and `STORAGE_ACCOUNT_KEY` runs the local CMS against it. Commands are in the [root README](../../README.md#local-development).
+`scripts/dev.sh` builds the CMS to `.tools/cms-dev` and runs it on http://localhost:8080, listening on loopback only (`HOST=127.0.0.1`, so the Windows firewall does not prompt; `HOST=0.0.0.0` opens it to the network, e.g. to try it on a phone), with filesystem stores in `.data/`, the dev OIDC stub (any email signs in; `SUPER_ADMIN_EMAIL` defaults to `admin@example.org`) and the Meta recorder. It serves the public store at `/pub/` with the same cache headers and CORS as Azure, so a Site built by `bun sites/build.ts <site>` and served by `bun sites/serve.ts <site> 5173` reads its snapshot from the local CMS. An Azurite container, pinned by digest in `ci.yml`, runs the blob adapter tests; setting `STORAGE_BLOB_URL` and `STORAGE_ACCOUNT_KEY` runs the local CMS against it. Commands are in the [root README](../../README.md#local-development).
 
 ### Cost
 

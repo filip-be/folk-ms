@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -66,6 +67,9 @@ func run(log *slog.Logger) error {
 	if !underFunctions {
 		port = env("PORT", "8080")
 	}
+	// Empty listens on every interface; scripts/dev.sh sets 127.0.0.1, which also
+	// keeps the Windows firewall from prompting for every rebuilt binary.
+	host := os.Getenv("HOST")
 	baseURL := strings.TrimRight(env("BASE_URL", "http://localhost:"+port), "/")
 	sitesPath := env("SITES_CONFIG", defaultSitesPath())
 	orgs, err := config.LoadSites(sitesPath)
@@ -146,7 +150,7 @@ func run(log *slog.Logger) error {
 	}()
 
 	hs := &http.Server{
-		Addr: ":" + port, Handler: srv.Handler(),
+		Addr: net.JoinHostPort(host, port), Handler: srv.Handler(),
 		ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 60 * time.Second, WriteTimeout: 120 * time.Second, IdleTimeout: 120 * time.Second,
 		MaxHeaderBytes: 64 << 10,
 	}
