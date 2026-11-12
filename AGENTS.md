@@ -27,6 +27,8 @@ Applies to every stylesheet: `cms/admin/src/`, `sites/<id>/src/`, `autofill/src/
   bundler lowers nesting at build. Never nest under a selector list (it becomes `:is()`
   and raises specificity). Keep `autofill/src/panel.css` flat: it ships unprocessed.
 - Enforced by `scripts/styles.test.ts` (`bun test scripts`, run in CI).
+- Admin SPA breakpoints, `theme-color` and fonts are bound across files: see
+  [Design system, Change together](docs/design-system/README.md#change-together).
 
 ## Memory files
 

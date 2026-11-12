@@ -1,8 +1,9 @@
 // Admin SPA entry: app shell, router, sign-in gate.
 
 import { api, ApiError, type Me } from "./api.ts";
-import { L, lang, setLang } from "./i18n.ts";
-import { html, navigate, showError, t } from "./ui.ts";
+import { L } from "./i18n.ts";
+import { bindLangSwitch, langSwitch, renderShell } from "./shell.ts";
+import { html, navigate, showError } from "./ui.ts";
 import { View } from "./view.ts";
 import "./views/events.ts";
 import "./views/editor.ts";
@@ -13,6 +14,7 @@ import "./views/venues.ts";
 import "./views/social.ts";
 import "./views/access.ts";
 import "./views/audit.ts";
+import "./views/design.ts";
 
 interface Route {
   re: RegExp;
@@ -31,6 +33,7 @@ const routes: Route[] = [
   { re: /^\/app\/orgs\/([^/]+)\/social$/, tag: "folk-social", names: ["org"] },
   { re: /^\/app\/access$/, tag: "folk-access", names: [], superAdmin: true },
   { re: /^\/app\/audit$/, tag: "folk-audit", names: [], superAdmin: true },
+  { re: /^\/app\/design$/, tag: "folk-design", names: [], superAdmin: true },
 ];
 
 let me: Me;
@@ -48,56 +51,10 @@ function currentOrg(): string {
   return me.orgs[0]?.id ?? "";
 }
 
-/** Switches to the other language; its label is in that language. */
-function langSwitch() {
-  const other = lang === "pl" ? "en" : "pl";
-  return html`<button type="button" class="link lang-switch" data-set-lang="${other}" lang="${other}"
-    title="${other === "en" ? "Switch to English" : "Przełącz na polski"}">${other === "en" ? "English" : "Polski"}</button>`;
-}
-
-function bindLangSwitch(): void {
-  document.querySelector<HTMLElement>("[data-set-lang]")?.addEventListener("click", (e) => {
-    setLang((e.currentTarget as HTMLElement).dataset.setLang as "pl" | "en");
-  });
-}
-
-function shell(): void {
-  const org = currentOrg();
-  const section = location.pathname.split("/")[4] ?? location.pathname.split("/")[2] ?? "";
-  const link = (href: string, label: string, key: string) =>
-    html`<a href="${href}" class="${section === key ? "active" : ""}">${label}</a>`;
-  document.getElementById("app")!.innerHTML = html`
-    <header class="top">
-      <a class="brand" href="/app/">folk-ms</a>
-      ${me.orgs.length > 1
-        ? html`<label class="org-switch"><span class="sr-only">${L("Organizacja", "Organization")}</span>
-            <select id="org-select">${me.orgs.map((o) => html`<option value="${o.id}" ${o.id === org ? "selected" : ""}>${t(o.name)}</option>`)}</select></label>`
-        : html`<span class="org-name">${t(me.orgs[0]?.name)}</span>`}
-      <nav>
-        ${link(`/app/orgs/${org}/events`, L("Wydarzenia", "Events"), "events")}
-        ${link(`/app/orgs/${org}/venues`, L("Miejsca", "Venues"), "venues")}
-        ${link(`/app/orgs/${org}/social`, L("Media społecznościowe", "Social media"), "social")}
-        ${me.superAdmin ? html`${link("/app/access", L("Moderatorzy", "Moderators"), "access")}${link("/app/audit", L("Dziennik", "Audit log"), "audit")}` : ""}
-      </nav>
-      <span class="user" title="${me.email}">${me.name || me.email}</span>
-      ${langSwitch()}
-      <button id="logout" class="link">${L("Wyloguj", "Sign out")}</button>
-    </header>
-    <main id="view"></main>`.value;
-  document.getElementById("org-select")?.addEventListener("change", (e) => {
-    const id = (e.target as HTMLSelectElement).value;
-    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|venues|social)/)?.[1] ?? "events";
-    navigate(`/app/orgs/${id}/${rest}`);
-  });
-  bindLangSwitch();
-  document.getElementById("logout")!.addEventListener("click", async () => {
-    await api.logout().catch(() => undefined);
-    location.href = "/app/";
-  });
-}
-
-function route(): void {
+/** `moveFocus`: after a client-side navigation the shell is re-rendered, so focus goes to the new view. */
+function route(moveFocus = false): void {
   if (!me.orgs.length) {
+    resetApp();
     document.getElementById("app")!.innerHTML = html`<main class="card narrow"><h1>${L("Brak organizacji", "No organizations")}</h1>
       <p>${L("Twoje konto nie ma przypisanych organizacji. Skontaktuj się z administratorem.", "Your account has no organizations assigned. Contact the administrator.")}</p>${langSwitch()}</main>`.value;
     bindLangSwitch();
@@ -107,7 +64,7 @@ function route(): void {
   if (path === "/app" || path === "/app/orgs") {
     history.replaceState(null, "", `/app/orgs/${currentOrg()}/events`);
   }
-  shell();
+  renderShell(me, currentOrg());
   const view = document.getElementById("view")!;
   for (const r of routes) {
     const m = location.pathname.match(r.re);
@@ -128,17 +85,28 @@ function route(): void {
     el.me = me;
     view.replaceChildren(el);
     window.scrollTo(0, 0);
+    if (moveFocus) view.focus({ preventScroll: true });
     return;
   }
   view.innerHTML = html`<div class="card"><h1>${L("Nie znaleziono", "Not found")}</h1><p><a href="/app/">${L("Wróć do listy wydarzeń", "Back to the event list")}</a></p></div>`.value;
+  if (moveFocus) view.focus({ preventScroll: true });
+}
+
+/** Drops the shell's layout for screens without it (sign-in, no organization). */
+function resetApp(): void {
+  const app = document.getElementById("app")!;
+  app.className = "";
+  delete app.dataset.nav;
+  delete app.dataset.drawer;
 }
 
 function signInScreen(): void {
+  resetApp();
   const ret = encodeURIComponent(location.pathname + location.search);
   document.getElementById("app")!.innerHTML = html`
     <main class="card narrow signin">
       <h1>folk-ms</h1>
-      <p>${L("Zarządzanie wydarzeniami organizacji folkowych.", "Event management for folk organizations.")}</p>
+      <p>${L("Zarządzanie dynamiczną treścią stron internetowych.", "Dynamic content management for websites.")}</p>
       <div class="providers">
         <a class="button primary" href="/auth/login?provider=google&return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
         <a class="button" href="/auth/login?provider=facebook&return=${ret}">${L("Zaloguj się przez Facebooka", "Sign in with Facebook")}</a>
@@ -159,7 +127,7 @@ document.addEventListener("click", (e) => {
     navigate(href);
   }
 });
-addEventListener("popstate", route);
+addEventListener("popstate", () => route(true));
 
 async function start(): Promise<void> {
   try {

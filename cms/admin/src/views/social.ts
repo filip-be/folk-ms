@@ -51,7 +51,7 @@ class SocialView extends View {
   private render(): void {
     const st = this.st;
     this.set(html`
-      <h1>${L("Media społecznościowe", "Social media")}</h1>
+      <h1>${L("Social media", "Social media")}</h1>
       ${st.pendingPages?.length
         ? html`<section class="card"><h2>${L("Wybierz stronę na Facebooku", "Choose a Facebook page")}</h2>
             <ul class="pages">${st.pendingPages.map(

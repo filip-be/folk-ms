@@ -4,6 +4,8 @@ CMS for bal folk websites: Moderators manage bilingual Events, Publish them to e
 
 Documentation: [docs/README.md](docs/README.md). Glossary: [CONTEXT.md](CONTEXT.md).
 
+The admin UI's [design system](docs/design-system/README.md) was originally defined by [Felipe Cardona](https://dribbble.com/felipecardona/).
+
 ## Repository
 
 | Path | What |
@@ -115,7 +117,7 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 
 ### Who can post Social Posts
 
-The CMS stores no Meta token: a Moderator signs in with Meta every time they post, and the CMS posts with that sign-in only. So a Moderator can post only while they are a Tester on the Meta app and have a role on the Facebook page (and access to its Instagram account). To stop someone posting, remove their CMS access, their Facebook page role or their Tester role; nothing in the CMS needs reconnecting. Changing the Organization's Facebook page or disconnecting it is done under *Media społecznościowe*, by any of its Moderators or the Super Admin.
+The CMS stores no Meta token: a Moderator signs in with Meta every time they post, and the CMS posts with that sign-in only. So a Moderator can post only while they are a Tester on the Meta app and have a role on the Facebook page (and access to its Instagram account). To stop someone posting, remove their CMS access, their Facebook page role or their Tester role; nothing in the CMS needs reconnecting. Changing the Organization's Facebook page or disconnecting it is done under *Social media*, by any of its Moderators or the Super Admin.
 
 Upgrading from a version that stored Facebook page tokens: the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
 

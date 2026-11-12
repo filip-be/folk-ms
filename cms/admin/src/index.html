@@ -2,7 +2,11 @@
 <html lang="pl">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Browser chrome on phones: --sidebar of tokens.css, light and dark (shell.ts follows the theme switch). -->
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" data-scheme="light">
+  <meta name="theme-color" content="#1b1c2c" media="(prefers-color-scheme: dark)" data-scheme="dark">
+  <link rel="preload" href="/app/fonts/figtree-latin.woff2" as="font" type="font/woff2" crossorigin>
   <meta name="robots" content="noindex">
   <title>folk-ms</title>
   <link rel="stylesheet" href="/app/app.css">

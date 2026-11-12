@@ -41,6 +41,7 @@ The `dev` tag adds the local sign-in stub; production builds leave it out. Build
 | `STORAGE_PUBLIC_URL` | Public URL of the `pub` container (default `<blob>/pub`) |
 | `STORAGE_CREATE_CONTAINERS` | `1` creates `cms` and `pub` at start (Azurite) |
 | `PORT` / `FUNCTIONS_CUSTOMHANDLER_PORT` | Listen port; the latter means "running under the Functions host" |
+| `HOST` | Listen address (default: every interface; `scripts/dev.sh` uses `127.0.0.1`) |
 
 ## Dependencies
 

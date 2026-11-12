@@ -17,7 +17,8 @@ const COLOR = /#[0-9a-f]{3,8}\b|\b(rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(/i;
 
 function violations(css: string): string[] {
   const found: string[] = [];
-  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  // @font-face declares a face (its font-family is the name being defined), not a rule.
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/@font-face\s*\{[^}]*\}/g, "");
   for (const [, prop, raw] of text.matchAll(/([-\w]+)\s*:\s*([^;{}]+)(?=[;}])/g)) {
     const value = raw!.trim();
     if (prop!.startsWith("--")) continue; // a token definition
@@ -41,5 +42,6 @@ describe("stylesheets use tokens", () => {
   test("the check catches raw values", () => {
     expect(violations(".a { color: #fff; margin: 0 1rem; z-index: 3; font: 14px sans-serif }").length).toBe(4);
     expect(violations(":root { --c: #fff; --s: 1rem } .a { color: var(--c); margin: 0 auto var(--s); font: inherit }")).toEqual([]);
+    expect(violations('@font-face { font-family: "X"; src: url(x.woff2) } .a { font-family: "X" }').length).toBe(1);
   });
 });

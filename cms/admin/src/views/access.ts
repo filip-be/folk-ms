@@ -55,12 +55,12 @@ class AccessView extends View {
       <section class="card">
         <h2>${L("Zaproszenia", "Invitations")}</h2>
         ${this.invs.length
-          ? html`<table class="list"><thead><tr><th>${L("E-mail", "Email")}</th><th>${L("Organizacje", "Organizations")}</th><th>${L("Stan", "Status")}</th><th>${L("Wygasa", "Expires")}</th><th></th></tr></thead><tbody>
+          ? html`<div class="table-wrap"><table class="list"><thead><tr><th>${L("E-mail", "Email")}</th><th>${L("Organizacje", "Organizations")}</th><th>${L("Stan", "Status")}</th><th>${L("Wygasa", "Expires")}</th><th></th></tr></thead><tbody>
             ${this.invs.map(
               (i) => html`<tr><td>${i.email}</td><td>${i.orgs.join(", ")}</td><td><span class="badge ${i.effectiveStatus}">${INV_STATUS[i.effectiveStatus] ?? i.effectiveStatus}</span></td>
                 <td>${fmtDate(i.expiresAt)}</td>
                 <td>${i.effectiveStatus === "pending" ? html`<button type="button" class="link danger" data-revoke-inv="${i.id}">${L("Odwołaj", "Revoke")}</button>` : ""}</td></tr>`,
-            )}</tbody></table>`
+            )}</tbody></table></div>`
           : html`<p class="muted">${L("Brak zaproszeń.", "No invitations.")}</p>`}
       </section>
 
