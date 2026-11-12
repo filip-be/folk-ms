@@ -1,82 +1,246 @@
 /* Design tokens of the admin SPA. Rules in app.css take colour, spacing, type,
-   radius, shadow and stacking from here only (see AGENTS.md). */
+   radius, shadow and stacking from here only (see AGENTS.md).
+   The design system is documented in docs/design-system/README.md; it is based
+   on the work of Felipe Cardona (https://dribbble.com/felipecardona/). */
+
+/* Figtree by Erik Kennedy, SIL Open Font License 1.1 (fonts/OFL.txt).
+   Self-hosted: the CMS's Content-Security-Policy allows fonts from 'self' only.
+   build.ts copies src/fonts/ to /app/fonts/. */
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/app/fonts/figtree-latin-ext.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+@font-face {
+  font-family: "Figtree";
+  font-style: normal;
+  font-weight: 300 900;
+  font-display: swap;
+  src: url("/app/fonts/figtree-latin.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 :root {
   color-scheme: light dark;
 
-  /* Colour */
-  --bg: #f6f4ef;
-  --surface: #fff;
-  --text: #1f1d1a;
-  --muted: #6b665d;
-  --line: #e2ddd3;
-  --accent: #8a3b12;
-  --accent-text: #fff;
-  --accent-soft: #f6e6dc;
-  --ok: #1f6b3a;
-  --ok-soft: #e1f1e6;
-  --warn: #8a5a00;
-  --warn-soft: #fbefd2;
-  --danger: #a4262c;
-  --danger-soft: #fbe3e4;
-  --on-status: #fff; /* text on an --ok or --danger fill */
+  /* ── Palette ──────────────────────────────────────────────────────────
+     Raw scales. Rules never use these directly: they use the semantic
+     colours below, which switch for dark mode. */
+  --white: #fff;
+  --neutral-100: #f8f8fa;
+  --neutral-200: #f1f1f4;
+  --neutral-300: #dfdfe5;
+  --neutral-400: #c4c4ce;
+  --neutral-500: #a3a3b0;
+  --neutral-600: #858594;
+  --neutral-700: #686879;
+  --neutral-800: #4a4a5e;
+  --neutral-850: #33344a;
+  --neutral-900: #2a2b3a;
+  --neutral-950: #1b1c2c;
+  --black: #0e0f1c;
 
+  --primary-25: #f5faff;
+  --primary-50: #ebf5ff;
+  --primary-100: #d6ebff;
+  --primary-200: #a8d3fc;
+  --primary-300: #74b6f7;
+  --primary-400: #4498ec;
+  --primary-500: #1e7ae3;
+  --primary-600: #1561c4;
+  --primary-700: #0f4a9c;
+  --primary-800: #0b3470;
+  --primary-900: #072148;
+
+  --secondary-25: #fbfaff;
+  --secondary-50: #f3eeff;
+  --secondary-100: #e3d7fe;
+  --secondary-200: #c6aefd;
+  --secondary-300: #a47cfa;
+  --secondary-400: #8550f5;
+  --secondary-500: #6a28ec;
+  --secondary-600: #5718cc;
+  --secondary-700: #4312a0;
+  --secondary-800: #300c74;
+  --secondary-900: #1f0750;
+
+  --error-25: #fff8f8;
+  --error-50: #ffedee;
+  --error-100: #ffd5d8;
+  --error-200: #fba5ac;
+  --error-300: #f4727d;
+  --error-400: #eb4555;
+  --error-500: #dc1f33;
+  --error-600: #b9142a;
+  --error-700: #920f22;
+  --error-800: #6b0b19;
+  --error-900: #470710;
+
+  --success-25: #f6fef9;
+  --success-50: #e8fdf0;
+  --success-100: #ccf8de;
+  --success-200: #9ef0c1;
+  --success-300: #67e2a0;
+  --success-400: #36d07f;
+  --success-500: #16b866;
+  --success-600: #0e9650;
+  --success-700: #0b763f;
+  --success-800: #08562e;
+  --success-900: #05381e;
+
+  --warning-25: #fffdf5;
+  --warning-50: #fff9e5;
+  --warning-100: #fef0c3;
+  --warning-200: #fdde8a;
+  --warning-300: #fbc94f;
+  --warning-400: #f7b023;
+  --warning-500: #e8920f;
+  --warning-600: #c0700a;
+  --warning-700: #96530c;
+  --warning-800: #6c3a0d;
+  --warning-900: #47250a;
+
+  /* ── Semantic colours (light) ─────────────────────────────────────── */
+  --bg: var(--neutral-100);           /* page */
+  --surface: var(--white);            /* cards, sidebar, inputs */
+  --surface-sunken: var(--neutral-200); /* table heads, hovers, active nav item */
+  --text: var(--black);
+  --text-secondary: var(--neutral-800);
+  --muted: var(--neutral-700);        /* 5.4:1 on --surface: fine for small text */
+  --placeholder: var(--neutral-600);
+  --line: var(--neutral-300);
+  --line-subtle: var(--neutral-200);
+  --action: var(--black);             /* primary button */
+  --action-hover: var(--neutral-800);
+  --action-text: var(--white);
+  --accent: var(--primary-600);       /* links, focus, selection */
+  --accent-text: var(--white);
+  --accent-soft: var(--primary-50);
+  --brand: var(--secondary-500);      /* the folk-ms mark */
+  --brand-text: var(--white);
+  --avatar-bg: var(--secondary-100);
+  --avatar-text: var(--secondary-700);
+  --info: var(--primary-700);
+  --info-soft: var(--primary-50);
+  --ok: var(--success-700);
+  --ok-soft: var(--success-50);
+  --warn: var(--warning-700);
+  --warn-soft: var(--warning-50);
+  --danger: var(--error-600);
+  --danger-soft: var(--error-50);
+  --on-status: var(--white);          /* text on an --ok or --danger fill */
+  --scrim: rgb(14 15 28 / .4);
+
+  /* ── Semantic colours (dark) ──────────────────────────────────────── */
   @media (prefers-color-scheme: dark) {
-    --bg: #171614;
-    --surface: #211f1c;
-    --text: #ece8e1;
-    --muted: #a39d92;
-    --line: #36332e;
-    --accent: #e08a55;
-    --accent-text: #1a0d05;
-    --accent-soft: #3a2518;
-    --ok: #7fcf98;
-    --ok-soft: #1d3324;
-    --warn: #f0c060;
-    --warn-soft: #3a3016;
-    --danger: #f08a8e;
-    --danger-soft: #3d1f21;
-    --on-status: #111;
+    --bg: var(--black);
+    --surface: var(--neutral-950);
+    --surface-sunken: var(--neutral-900);
+    --text: var(--neutral-100);
+    --text-secondary: var(--neutral-300);
+    --muted: var(--neutral-500);
+    --placeholder: var(--neutral-600);
+    --line: var(--neutral-850);
+    --line-subtle: var(--neutral-900);
+    --action: var(--neutral-100);
+    --action-hover: var(--white);
+    --action-text: var(--black);
+    --accent: var(--primary-300);
+    --accent-text: var(--black);
+    --accent-soft: var(--primary-900);
+    --brand: var(--secondary-400);
+    --avatar-bg: var(--secondary-800);
+    --avatar-text: var(--secondary-100);
+    --info: var(--primary-200);
+    --info-soft: var(--primary-900);
+    --ok: var(--success-300);
+    --ok-soft: var(--success-900);
+    --warn: var(--warning-300);
+    --warn-soft: var(--warning-900);
+    --danger: var(--error-300);
+    --danger-soft: var(--error-900);
+    --on-status: var(--black);
+    --scrim: rgb(0 0 0 / .6);
   }
 
-  /* Spacing: --space-N is N × .1rem */
-  --space-1: .1rem;
-  --space-2: .2rem;
-  --space-3: .3rem;
-  --space-4: .4rem;
-  --space-5: .5rem;
-  --space-6: .6rem;
-  --space-8: .8rem;
-  --space-10: 1rem;
-  --space-12: 1.2rem;
-  --space-20: 2rem;
-  --space-40: 4rem;
+  /* ── Spacing ──────────────────────────────────────────────────────────
+     --space-N is N px at the default 16px root, written in rem so that it
+     follows the user's font size. A 4px grid, with 2, 6 and 10 for tight spots. */
+  --space-2: .125rem;
+  --space-4: .25rem;
+  --space-6: .375rem;
+  --space-8: .5rem;
+  --space-10: .625rem;
+  --space-12: .75rem;
+  --space-16: 1rem;
+  --space-20: 1.25rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-40: 2.5rem;
+  --space-48: 3rem;
+  --space-64: 4rem;
 
-  /* Type */
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --text-base: 15px;
-  --leading: 1.5;
-  --text-xs: .8rem;
-  --text-sm: .9rem;
-  --text-md: 1rem;
-  --text-lg: 1.15rem;
-  --text-xl: 1.6rem;
+  /* ── Type ─────────────────────────────────────────────────────────────
+     Figtree. Sizes and line heights in pairs (px at 16px root):
+     text XS 12/16, S 14/20, M 16/24, L 20/24, XL 24/32;
+     headline XS 32/40, S 40/48, M 48/56, L 56/64, XL 64/72. */
+  --font-sans: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
 
-  /* Shape and depth */
+  --text-xs: .75rem;      --leading-xs: 1rem;
+  --text-s: .875rem;      --leading-s: 1.25rem;
+  --text-m: 1rem;         --leading-m: 1.5rem;
+  --text-l: 1.25rem;      --leading-l: 1.5rem;
+  --text-xl: 1.5rem;      --leading-xl: 2rem;
+  --headline-xs: 2rem;    --leading-headline-xs: 2.5rem;
+  --headline-s: 2.5rem;   --leading-headline-s: 3rem;
+  --headline-m: 3rem;     --leading-headline-m: 3.5rem;
+  --headline-l: 3.5rem;   --leading-headline-l: 4rem;
+  --headline-xl: 4rem;    --leading-headline-xl: 4.5rem;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-headline: -.02em;  /* headlines only */
+  --tracking-caps: .04em;       /* uppercase labels */
+
+  /* ── Shape and depth ──────────────────────────────────────────────── */
   --radius-xs: 4px;
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 10px;
+  --radius-md: 8px;   /* buttons, inputs, nav items */
+  --radius-lg: 12px;  /* cards, tables */
+  --radius-xl: 16px;  /* drawers, dialogs */
   --radius-pill: 999px;
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / .06);
-  --shadow-md: 0 6px 20px rgb(0 0 0 / .12);
-  --shadow-lg: 0 6px 20px rgb(0 0 0 / .2);
+  --shadow-xs: 0 1px 2px rgb(16 24 40 / .05);
+  --shadow-sm: 0 1px 3px rgb(16 24 40 / .08), 0 1px 2px rgb(16 24 40 / .04);
+  --shadow-md: 0 8px 24px rgb(16 24 40 / .12);
+  --shadow-lg: 0 16px 40px rgb(16 24 40 / .2);
+  --shadow-focus: 0 0 0 3px var(--accent-soft); /* focused inputs */
   --z-toolbar: 5;
   --z-header: 10;
   --z-menu: 20;
+  --z-scrim: 30;
+  --z-drawer: 40;
   --z-toast: 100;
+  --duration: .2s;
 
-  /* Layout */
-  --page-width: 1100px;
-  --narrow-width: 30rem;
-  --header-height: 3.1rem;
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  --page-width: 72rem;
+  --narrow-width: 26rem;
+  --sidebar-width: 16rem;
+  --sidebar-rail: 4.5rem;     /* collapsed sidebar */
+  --topbar-height: 3.5rem;    /* narrow screens only */
+  --control-height: 2.5rem;   /* buttons and inputs */
+  --touch-target: 2.75rem;    /* 44px: the minimum on touch screens */
+  --icon-size: 1.25rem;
+  --avatar-size: 2.25rem;
+  --mark-size: 2rem;          /* the folk-ms mark */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 }

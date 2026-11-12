@@ -13,6 +13,9 @@ import (
 	"strings"
 )
 
+// Go's built-in MIME table lacks web fonts; the system table may lack them too.
+func init() { _ = mime.AddExtensionType(".woff2", "font/woff2") }
+
 type asset struct {
 	data []byte
 	etag string

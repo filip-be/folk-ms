@@ -41,6 +41,7 @@ declare const Bun: {
     entrypoints: string[];
     outdir?: string;
     minify?: boolean;
+    external?: string[];
     target?: string;
     naming?: string;
     sourcemap?: string;

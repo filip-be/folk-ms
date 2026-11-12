@@ -2,7 +2,7 @@
 // with Autofill's field map embedded and the Autofill userscript beside it
 // (served at /app/autofill.user.js). Also refreshes the dev-only practice
 // page's harness in cms/cmd/cms/practice.
-import { copyFileSync, mkdirSync } from "node:fs";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { buildHarness, buildUserscript, copyFieldMap } from "../../autofill/lib.ts";
 
@@ -25,11 +25,15 @@ if (!result.success) {
 }
 copyFileSync(join(dir, "src", "index.html"), join(out, "index.html"));
 // app.css @imports tokens.css: Bun inlines it and lowers CSS nesting.
-const css = await Bun.build({ entrypoints: [join(dir, "src", "app.css")], outdir: out, minify: true });
+const css = await Bun.build({ entrypoints: [join(dir, "src", "app.css")], outdir: out, minify: true, external: ["/app/fonts/*"] });
 if (!css.success) {
   console.error(css.logs);
   process.exit(1);
 }
+// Fonts are served as files (tokens.css names them by /app/fonts/ URL): Bun would
+// inline a relative url() as a data: URL, which the CSP's font-src blocks.
+mkdirSync(join(out, "fonts"), { recursive: true });
+for (const f of readdirSync(join(dir, "src", "fonts"))) copyFileSync(join(dir, "src", "fonts", f), join(out, "fonts", f));
 await buildUserscript(join(out, "autofill.user.js"));
 const practice = join(dir, "..", "cmd", "cms", "practice");
 await buildHarness(join(practice, "harness.js"));

@@ -1,5 +1,5 @@
 import { api, type EventSummary } from "../api.ts";
-import { badge, fmtDate, fmtDateTime, html, KIND_LABEL, navigate, t } from "../ui.ts";
+import { badge, fmtDate, fmtDateTime, html, KIND_LABEL, navigate, raw, t } from "../ui.ts";
 import { View } from "../view.ts";
 import { L } from "../i18n.ts";
 
@@ -28,7 +28,7 @@ class EventsView extends View {
         <a class="button primary" href="/app/orgs/${this.org}/events/new">${L("+ Nowe wydarzenie", "+ New event")}</a>
       </div>
       <nav class="tabs" aria-label="${L("Widok", "View")}">
-        ${TABS.map(([k, label]) => html`<a href="/app/orgs/${this.org}/events?view=${k}" class="${k === tab ? "active" : ""}" ${k === tab ? 'aria-current="page"' : ""}>${label}</a>`)}
+        ${TABS.map(([k, label]) => html`<a href="/app/orgs/${this.org}/events?view=${k}" class="${k === tab ? "active" : ""}" ${k === tab ? raw('aria-current="page"') : ""}>${label}</a>`)}
       </nav>
       ${list.length === 0
         ? html`<div class="card empty"><p>${tab === "bin" ? L("Kosz jest pusty.", "The bin is empty.") : L("Brak wydarzeń w tym widoku.", "No events in this view.")}</p></div>`

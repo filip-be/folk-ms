@@ -4,6 +4,8 @@ CMS for bal folk websites: Moderators manage bilingual Events, Publish them to e
 
 Documentation: [docs/README.md](docs/README.md). Glossary: [CONTEXT.md](CONTEXT.md).
 
+The admin UI's [design system](docs/design-system/README.md) was originally defined by [Felipe Cardona](https://dribbble.com/felipecardona/).
+
 ## Repository
 
 | Path | What |
