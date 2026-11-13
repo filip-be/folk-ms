@@ -90,13 +90,30 @@ scripts/azurite.sh
 
 The CMS address contains a hash that `main.bicep` derives from the resource group, so it is known only after the first `deploy-infra` run. The Google and Meta apps are therefore created first and get their redirect URIs afterwards.
 
-1. Create a resource group and an Entra app registration. On the app registration add a federated credential (*Certificates & secrets → Federated credentials → GitHub Actions deploying Azure resources*) with entity type *Environment* and environment `production`; its subject is `repo:filip-be/folk-ms:environment:production`. Grant the app registration `Contributor` and `User Access Administrator` (for the role assignment) on the resource group.
-2. Create the [Google OAuth client](#google-oauth-client) and the [Meta app](#meta-app) without redirect URIs yet; note their ids and secrets.
-3. In GitHub *Settings → Environments* create the environment `production`. Set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs. Leave `CMS_BASE_URL` unset for now: the CMS then uses its default `*.azurewebsites.net` address.
-4. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`).
-5. Add the redirect URIs and the other `<CMS_BASE_URL>` addresses to the Google OAuth client and the Meta app as described in their sections below.
-6. Run `deploy-cms` (its smoke test calls `CMS_BASE_URL`), then `deploy-site`.
-7. The Sites now work at their `*.azurestaticapps.net` addresses (output `staticSites`): CORS allows each Static Web App's default address without any configuration. Once a Site has a custom domain, add it to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
+1. Create a resource group and an Entra app registration (the deploy identity). On the app registration add a federated credential (*Certificates & secrets → Federated credentials → GitHub Actions deploying Azure resources*) with entity type *Environment* and environment `production`; its subject is `repo:filip-be/folk-ms:environment:production`. Grant the app registration `Contributor` on the resource group.
+2. Create the CMS's managed identity and let the deploy identity assign roles to it, and to nothing else ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md), T4). Someone with `Owner` on the resource group runs, in Azure Cloud Shell (Bash), with the resource group and the app registration's client id filled in:
+
+   ```bash
+   rg=<resource group>
+   az identity create -g "$rg" -n folkms-cms-id
+   cms=$(az identity show -g "$rg" -n folkms-cms-id --query principalId -o tsv)
+   deploy=$(az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv)
+   scope=$(az group show -n "$rg" --query id -o tsv)
+   roles='b7e6dc6d-f1e8-4753-8033-0f276bb0955b, b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+   condition="((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles} AND @Request[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$cms})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles} AND @Resource[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$cms}))"
+   az role assignment create --assignee-object-id "$deploy" --assignee-principal-type ServicePrincipal \
+     --role "Role Based Access Control Administrator" --scope "$scope" \
+     --condition "$condition" --condition-version 2.0 \
+     --description "folk-ms deploy: only Storage Blob Data Owner and Key Vault Secrets Officer, only to folkms-cms-id"
+   ```
+
+   The two role ids are `Storage Blob Data Owner` and `Key Vault Secrets Officer`, the only roles `main.bicep` assigns. The identity's name must be `<prefix>-cms-id` (`main.bicep` parameter `cmsIdentityName`). If the deploy identity still holds `User Access Administrator` from an earlier setup, remove it: `az role assignment delete --assignee "$deploy" --role "User Access Administrator" --scope "$scope"`. No person gets a standing Key Vault data role; see [Key Vault and token incident response](#key-vault-and-token-incident-response) for the rare case someone must read a secret.
+3. Create the [Google OAuth client](#google-oauth-client) and the [Meta app](#meta-app) without redirect URIs yet; note their ids and secrets.
+4. In GitHub *Settings → Environments* create the environment `production`. Set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs. `deploy-infra` writes `META_APP_SECRET` and `SESSION_KEY` into Key Vault; the CMS's app settings hold only Key Vault references to them. Leave `CMS_BASE_URL` unset for now: the CMS then uses its default `*.azurewebsites.net` address.
+5. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`). Azure Monitor emails `SUPER_ADMIN_EMAIL` that it was added to an action group: that address receives the Key Vault alert.
+6. Add the redirect URIs and the other `<CMS_BASE_URL>` addresses to the Google OAuth client and the Meta app as described in their sections below.
+7. Run `deploy-cms` (its smoke test calls `CMS_BASE_URL`), then `deploy-site`. New role assignments can take a few minutes to apply; if the CMS reports that it cannot read `META_APP_SECRET` or `SESSION_KEY`, restart the Function app.
+8. The Sites now work at their `*.azurestaticapps.net` addresses (output `staticSites`): CORS allows each Static Web App's default address without any configuration. Once a Site has a custom domain, add it to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
 
 After that, pushes to `main` redeploy whatever changed: `infra/azure/**` runs `deploy-infra`, `cms/**` and `contract/**` run `deploy-cms`, `sites/**` and `contract/client/**` run `deploy-site`, and `config/sites.json` runs all three. Nothing needs to be installed locally to deploy.
 
@@ -114,6 +131,33 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 2. Valid OAuth redirect URIs: `<CMS_BASE_URL>/auth/meta/callback` (posting) and `<CMS_BASE_URL>/auth/callback` (Facebook sign-in). Privacy policy URL: `<CMS_BASE_URL>/privacy`. Data deletion instructions URL: `<CMS_BASE_URL>/data-deletion`.
 3. Keep the app in Standard Access. For every Moderator who will post Social Posts, connect a Facebook page or sign in with Facebook: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
 4. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
+
+### Key Vault and token incident response
+
+The Key Vault (output `keyVault`) holds the Meta app secret, `SESSION_KEY` and the Facebook page token of every Organization with Autosync on ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)). Only the CMS's identity `folkms-cms-id` can read it. Its audit log goes to the Log Analytics workspace `folkms-logs-<hash>`, and an alert emails the Super Admin when a secret is read by any other identity, or page tokens are read more than 30 times in an hour.
+
+On an alert, see who read what in the workspace (*Logs*):
+
+```kusto
+AzureDiagnostics
+| where ResourceProvider == "MICROSOFT.KEYVAULT" and OperationName startswith "Secret"
+| project TimeGenerated, OperationName, id_s, httpStatusCode_d, CallerIPAddress,
+    caller = tostring(column_ifexists("identity_claim_oid_g", "")),
+    user = tostring(column_ifexists("identity_claim_upn_s", ""))
+| order by TimeGenerated desc
+```
+
+An object id resolves with `az ad sp show --id <id>` or `az ad user show --id <id>`. Remove any role assignment on the vault that is not the CMS identity's `Key Vault Secrets Officer`.
+
+**One Organization's token may have leaked:**
+
+1. A Moderator of the Organization or the Super Admin turns Autosync off in the CMS. That deletes the secret.
+2. The person who turned Autosync on (the connection screen names them) removes the app on Facebook under *Settings → Business integrations*. Only that kills the token at Meta: a page token cannot revoke itself.
+3. Turn Autosync on again when it is safe; it stores a new token under a new secret name.
+
+**Code execution in the CMS or the deploy pipeline is suspected:** do the above for every Organization with Autosync on, then rotate the Meta app secret (Meta app dashboard → *App settings → Basic → App secret → Reset*), put the new one into the `META_APP_SECRET` GitHub secret and run `deploy-infra`. With "Require App Secret" on, a token copied out is useless without the current app secret. Rotate `SESSION_KEY` the same way; that signs everyone out.
+
+**Reading a secret by hand** should not be needed. If it is, an `Owner` grants themselves `Key Vault Secrets User` on the vault, reads, and removes the assignment at once; the alert fires, as it should.
 
 ### Who can post Social Posts
 
@@ -161,3 +205,4 @@ Fixing a broken field: adjust its locators in `autofill/fieldmap.json` (labels a
 - Snapshots in `pub/sites/` are derived data and are rebuilt on every CMS start.
 - Events purged from the Bin after 30 days are gone; the Audit Log (`cms/audit/<day>.log`) keeps their history, including Facebook and Instagram URLs.
 - Offline copy: `az storage blob download-batch --auth-mode login -s cms -d ./backup --account-name <account>`.
+- Key Vault is not backed up, by design. The Meta app secret and `SESSION_KEY` live in the GitHub `production` secrets and every `deploy-infra` run writes them again. A Facebook page token is replaced by turning Autosync on again. A deleted secret stays in soft delete for 7 days and is then purged; the CMS never reuses its name, so recovering it is not needed.

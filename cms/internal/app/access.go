@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"bufio"
 	"bytes"
 	"context"
@@ -114,6 +115,10 @@ func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string
 		return nil, err
 	}
 	a.audit(ctx, p, "user.orgs_changed", "", userID, map[string]any{"email": u.Email, "orgs": u.Orgs, "removed": removed})
+	// Decision 19: where they turned Autosync on, it ends with their access.
+	if err := a.autosyncLostAccess(ctx, p, u, removed); err != nil {
+		return u, fmt.Errorf("access changed, but Autosync could not be turned off everywhere: %w", err)
+	}
 	return u, nil
 }
 
@@ -135,6 +140,13 @@ func (a *App) RevokeUser(ctx context.Context, p domain.Principal, userID string)
 		return nil, err
 	}
 	a.audit(ctx, p, "user.revoked", "", userID, map[string]any{"email": u.Email, "removed": removed})
+	all := make([]string, 0, len(a.orgs))
+	for _, o := range a.orgs {
+		all = append(all, o.ID)
+	}
+	if err := a.autosyncLostAccess(ctx, p, u, all); err != nil {
+		return u, fmt.Errorf("access revoked, but Autosync could not be turned off everywhere: %w", err)
+	}
 	return u, nil
 }
 

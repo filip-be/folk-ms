@@ -36,8 +36,6 @@ type Server struct {
 	Admin      fs.FS        // the built admin SPA
 	PublicDir  string       // serve the public store at /pub/ (local only)
 	DevLogin   http.Handler // dev OIDC login page (dev builds only)
-	// DevPages serves /dev/ (dev builds only): the Autofill practice page.
-	DevPages http.Handler
 	// PublicOrigin is the origin images are served from, allowed by the CSP.
 	PublicOrigin string
 	Log          *slog.Logger
@@ -48,6 +46,8 @@ type Server struct {
 
 	purgeMu   sync.Mutex
 	lastPurge time.Time
+	syncMu    sync.Mutex
+	lastSync  time.Time
 }
 
 // NewServer validates the configuration.
@@ -60,9 +60,6 @@ func NewServer(s *Server, sessionKey []byte) (*Server, error) {
 	}
 	s.BaseURL = strings.TrimRight(s.BaseURL, "/")
 	s.sign = signer{key: sessionKey}
-	if s.App != nil {
-		s.App.SetHandoffKey(sessionKey)
-	}
 	s.limiter = newLimiter(20, time.Minute)
 	if s.Log == nil {
 		s.Log = slog.Default()
@@ -83,7 +80,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /app", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/app/", http.StatusMovedPermanently)
 	})
-	mux.HandleFunc("GET /app/autofill.user.js", s.userscript)
 	mux.Handle("GET /app/", s.static)
 	mux.HandleFunc("GET /privacy", s.privacy)
 	mux.HandleFunc("GET /data-deletion", s.dataDeletion)
@@ -101,10 +97,11 @@ func (s *Server) Handler() http.Handler {
 	// The Functions host invokes the timer function "purge" as POST /purge.
 	// Purging only removes what is overdue, so this is safe to expose.
 	mux.Handle("POST /purge", s.rateLimit(http.HandlerFunc(s.timerPurge)))
-
-	if s.DevPages != nil {
-		mux.Handle("GET /dev/", s.DevPages)
-	}
+	// The timer function "sync" (hourly) is POST /sync: Autosync for the
+	// Organizations that turned it on. Public like /purge; it takes no input,
+	// and the per-Organization lease and interval in storage bound how often
+	// Graph is called (T10).
+	mux.Handle("POST /sync", s.rateLimit(http.HandlerFunc(s.timerSync)))
 
 	if s.PublicDir != "" {
 		mux.Handle("GET /pub/", s.publicFiles())
@@ -144,7 +141,7 @@ func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 	if time.Now().Unix() > sd.Expires {
 		return domain.Principal{}, domain.ErrUnauthorized
 	}
-	return s.App.Principal(r.Context(), sd.UserID, time.Unix(sd.IssuedAt, 0))
+	return s.App.Principal(r.Context(), sd.UserID, time.Unix(sd.IssuedAt, 0), sd.Nonce)
 }
 
 func (s *Server) h(fn apiHandler) http.Handler {
@@ -165,7 +162,7 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/purge" || r.URL.Path == "/auth/dev/login" && s.DevLogin != nil {
+		if r.URL.Path == "/purge" || r.URL.Path == "/sync" || r.URL.Path == "/auth/dev/login" && s.DevLogin != nil {
 			// The timer call comes from the Functions host, not a browser;
 			// the dev login form is local only.
 			next.ServeHTTP(w, r)
@@ -320,7 +317,11 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	case errors.Is(err, domain.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: msg("nie znaleziono", "not found")})
 	case errors.Is(err, domain.ErrNeedsConfirm):
-		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: msg("potwierdź ponowną publikację", "confirm publishing again")})
+		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: msg("potwierdź, aby kontynuować", "confirm to continue")})
+	case errors.Is(err, domain.ErrRecentSignIn):
+		writeJSON(w, http.StatusForbidden, errorBody{Error: "recent_sign_in", Message: msg("zaloguj się ponownie, aby potwierdzić tę operację", "sign in again to confirm this action")})
+	case errors.Is(err, domain.ErrTooSoon):
+		writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "too_soon", Message: msg("synchronizacja była przed chwilą – spróbuj za minutę", "a sync ran moments ago – try again in a minute")})
 	case errors.Is(err, domain.ErrConflict):
 		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: msg("ktoś inny zmienił te dane – odśwież i spróbuj ponownie", "someone else changed this data – refresh and try again")})
 	case errors.Is(err, domain.ErrInvalidState):

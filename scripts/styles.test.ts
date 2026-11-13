@@ -7,7 +7,7 @@ import { join } from "node:path";
 const root = join(import.meta.dir, "..");
 const sites = (JSON.parse(readFileSync(join(root, "config", "sites.json"), "utf8")) as { organizations: { site: { id: string } }[] })
   .organizations.map((o) => `sites/${o.site.id}/src`);
-const dirs = ["cms/admin/src", "cms/cmd/cms/practice", "autofill/src", ...sites];
+const dirs = ["cms/admin/src", ...sites];
 
 // Properties whose values must come from tokens.
 const TOKENIZED = /^(margin(-[a-z]+)*|padding(-[a-z]+)*|(row-|column-)?gap|font|font-size|font-family|border(-[a-z]+)*-radius|box-shadow|z-index)$/;

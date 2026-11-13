@@ -395,12 +395,20 @@ func (s *SharedKey) Sign(_ context.Context, req *http.Request, contentLength int
 	return nil
 }
 
+// StorageResource is the token audience for Blob Storage.
+const StorageResource = "https://storage.azure.com/"
+
 // ManagedIdentity gets tokens from the App Service / Functions identity
-// endpoint (IDENTITY_ENDPOINT and IDENTITY_HEADER).
+// endpoint (IDENTITY_ENDPOINT and IDENTITY_HEADER). Other adapters (Key Vault)
+// use it with their own Resource; use one value per resource.
 type ManagedIdentity struct {
 	Endpoint string
 	Header   string
-	ClientID string // optional, for a user-assigned identity
+	// ClientID selects a user-assigned identity (AZURE_CLIENT_ID). Empty:
+	// the app's system-assigned identity.
+	ClientID string
+	// Resource is the token audience. Empty: StorageResource.
+	Resource string
 	HTTP     *http.Client
 
 	mu      sync.Mutex
@@ -418,14 +426,19 @@ func (m *ManagedIdentity) Sign(ctx context.Context, req *http.Request, _ int64) 
 	return nil
 }
 
-// Token returns a cached token for https://storage.azure.com/.
+// Token returns an access token for Resource, cached until five minutes
+// before it expires.
 func (m *ManagedIdentity) Token(ctx context.Context) (string, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.token != "" && time.Until(m.expires) > 5*time.Minute {
 		return m.token, nil
 	}
-	q := url.Values{"resource": {"https://storage.azure.com/"}, "api-version": {"2019-08-01"}}
+	resource := m.Resource
+	if resource == "" {
+		resource = StorageResource
+	}
+	q := url.Values{"resource": {resource}, "api-version": {"2019-08-01"}}
 	if m.ClientID != "" {
 		q.Set("client_id", m.ClientID)
 	}
@@ -440,7 +453,7 @@ func (m *ManagedIdentity) Token(ctx context.Context) (string, error) {
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("azblob: identity endpoint: %w", err)
+		return "", fmt.Errorf("azblob: identity endpoint: %w", RedactURLError(err))
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
@@ -460,4 +473,21 @@ func (m *ManagedIdentity) Token(ctx context.Context) (string, error) {
 	}
 	m.token, m.expires = t.AccessToken, exp
 	return m.token, nil
+}
+
+// RedactURLError strips the query from the URL in a *url.Error, so an error
+// message never carries query parameters.
+func RedactURLError(err error) error {
+	var ue *url.Error
+	if !errors.As(err, &ue) {
+		return err
+	}
+	u := ue.URL
+	if p, perr := url.Parse(u); perr == nil {
+		p.RawQuery, p.Fragment, p.User = "", "", nil
+		u = p.String()
+	} else if i := strings.IndexAny(u, "?#"); i >= 0 {
+		u = u[:i]
+	}
+	return &url.Error{Op: ue.Op, URL: u, Err: ue.Err}
 }

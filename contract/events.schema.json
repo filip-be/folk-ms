@@ -2,138 +2,281 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://folk-ms/contract/events.schema.json",
   "title": "folk-ms Site snapshot",
-  "description": "All Published Events of one Organization, as read by its Site from pub/sites/<site>/events.json. Localized texts: Polish (pl) is always present; English (en) is optional and readers fall back to Polish when it is absent.",
+  "description": "All Events of one Organization that its Site shows (not Hidden, not in the Bin), as read by its Site from pub/sites/<site>/events.json. Values are effective: a Moderator's Override, else Facebook's. Localized texts: Polish (pl) is always present; English (en) is optional and readers fall back to Polish when it is absent.",
   "type": "object",
-  "required": ["schemaVersion", "generatedAt", "organization", "venues", "events"],
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "organization",
+    "events"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "type": "integer", "enum": [1] },
-    "generatedAt": { "type": "string", "format": "date-time" },
-    "organization": { "$ref": "#/$defs/organization" },
-    "venues": {
-      "description": "Venues referenced by Occurrences, keyed by venue id. A frozen copy of a Venue as it was for past Occurrences has its own key.",
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/venue" }
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        2
+      ]
     },
-    "events": { "type": "array", "items": { "$ref": "#/$defs/event" } }
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "organization": {
+      "$ref": "#/$defs/organization"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
   },
   "$defs": {
     "localizedText": {
       "type": "object",
-      "required": ["pl"],
+      "required": [
+        "pl"
+      ],
       "additionalProperties": false,
       "properties": {
-        "pl": { "type": "string", "minLength": 1 },
-        "en": { "type": "string", "minLength": 1 }
+        "pl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
-    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
-    "url": { "type": "string", "pattern": "^https?://", "maxLength": 2048 },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^https?://",
+      "maxLength": 2048
+    },
     "organization": {
       "type": "object",
-      "required": ["id", "name", "siteId", "baseUrl", "timezone"],
+      "required": [
+        "id",
+        "name",
+        "siteId",
+        "baseUrl",
+        "timezone"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "$ref": "#/$defs/id" },
-        "name": { "$ref": "#/$defs/localizedText" },
-        "siteId": { "$ref": "#/$defs/id" },
-        "baseUrl": { "$ref": "#/$defs/url" },
-        "timezone": { "type": "string", "minLength": 1 }
-      }
-    },
-    "venue": {
-      "type": "object",
-      "required": ["name", "address"],
-      "additionalProperties": false,
-      "properties": {
-        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
-        "address": { "type": "string", "minLength": 1, "maxLength": 500 },
-        "mapUrl": { "$ref": "#/$defs/url" }
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "siteId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseUrl": {
+          "$ref": "#/$defs/url"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "price": {
       "type": "object",
-      "required": ["text"],
       "additionalProperties": false,
+      "description": "Free-text price and/or a tickets link; at least one is present.",
       "properties": {
-        "text": { "$ref": "#/$defs/localizedText" },
-        "url": { "$ref": "#/$defs/url" }
+        "text": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "url": {
+          "$ref": "#/$defs/httpsUrl"
+        }
       }
     },
     "image": {
       "type": "object",
-      "required": ["variants"],
+      "required": [
+        "variants"
+      ],
       "additionalProperties": false,
       "properties": {
-        "alt": { "$ref": "#/$defs/localizedText" },
+        "alt": {
+          "$ref": "#/$defs/localizedText"
+        },
         "variants": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
-            "required": ["width", "height", "url"],
+            "required": [
+              "width",
+              "height",
+              "url"
+            ],
             "additionalProperties": false,
             "properties": {
-              "width": { "type": "integer", "minimum": 1 },
-              "height": { "type": "integer", "minimum": 1 },
-              "url": { "$ref": "#/$defs/url" }
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "url": {
+                "$ref": "#/$defs/url"
+              }
             }
           }
         }
       }
     },
-    "recurrence": {
-      "type": "object",
-      "required": ["freq", "weekday", "startDate", "endDate"],
-      "additionalProperties": false,
-      "properties": {
-        "freq": { "type": "string", "enum": ["weekly", "biweekly", "monthly"] },
-        "weekday": { "type": "integer", "minimum": 0, "maximum": 6, "description": "0 = Sunday" },
-        "nth": { "type": "integer", "enum": [-1, 1, 2, 3, 4], "description": "Monthly only: Nth weekday of the month, -1 = last" },
-        "startDate": { "type": "string", "format": "date" },
-        "endDate": { "type": "string", "format": "date" }
-      }
-    },
     "occurrence": {
       "type": "object",
-      "required": ["start", "end", "cancelled", "venueId"],
+      "required": [
+        "start",
+        "end",
+        "cancelled",
+        "facebookEventUrl"
+      ],
       "additionalProperties": false,
       "properties": {
-        "start": { "type": "string", "format": "date-time" },
-        "end": { "type": "string", "format": "date-time" },
-        "cancelled": { "type": "boolean" },
-        "venueId": { "type": "string", "minLength": 1 },
-        "note": { "$ref": "#/$defs/localizedText" },
-        "facebookEventUrl": { "type": "string", "pattern": "^https://www\\.facebook\\.com/events/[0-9]+/$", "maxLength": 100, "description": "The Facebook Event announcing this Occurrence, when a Moderator recorded one" }
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cancelled": {
+          "type": "boolean"
+        },
+        "online": {
+          "type": "boolean",
+          "enum": [
+            true
+          ],
+          "description": "An online event; present only when true"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "facebookEventUrl": {
+          "type": "string",
+          "pattern": "^https://www\\.facebook\\.com/events/[0-9]+/$",
+          "maxLength": 100,
+          "description": "The Facebook Event page of this Occurrence"
+        }
       }
     },
     "event": {
       "type": "object",
-      "required": ["id", "shortId", "slug", "permalink", "kind", "title", "occurrences", "publishedAt"],
+      "required": [
+        "id",
+        "shortId",
+        "slug",
+        "permalink",
+        "title",
+        "occurrences",
+        "updatedAt"
+      ],
       "additionalProperties": false,
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9]{8,32}$" },
-        "shortId": { "type": "string", "pattern": "^[a-z2-7]{8}$" },
-        "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 80 },
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9]{8,32}$"
+        },
+        "shortId": {
+          "type": "string",
+          "pattern": "^[a-z2-7]{8}$"
+        },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+          "maxLength": 80
+        },
         "permalink": {
           "type": "object",
-          "required": ["pl", "en"],
+          "required": [
+            "pl",
+            "en"
+          ],
           "additionalProperties": false,
           "properties": {
-            "pl": { "$ref": "#/$defs/url" },
-            "en": { "$ref": "#/$defs/url" }
+            "pl": {
+              "$ref": "#/$defs/url"
+            },
+            "en": {
+              "$ref": "#/$defs/url"
+            }
           }
         },
-        "kind": { "type": "string", "enum": ["single", "multiDay", "recurring"] },
-        "title": { "$ref": "#/$defs/localizedText" },
-        "summary": { "$ref": "#/$defs/localizedText" },
-        "description": { "$ref": "#/$defs/localizedText" },
-        "price": { "$ref": "#/$defs/price" },
-        "cover": { "$ref": "#/$defs/image" },
-        "recurrence": { "$ref": "#/$defs/recurrence" },
-        "occurrences": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/occurrence" } },
-        "publishedAt": { "type": "string", "format": "date-time" }
+        "title": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "summary": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "description": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "price": {
+          "$ref": "#/$defs/price"
+        },
+        "cover": {
+          "$ref": "#/$defs/image"
+        },
+        "occurrences": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/occurrence"
+          },
+          "description": "Sorted by start"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
+    },
+    "location": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "description": "Where an Occurrence happens: free text from Facebook or the Moderator.",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "address": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "mapUrl": {
+          "$ref": "#/$defs/httpsUrl"
+        }
+      }
+    },
+    "httpsUrl": {
+      "type": "string",
+      "pattern": "^https://",
+      "maxLength": 2048,
+      "description": "Links shown to visitors: https only"
     }
   }
 }

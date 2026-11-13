@@ -57,6 +57,8 @@ type sessionData struct {
 	UserID   string `json:"u"`
 	IssuedAt int64  `json:"iat"`
 	Expires  int64  `json:"exp"`
+	// Nonce identifies the sign-in; its hash is on the user document (T5).
+	Nonce string `json:"n,omitempty"`
 }
 
 type oidcState struct {
@@ -69,15 +71,18 @@ type oidcState struct {
 }
 
 // metaState binds a Meta sign-in to the CMS user who started it. With
-// Request set, the sign-in completes that Post Request; otherwise it
-// connects a Facebook page.
+// Request set, the sign-in completes that Post Request; with Sync, it runs
+// "Sync now" (a Sync Request); with Autosync, it turns Autosync on;
+// otherwise it connects a Facebook page.
 type metaState struct {
-	State   string `json:"s"`
-	Org     string `json:"o"`
-	UserID  string `json:"u"`
-	Request string `json:"r,omitempty"`
-	Event   string `json:"e,omitempty"`
-	Expires int64  `json:"exp"`
+	State    string `json:"s"`
+	Org      string `json:"o"`
+	UserID   string `json:"u"`
+	Request  string `json:"r,omitempty"`
+	Event    string `json:"e,omitempty"`
+	Sync     bool   `json:"y,omitempty"`
+	Autosync bool   `json:"a,omitempty"`
+	Expires  int64  `json:"exp"`
 }
 
 func (s *Server) cookieName(base string) string {

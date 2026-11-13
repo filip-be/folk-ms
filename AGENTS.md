@@ -16,8 +16,7 @@ The GitHub Copilot CLI (`copilot`) is not available to the user. When running th
 
 ## CSS
 
-Applies to every stylesheet: `cms/admin/src/`, `sites/<id>/src/`, `autofill/src/panel.css`,
-`cms/cmd/cms/practice/`. Native CSS, no Sass (ADR 0003: no new build dependencies).
+Applies to every stylesheet: `cms/admin/src/` and `sites/<id>/src/`. Native CSS, no Sass (ADR 0003: no new build dependencies).
 
 - **Tokens.** Colour, spacing, font, font size, radius, shadow and z-index values are
   defined once as custom properties (`cms/admin/src/tokens.css`; elsewhere the `:root` or
@@ -25,7 +24,7 @@ Applies to every stylesheet: `cms/admin/src/`, `sites/<id>/src/`, `autofill/src/
   token, not a literal. `--space-N` is N × the file's unit (.1rem, or 1px where noted).
 - **Nesting.** Group a component's children and states under it with `&`; Bun's CSS
   bundler lowers nesting at build. Never nest under a selector list (it becomes `:is()`
-  and raises specificity). Keep `autofill/src/panel.css` flat: it ships unprocessed.
+  and raises specificity).
 - Enforced by `scripts/styles.test.ts` (`bun test scripts`, run in CI).
 - Admin SPA breakpoints, `theme-color` and fonts are bound across files: see
   [Design system, Change together](docs/design-system/README.md#change-together).

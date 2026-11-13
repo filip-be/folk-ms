@@ -1,7 +1,9 @@
-// Package meta implements ports.SocialPublisher on the Meta Graph API:
-// Facebook Login to a short-lived user token, the Facebook page token and linked
-// Instagram account of one Facebook page, Facebook page photo posts and Instagram image posts.
-// No token outlives the request that obtained it.
+// Package meta implements ports.SocialPublisher and ports.FacebookEvents on
+// the Meta Graph API: Facebook Login to a short-lived user token, the
+// Facebook page token and linked Instagram account of one Facebook page,
+// Facebook page photo posts, Instagram image posts, reading the page's
+// Facebook Events, and the long-lived page token Autosync keeps (ADR 0010).
+// The adapter itself keeps no token.
 package meta
 
 import (
@@ -24,7 +26,7 @@ import (
 // Scopes requested at Facebook Login.
 var Scopes = []string{
 	"pages_show_list", "pages_read_engagement", "pages_manage_posts",
-	"instagram_basic", "instagram_content_publish", "business_management",
+	"instagram_basic", "instagram_content_publish",
 }
 
 // Client talks to Graph.
@@ -56,10 +58,24 @@ type GraphError struct {
 	Status  int
 	Message string
 	Code    int
+	Subcode int
 }
 
 func (e *GraphError) Error() string {
-	return fmt.Sprintf("meta: HTTP %d code %d: %s", e.Status, e.Code, e.Message)
+	return fmt.Sprintf("meta: HTTP %d code %d/%d: %s", e.Status, e.Code, e.Subcode, e.Message)
+}
+
+// Unwrap maps Graph's answers to the port's errors: code 190 (and 102, the
+// older session error) is a rejected token; code 100 subcode 33 is an
+// object that does not exist or cannot be loaded.
+func (e *GraphError) Unwrap() error {
+	switch {
+	case e.Code == 190 || e.Code == 102:
+		return ports.ErrTokenRejected
+	case e.Code == 100 && e.Subcode == 33:
+		return ports.ErrEventGone
+	}
+	return nil
 }
 
 func (c *Client) proof(token string) string {
@@ -107,10 +123,11 @@ func (c *Client) call(ctx context.Context, method, path string, params url.Value
 			Error struct {
 				Message string `json:"message"`
 				Code    int    `json:"code"`
+				Subcode int    `json:"error_subcode"`
 			} `json:"error"`
 		}
 		_ = json.Unmarshal(data, &ge)
-		return &GraphError{Status: resp.StatusCode, Message: ge.Error.Message, Code: ge.Error.Code}
+		return &GraphError{Status: resp.StatusCode, Message: ge.Error.Message, Code: ge.Error.Code, Subcode: ge.Error.Subcode}
 	}
 	if out == nil {
 		return nil
@@ -299,6 +316,16 @@ type Recorder struct {
 	NoAccess bool
 	FailFB   error
 	FailIG   error
+	// Facebook Events: EventsFn replaces the canned events; Calls records
+	// list and read calls with the token used.
+	EventsFn    func() []ports.FacebookEvent
+	Calls       []string
+	RejectToken bool
+	FailList    error
+	FailRead    error
+	Cover       []byte
+	// Tokens used for posts.
+	PostTokens []string
 }
 
 // RecordedPost is one call to the Recorder.
@@ -337,7 +364,8 @@ func (r *Recorder) PageToken(_ context.Context, _, pageID string) (string, ports
 	return "", ports.SocialPage{}, ports.ErrNoPageAccess
 }
 
-func (r *Recorder) PostFacebookPhoto(_ context.Context, pageID, _, imageURL, caption string) (ports.PostResult, error) {
+func (r *Recorder) PostFacebookPhoto(_ context.Context, pageID, token, imageURL, caption string) (ports.PostResult, error) {
+	r.PostTokens = append(r.PostTokens, token)
 	if r.FailFB != nil {
 		return ports.PostResult{}, r.FailFB
 	}
@@ -346,7 +374,8 @@ func (r *Recorder) PostFacebookPhoto(_ context.Context, pageID, _, imageURL, cap
 	return ports.PostResult{ID: id, URL: "https://www.facebook.com/" + id}, nil
 }
 
-func (r *Recorder) PostInstagramImage(_ context.Context, ig, _, imageURL, caption string) (ports.PostResult, error) {
+func (r *Recorder) PostInstagramImage(_ context.Context, ig, token, imageURL, caption string) (ports.PostResult, error) {
+	r.PostTokens = append(r.PostTokens, token)
 	if r.FailIG != nil {
 		return ports.PostResult{}, r.FailIG
 	}
@@ -356,4 +385,85 @@ func (r *Recorder) PostInstagramImage(_ context.Context, ig, _, imageURL, captio
 
 func (r *Recorder) InstagramQuota(context.Context, string, string) (int, int, error) {
 	return 0, 100, nil
+}
+
+// RecorderEvents are the canned Facebook Events of the Recorder's page 1001
+// for local runs: a single bal, a repeating jam and a cancelled concert.
+func RecorderEvents(now time.Time) []ports.FacebookEvent {
+	loc, err := time.LoadLocation("Europe/Warsaw")
+	if err != nil {
+		loc = time.UTC
+	}
+	day := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, loc)
+	at := func(days, hour int) time.Time { return day.AddDate(0, 0, days).Add(time.Duration(hour) * time.Hour) }
+	return []ports.FacebookEvent{
+		{ID: "9001", Name: "Bal folkowy", Description: "Muzyka na żywo i warsztaty dla początkujących.",
+			Start: at(10, 19), End: at(11, 1), Place: &ports.FacebookPlace{Name: "Zamek", Street: "Św. Marcin 80/82", City: "Poznań"},
+			TicketURL: "https://bilety.example/bal", Updated: day},
+		{ID: "9002", Name: "Jam czwartkowy", Description: "Otwarte granie i tańce.", Start: at(3, 19), End: at(3, 22),
+			Place: &ports.FacebookPlace{Name: "Klub Dragon"}, Updated: day,
+			Times: []ports.FacebookEventTime{
+				{ID: "9003", Start: at(3, 19), End: at(3, 22)},
+				{ID: "9004", Start: at(17, 19), End: at(17, 22)},
+			}},
+		{ID: "9005", Name: "Koncert odwołany", Start: at(20, 18), Online: true, Cancelled: true, Updated: day},
+	}
+}
+
+func (r *Recorder) events() []ports.FacebookEvent {
+	if r.EventsFn != nil {
+		return r.EventsFn()
+	}
+	return RecorderEvents(time.Now())
+}
+
+// PageEvents implements ports.FacebookEvents.
+func (r *Recorder) PageEvents(_ context.Context, pageID, token string) ([]ports.FacebookEvent, error) {
+	r.Calls = append(r.Calls, "list "+pageID+" "+token)
+	if r.RejectToken {
+		return nil, ports.ErrTokenRejected
+	}
+	if r.FailList != nil {
+		return nil, r.FailList
+	}
+	return r.events(), nil
+}
+
+// Event implements ports.FacebookEvents: an id not among the events is gone.
+func (r *Recorder) Event(_ context.Context, id, token string) (ports.FacebookEvent, error) {
+	r.Calls = append(r.Calls, "read "+id+" "+token)
+	if r.RejectToken {
+		return ports.FacebookEvent{}, ports.ErrTokenRejected
+	}
+	if r.FailRead != nil {
+		return ports.FacebookEvent{}, r.FailRead
+	}
+	for _, e := range r.events() {
+		if e.ID == id {
+			return e, nil
+		}
+	}
+	return ports.FacebookEvent{}, ports.ErrEventGone
+}
+
+// CoverImage implements ports.FacebookEvents.
+func (r *Recorder) CoverImage(context.Context, string) ([]byte, error) {
+	if r.Cover != nil {
+		return r.Cover, nil
+	}
+	return nil, errors.New("recorder: no cover")
+}
+
+// LongLivedPageToken implements ports.FacebookEvents.
+func (r *Recorder) LongLivedPageToken(_ context.Context, _, pageID string) (string, ports.SocialPage, time.Time, error) {
+	if r.NoAccess {
+		return "", ports.SocialPage{}, time.Time{}, ports.ErrNoPageAccess
+	}
+	for _, p := range r.pages() {
+		if p.ID == pageID {
+			r.Tokens++
+			return fmt.Sprintf("long-page-token-%s-%d", p.ID, r.Tokens), p, time.Now().Add(90 * 24 * time.Hour).UTC(), nil
+		}
+	}
+	return "", ports.SocialPage{}, time.Time{}, ports.ErrNoPageAccess
 }

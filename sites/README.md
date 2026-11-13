@@ -5,7 +5,7 @@ One static Site per Organization, deployed to its own Azure Static Web App. How 
 | Path | What |
 | --- | --- |
 | `shared/router.ts` | Routes every Site supports; tested against `config/sites.json` |
-| `shared/render.ts` | A plain starting renderer built on `contract/client` |
+| `shared/render.ts` | A plain starting renderer built on `contract/client`; it escapes all snapshot text and links only `https` addresses (`render.test.ts`) |
 | `<site>/src/` | The Site's entry, HTML and styles; designers own these |
 | `<site>/staticwebapp.config.json` | `navigationFallback` and headers |
 | `build.ts`, `serve.ts` | `bun sites/build.ts <site>` (`SNAPSHOT_URL` sets the snapshot), `bun sites/serve.ts <site> <port>` |

@@ -41,7 +41,10 @@ func (a *App) isSuperAdmin(ctx context.Context, u *domain.User) (bool, error) {
 // identity, or by email from another provider), the configured Super Admin
 // (bound on first sign-in), or a person with a usable Invitation (bound now).
 // Everyone else is refused.
-func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, retErr error) {
+//
+// nonce is the new session's random nonce: its hash and the sign-in time
+// are recorded on the user, for actions that need a Recent sign-in (T5).
+func (a *App) SignIn(ctx context.Context, id ports.Identity, nonce string) (_ *domain.User, retErr error) {
 	email := domain.NormalizeEmail(id.Email)
 	if !id.EmailVerified || id.Subject == "" || email == "" {
 		return nil, ErrNoAccess
@@ -88,6 +91,7 @@ func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, re
 		user = &domain.User{ID: uid, Issuer: id.Issuer, Subject: id.Subject, CreatedAt: now, Orgs: []string{}}
 	}
 	user.Email, user.Name, user.LastLoginAt = email, id.Name, now
+	user.RecordSignIn(nonce, now)
 
 	bindSA := false
 	if sa := a.superAdminEmail(); isSA {
@@ -216,7 +220,8 @@ func (a *App) findInvitation(ctx context.Context, email string, now time.Time) (
 
 // Principal resolves a session into a Principal, re-reading the user so
 // that revocation takes effect on the next request.
-func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time) (domain.Principal, error) {
+// The session's nonce yields when it really signed in, if recorded.
+func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time, nonce string) (domain.Principal, error) {
 	u, _, err := load[domain.User](ctx, a.Docs, userKey(userID))
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -234,7 +239,7 @@ func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time) 
 	if !sa && len(u.Orgs) == 0 {
 		return domain.Principal{}, domain.ErrUnauthorized
 	}
-	return domain.Principal{User: u, SuperAdmin: sa}, nil
+	return domain.Principal{User: u, SuperAdmin: sa, SignedInAt: u.SignedInAt(nonce)}, nil
 }
 
 // Me describes the signed-in user for the admin SPA.

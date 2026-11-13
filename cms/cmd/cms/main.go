@@ -26,7 +26,9 @@ import (
 	"github.com/filip-be/folk-ms/cms/internal/adapters/fs"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/google"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/img"
+	"github.com/filip-be/folk-ms/cms/internal/adapters/keyvault"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/meta"
+	"github.com/filip-be/folk-ms/cms/internal/adapters/secretfile"
 	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/config"
 	httpapi "github.com/filip-be/folk-ms/cms/internal/http"
@@ -36,9 +38,6 @@ import (
 // devIdentity is set by dev.go in builds with the "dev" tag: the dev OIDC
 // stub standing in for Google and for Facebook, and its login page.
 var devIdentity func(baseURL string) (google, facebook ports.IdentityProvider, login http.Handler)
-
-// devPages is set by dev.go: the Autofill practice page under /dev/facebook/.
-var devPages func() http.Handler
 
 func env(k, def string) string {
 	if v := os.Getenv(k); v != "" {
@@ -103,6 +102,9 @@ func run(log *slog.Logger) error {
 		}
 		srv.Secure = strings.HasPrefix(baseURL, "https://")
 	}
+	if err := wireSecrets(a, mode, env("DATA_DIR", ".data")); err != nil {
+		return err
+	}
 	if a.SuperAdminEmail == "" {
 		log.Warn("SUPER_ADMIN_EMAIL is not set: nobody can administer access")
 	}
@@ -113,9 +115,6 @@ func run(log *slog.Logger) error {
 	} else if mode == "local" && devIdentity != nil {
 		idp, fb, h := devIdentity(baseURL)
 		srv.IdP, srv.DevLogin, devFacebook = idp, h, fb
-		if devPages != nil {
-			srv.DevPages = devPages()
-		}
 		log.Warn("using the dev OIDC stub: any email can sign in")
 	} else {
 		return errors.New("GOOGLE_CLIENT_ID is required (or build with -tags dev for local sign-in)")
@@ -124,12 +123,13 @@ func run(log *slog.Logger) error {
 	if id := os.Getenv("META_APP_ID"); id != "" {
 		c := meta.New(id, os.Getenv("META_APP_SECRET"), os.Getenv("META_GRAPH_VERSION"))
 		// Facebook sign-in uses the same Meta app (Testers only, see README).
-		a.Social, srv.Facebook = c, meta.SignIn{C: c}
+		a.Social, a.Events, srv.Facebook = c, c, meta.SignIn{C: c}
 	} else if mode == "local" && devIdentity != nil {
 		// Dev builds only: fake successes must never reach a real deployment.
-		a.Social = &meta.Recorder{}
+		rec := &meta.Recorder{}
+		a.Social, a.Events = rec, rec
 		srv.Facebook = devFacebook
-		log.Warn("META_APP_ID not set: Social Posts are recorded, not sent")
+		log.Warn("META_APP_ID not set: Social Posts are recorded, not sent; Sync reads canned Facebook Events")
 	} else {
 		return errors.New("META_APP_ID is required (or build with -tags dev to record posts locally)")
 	}
@@ -238,7 +238,8 @@ func wireBlob(a *app.App, srv *httpapi.Server, blobURL string) error {
 		if ep == "" || hdr == "" {
 			return errors.New("no STORAGE_ACCOUNT_KEY and no managed identity (IDENTITY_ENDPOINT)")
 		}
-		auth = &azblob.ManagedIdentity{Endpoint: ep, Header: hdr, ClientID: os.Getenv("STORAGE_IDENTITY_CLIENT_ID")}
+		// The CMS runs as a user-assigned managed identity (ADR 0010, T4).
+		auth = &azblob.ManagedIdentity{Endpoint: ep, Header: hdr, ClientID: os.Getenv("AZURE_CLIENT_ID")}
 	}
 	client := azblob.NewClient(blobURL, auth)
 	pubURL := env("STORAGE_PUBLIC_URL", client.BaseURL+"/pub")
@@ -258,5 +259,28 @@ func wireBlob(a *app.App, srv *httpapi.Server, blobURL string) error {
 	if u, err := url.Parse(pubURL); err == nil {
 		srv.PublicOrigin = u.Scheme + "://" + u.Host
 	}
+	return nil
+}
+
+// wireSecrets chooses the secret store for Autosync's tokens: Key Vault
+// with the managed identity when KEYVAULT_URL is set (required in azure
+// mode), else a 0600 file store under SECRETS_DIR (default DATA_DIR/secrets).
+func wireSecrets(a *app.App, mode, dataDir string) error {
+	if u := os.Getenv("KEYVAULT_URL"); u != "" {
+		kv, err := keyvault.NewManagedIdentity(u, os.Getenv("IDENTITY_ENDPOINT"), os.Getenv("IDENTITY_HEADER"), os.Getenv("AZURE_CLIENT_ID"))
+		if err != nil {
+			return err
+		}
+		a.Secrets = kv
+		return nil
+	}
+	if mode == "azure" {
+		return errors.New("KEYVAULT_URL is required in azure mode")
+	}
+	st, err := secretfile.New(env("SECRETS_DIR", filepath.Join(dataDir, "secrets")))
+	if err != nil {
+		return err
+	}
+	a.Secrets = st
 	return nil
 }

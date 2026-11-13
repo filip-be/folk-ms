@@ -34,6 +34,52 @@ type User struct {
 	LastLoginAt  time.Time  `json:"lastLoginAt"`
 	// SessionsValidAfter invalidates sessions issued before it.
 	SessionsValidAfter time.Time `json:"sessionsValidAfter"`
+	// SignIns are the latest real sign-ins: a hash of each session's nonce
+	// and when it signed in. Actions that need a Recent sign-in check the
+	// session's nonce against them, so a cookie forged with the session key
+	// alone is not enough (T5).
+	SignIns []SignInRecord `json:"signIns,omitempty"`
+}
+
+// SignInRecord is one real sign-in.
+type SignInRecord struct {
+	NonceHash string    `json:"nonceHash"`
+	At        time.Time `json:"at"`
+}
+
+// RecentSignIn is how long a sign-in counts as recent.
+const RecentSignIn = 15 * time.Minute
+
+const maxSignIns = 8
+
+// HashNonce hashes a session nonce for the user document.
+func HashNonce(nonce string) string {
+	h := sha256.Sum256([]byte("folkms-session\x00" + nonce))
+	return hex.EncodeToString(h[:])
+}
+
+// RecordSignIn remembers a real sign-in, keeping the latest few.
+func (u *User) RecordSignIn(nonce string, now time.Time) {
+	u.SignIns = append(u.SignIns, SignInRecord{NonceHash: HashNonce(nonce), At: now})
+	if len(u.SignIns) > maxSignIns {
+		u.SignIns = slices.Clone(u.SignIns[len(u.SignIns)-maxSignIns:])
+	}
+}
+
+// SignedInAt returns when the session with this nonce signed in, if it is
+// one of the recorded sign-ins.
+func (u *User) SignedInAt(nonce string) *time.Time {
+	if nonce == "" {
+		return nil
+	}
+	h := HashNonce(nonce)
+	for i := len(u.SignIns) - 1; i >= 0; i-- {
+		if u.SignIns[i].NonceHash == h {
+			t := u.SignIns[i].At
+			return &t
+		}
+	}
+	return nil
 }
 
 // Identity is an issuer and subject at an identity provider.
@@ -69,6 +115,15 @@ func ValidEmail(s string) bool {
 type Principal struct {
 	User       *User
 	SuperAdmin bool
+	// SignedInAt is when this session's real sign-in happened, verified
+	// against the user document (nil when unknown).
+	SignedInAt *time.Time
+}
+
+// RecentlySignedIn reports whether the session signed in in the last
+// RecentSignIn.
+func (p Principal) RecentlySignedIn(now time.Time) bool {
+	return p.SignedInAt != nil && now.Sub(*p.SignedInAt) < RecentSignIn && !p.SignedInAt.After(now.Add(time.Minute))
 }
 
 // ID returns the user id.
@@ -80,7 +135,7 @@ func (p Principal) ID() string {
 }
 
 // CanManageOrg reports whether the principal may manage the Organization's
-// Events, Venues and Social Account Connection.
+// Events and Social Account Connection.
 func (p Principal) CanManageOrg(org string) bool {
 	if p.User == nil || p.User.Revoked {
 		return false

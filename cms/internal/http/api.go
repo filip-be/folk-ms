@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -50,51 +51,60 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.ListEvents(r.Context(), p, r.PathValue("org"), r.URL.Query().Get("view"))
 		return ok(w, v, err)
 	}))
+	// Adding an Event by hand: a Manual Event (decision 20).
 	m.Handle("POST /api/orgs/{org}/events", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var c domain.Content
-		if err := decode(w, r, &c); err != nil {
+		var in domain.ManualInput
+		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.CreateEvent(r.Context(), p, r.PathValue("org"), c)
+		v, err := s.App.CreateManualEvent(r.Context(), p, r.PathValue("org"), in)
 		return ok(w, v, err)
-	}))
-	m.Handle("POST /api/orgs/{org}/occurrences/preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var c domain.Content
-		if err := decode(w, r, &c); err != nil {
-			return err
-		}
-		occ, probs, err := s.App.PreviewOccurrences(p, r.PathValue("org"), c)
-		return ok(w, map[string]any{"occurrences": occ, "problems": probs}, err)
 	}))
 	m.Handle("GET /api/orgs/{org}/events/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		v, err := s.App.GetEvent(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
 		return ok(w, v, err)
 	}))
-	m.Handle("PUT /api/orgs/{org}/events/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var c domain.Content
-		if err := decode(w, r, &c); err != nil {
+	m.Handle("PUT /api/orgs/{org}/events/{id}/manual", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.ManualInput
+		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.UpdateEvent(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), c)
+		v, err := s.App.UpdateManualEvent(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/orgs/{org}/events/{id}/extras", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.ExtrasInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.SetExtras(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/events/{id}/override", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.OverrideInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.SetOverride(r.Context(), p, r.PathValue("org"), r.PathValue("id"), in)
 		return ok(w, v, err)
 	}))
 	m.Handle("POST /api/orgs/{org}/events/{id}/{action}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		org, id, ctx := r.PathValue("org"), r.PathValue("id"), r.Context()
 		switch r.PathValue("action") {
-		case "publish":
-			v, err := s.App.PublishEvent(ctx, p, org, id)
+		case "hide":
+			v, err := s.App.SetHidden(ctx, p, org, id, true)
 			return ok(w, v, err)
-		case "unpublish":
-			v, err := s.App.UnpublishEvent(ctx, p, org, id)
+		case "show":
+			v, err := s.App.SetHidden(ctx, p, org, id, false)
+			return ok(w, v, err)
+		case "dismiss-text":
+			v, err := s.App.DismissTextFlag(ctx, p, org, id)
 			return ok(w, v, err)
 		case "delete":
-			v, err := s.App.DeleteEvent(ctx, p, org, id)
+			v, err := s.App.RemoveManualEvent(ctx, p, org, id)
 			return ok(w, v, err)
 		case "restore":
 			v, err := s.App.RestoreEvent(ctx, p, org, id)
-			return ok(w, v, err)
-		case "duplicate":
-			v, err := s.App.DuplicateEvent(ctx, p, org, id)
 			return ok(w, v, err)
 		}
 		return domain.ErrNotFound
@@ -103,8 +113,9 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.EventPosts(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
 		return ok(w, v, err)
 	}))
-	// Posting starts a Post Request and answers the Meta sign-in URL; the
-	// posts are sent from /auth/meta/callback.
+	// Posting with Autosync off starts a Post Request and answers the Meta
+	// sign-in URL; the posts are sent from /auth/meta/callback. With Autosync
+	// on it posts at once and answers the outcome.
 	m.Handle("POST /api/orgs/{org}/events/{id}/posts", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		var in struct {
 			Posts   []domain.PostDraft `json:"posts"`
@@ -114,90 +125,30 @@ func (s *Server) routes(m *http.ServeMux) {
 			return err
 		}
 		org, id := r.PathValue("org"), r.PathValue("id")
-		req, err := s.App.RequestPost(r.Context(), p, org, id, in.Posts, in.Confirm)
+		res, err := s.App.Post(r.Context(), p, org, id, in.Posts, in.Confirm)
 		if err != nil {
 			return err
 		}
-		return s.startMetaLogin(w, p, metaState{Org: org, Request: req.ID, Event: id})
+		if res.Outcome != nil {
+			return ok(w, map[string]any{"outcome": res.Outcome}, nil)
+		}
+		return s.startMetaLogin(w, p, metaState{Org: org, Request: res.Request.ID, Event: id})
 	}))
 
-	// Facebook Events: the Handoff and the links Moderators record.
-	m.Handle("GET /api/orgs/{org}/events/{id}/facebook-event", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		v, err := s.App.FacebookEventHandoff(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+	// Sync.
+	m.Handle("GET /api/orgs/{org}/sync", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.SyncStatus(r.Context(), p, r.PathValue("org"))
 		return ok(w, v, err)
 	}))
-	m.Handle("GET /api/orgs/{org}/events/{id}/facebook-event/cover", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		data, err := s.App.FacebookEventCover(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
-		if err != nil {
-			return err
+	// "Sync now": with Autosync on it runs and answers the result; with it
+	// off it answers the Meta sign-in URL, whose callback runs the Sync.
+	m.Handle("POST /api/orgs/{org}/sync", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		org := r.PathValue("org")
+		res, err := s.App.SyncNow(r.Context(), p, org)
+		if errors.Is(err, app.ErrNeedsMetaLogin) {
+			return s.startMetaLogin(w, p, metaState{Org: org, Sync: true})
 		}
-		w.Header().Set("Content-Type", "image/jpeg")
-		w.Header().Set("Content-Disposition", `inline; filename="cover.jpg"`)
-		_, _ = w.Write(data)
-		return nil
-	}))
-	m.Handle("POST /api/orgs/{org}/events/{id}/facebook-event", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in app.LinkInput
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		v, err := s.App.AddFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), in)
-		return ok(w, v, err)
-	}))
-	m.Handle("PUT /api/orgs/{org}/events/{id}/facebook-event/{link}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in app.LinkInput
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		v, err := s.App.ChangeFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"), in)
-		return ok(w, v, err)
-	}))
-	m.Handle("DELETE /api/orgs/{org}/events/{id}/facebook-event/{link}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		v, err := s.App.RemoveFacebookEventLink(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"))
-		return ok(w, v, err)
-	}))
-	m.Handle("POST /api/orgs/{org}/events/{id}/facebook-event/{link}/dismiss", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		v, err := s.App.DismissFacebookEventFlag(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("link"))
-		return ok(w, v, err)
-	}))
-	m.Handle("POST /api/orgs/{org}/autofill-reports", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in app.AutofillReport
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		return ok(w, map[string]bool{"ok": true}, s.App.ReportAutofill(r.Context(), p, r.PathValue("org"), in))
-	}))
-
-	// Venues.
-	m.Handle("GET /api/orgs/{org}/venues", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		v, err := s.App.ListVenues(r.Context(), p, r.PathValue("org"))
-		return ok(w, v, err)
-	}))
-	m.Handle("POST /api/orgs/{org}/venues", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in domain.Venue
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		v, err := s.App.CreateVenue(r.Context(), p, r.PathValue("org"), in)
-		return ok(w, v, err)
-	}))
-	m.Handle("PUT /api/orgs/{org}/venues/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in domain.Venue
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		v, err := s.App.UpdateVenue(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in)
-		return ok(w, v, err)
-	}))
-	m.Handle("POST /api/orgs/{org}/venues/{id}/archive", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in struct {
-			Archived bool `json:"archived"`
-		}
-		if err := decode(w, r, &in); err != nil {
-			return err
-		}
-		v, err := s.App.SetVenueArchived(r.Context(), p, r.PathValue("org"), r.PathValue("id"), in.Archived)
-		return ok(w, v, err)
+		return ok(w, map[string]any{"result": res}, err)
 	}))
 
 	// Images: the raw file is the body.
@@ -223,13 +174,31 @@ func (s *Server) routes(m *http.ServeMux) {
 	}))
 	m.Handle("POST /api/orgs/{org}/social/select", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		var in struct {
-			PageID string `json:"pageId"`
+			PageID  string `json:"pageId"`
+			Confirm bool   `json:"confirm"`
 		}
 		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.SelectPage(r.Context(), p, r.PathValue("org"), in.PageID)
+		v, err := s.App.SelectPage(r.Context(), p, r.PathValue("org"), in.PageID, in.Confirm)
 		return ok(w, v, err)
+	}))
+	// Autosync on needs a Meta sign-in that issues the token; off deletes it.
+	m.Handle("POST /api/orgs/{org}/social/autosync", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			On bool `json:"on"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		org := r.PathValue("org")
+		if !in.On {
+			return ok(w, map[string]bool{"ok": true}, s.App.DisableAutosync(r.Context(), p, org))
+		}
+		if err := s.App.StartAutosync(r.Context(), p, org); err != nil {
+			return err
+		}
+		return s.startMetaLogin(w, p, metaState{Org: org, Autosync: true})
 	}))
 	m.Handle("POST /api/orgs/{org}/social/disconnect", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		return ok(w, map[string]bool{"ok": true}, s.App.Disconnect(r.Context(), p, r.PathValue("org")))
@@ -287,6 +256,13 @@ func (s *Server) routes(m *http.ServeMux) {
 		}
 		n, err := s.App.PurgeBin(r.Context())
 		return ok(w, map[string]int{"purged": n}, err)
+	}))
+	m.Handle("POST /api/admin/autosync", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		if !p.SuperAdmin {
+			return domain.ErrForbidden
+		}
+		n, err := s.App.AutosyncAll(r.Context())
+		return ok(w, map[string]int{"synced": n}, err)
 	}))
 	m.Handle("POST /api/admin/rebuild", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		if !p.SuperAdmin {

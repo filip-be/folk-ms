@@ -24,14 +24,16 @@ type App struct {
 	Pub    ports.PublicStore
 	Audit  ports.AppendLog
 	Social ports.SocialPublisher
-	Images ports.ImageProcessor
-	Clock  ports.Clock
-	Rand   io.Reader
-	Log    *slog.Logger
+	// Events reads Facebook Events and issues Autosync's page token.
+	Events ports.FacebookEvents
+	// Secrets keeps the Facebook page tokens of Organizations with Autosync on.
+	Secrets ports.SecretStore
+	Images  ports.ImageProcessor
+	Clock   ports.Clock
+	Rand    io.Reader
+	Log     *slog.Logger
 
 	SuperAdminEmail string
-
-	handoffKey []byte
 
 	orgs    []*domain.Organization
 	orgByID map[string]*domain.Organization
@@ -169,18 +171,24 @@ func loadAll[T any](ctx context.Context, s ports.DocumentStore, prefix string) (
 }
 
 // Keys of the documents in the private store.
-func eventKey(org, id string) string       { return "orgs/" + org + "/events/" + id + ".json" }
-func eventsPrefix(org string) string       { return "orgs/" + org + "/events/" }
-func shortIDKey(org, sid string) string    { return "orgs/" + org + "/shortids/" + sid + ".json" }
-func venueKey(org, id string) string       { return "orgs/" + org + "/venues/" + id + ".json" }
-func venuesPrefix(org string) string       { return "orgs/" + org + "/venues/" }
-func postsKey(org, eventID string) string  { return "orgs/" + org + "/posts/" + eventID + ".json" }
-func connectionKey(org string) string      { return "orgs/" + org + "/social/connection.json" }
-func pendingPagesPrefix(org string) string { return "orgs/" + org + "/social/pending-" }
+func eventKey(org, id string) string    { return "orgs/" + org + "/events/" + id + ".json" }
+func eventsPrefix(org string) string    { return "orgs/" + org + "/events/" }
+func shortIDKey(org, sid string) string { return "orgs/" + org + "/shortids/" + sid + ".json" }
+
+// fbIndexKey is the create-only index document that makes one Facebook
+// Event id map to one Event of the Organization.
+func fbIndexKey(org, fbID string) string    { return "orgs/" + org + "/facebook-events/" + fbID + ".json" }
+func syncStatusKey(org string) string       { return "orgs/" + org + "/sync/status.json" }
+func postCounterKey(org, day string) string { return "orgs/" + org + "/social/daily/" + day + ".json" }
+func postsKey(org, eventID string) string   { return "orgs/" + org + "/posts/" + eventID + ".json" }
+func connectionKey(org string) string       { return "orgs/" + org + "/social/connection.json" }
+func pendingPagesPrefix(org string) string  { return "orgs/" + org + "/social/pending-" }
 func pendingPagesKey(org, user string) string {
 	return pendingPagesPrefix(org) + user + ".json"
 }
 func postRequestsPrefix(org string) string { return "orgs/" + org + "/social/requests/" }
+func syncRequestsPrefix(org string) string { return "orgs/" + org + "/sync/requests/" }
+func syncRequestKey(org, id string) string { return syncRequestsPrefix(org) + id + ".json" }
 func postRequestKey(org, id string) string { return postRequestsPrefix(org) + id + ".json" }
 func userKey(id string) string             { return "users/" + id + ".json" }
 func invitationKey(id string) string       { return "invitations/" + id + ".json" }
