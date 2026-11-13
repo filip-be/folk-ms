@@ -188,9 +188,10 @@ func (a *App) claimSync(ctx context.Context, org, holder string, minInterval tim
 	return nil
 }
 
-func (a *App) finishSync(ctx context.Context, org, holder, by string, r domain.SyncResult, runErr error) {
+func (a *App) finishSync(ctx context.Context, org, holder, by, email string, r domain.SyncResult, runErr error) {
 	_, _, err := mutate(ctx, a.Docs, syncStatusKey(org), func(st *domain.SyncStatus) error {
 		st.Finish(holder, by, r, runErr, a.now())
+		st.LastRunByEmail = email
 		return nil
 	})
 	if err != nil {
@@ -212,7 +213,11 @@ func (a *App) runSync(ctx context.Context, p domain.Principal, conn *domain.Conn
 	}
 	ctx = context.WithoutCancel(ctx)
 	r, err := a.syncPage(ctx, org, conn.PageID, token)
-	a.finishSync(ctx, org, holder, by, r, err)
+	email := ""
+	if p.User != nil {
+		email = p.User.Email
+	}
+	a.finishSync(ctx, org, holder, by, email, r, err)
 	details := map[string]any{"page": conn.PageID, "listed": r.Listed, "added": r.Added, "updated": r.Updated, "binned": r.Binned,
 		"conflicts": r.Conflicts, "token": "sign-in"}
 	if conn.Autosync != nil {

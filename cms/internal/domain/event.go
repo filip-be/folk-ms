@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -765,4 +766,50 @@ func validLocation(l *Location, field string, p *problems) (*Location, bool) {
 		ok = false
 	}
 	return out, ok
+}
+
+// MaxAltLen bounds an image's alt text.
+const MaxAltLen = 300
+
+// CheckImage accepts an image the client sends back only when it names
+// files the CMS stored for this Organization (media/{org}/{id}-*.jpg, as
+// UploadImage writes them), and cleans its alt text.
+func CheckImage(org string, img *Image, field string) (*Image, error) {
+	if img == nil {
+		return nil, nil
+	}
+	bad := Problem(field, "nieprawidłowy obraz; prześlij go ponownie", "invalid image; upload it again")
+	if len(img.ID) != 16 || !isHex(img.ID) || len(img.Variants) == 0 || len(img.Variants) > 8 {
+		return nil, bad
+	}
+	prefix := "media/" + org + "/" + img.ID + "-"
+	ok := func(v ImageVariant) bool {
+		rest, found := strings.CutPrefix(v.Path, prefix)
+		return found && strings.HasSuffix(rest, ".jpg") && len(rest) <= 16 && v.Width > 0 && v.Height > 0 &&
+			strings.Trim(strings.TrimSuffix(rest, ".jpg"), "abcdefghijklmnopqrstuvwxyz0123456789") == ""
+	}
+	out := &Image{ID: img.ID, Alt: cleanBi(img.Alt, MaxAltLen)}
+	for _, v := range img.Variants {
+		if !ok(v) {
+			return nil, bad
+		}
+		out.Variants = append(out.Variants, v)
+	}
+	if img.Instagram != nil {
+		if !ok(*img.Instagram) {
+			return nil, bad
+		}
+		ig := *img.Instagram
+		out.Instagram = &ig
+	}
+	return out, nil
+}
+
+func isHex(s string) bool {
+	for _, c := range s {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }

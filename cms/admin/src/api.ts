@@ -199,6 +199,7 @@ export interface SyncStatus {
   lastRunAt?: string;
   /** A user id, or "autosync". */
   lastRunBy?: string;
+  lastRunByEmail?: string;
   lastSuccessAt?: string;
   lastError?: string;
   lastResult?: SyncResult;

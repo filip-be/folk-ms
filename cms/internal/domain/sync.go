@@ -106,15 +106,16 @@ type SyncResult struct {
 // SyncStatus is an Organization's sync status document; it doubles as the
 // lease that keeps two runs from overlapping (T10).
 type SyncStatus struct {
-	OrgID         string      `json:"orgId"`
-	LeaseUntil    time.Time   `json:"leaseUntil"`
-	LeaseHolder   string      `json:"leaseHolder,omitempty"`
-	FirstSyncAt   *time.Time  `json:"firstSyncAt,omitempty"`
-	LastRunAt     *time.Time  `json:"lastRunAt,omitempty"`
-	LastRunBy     string      `json:"lastRunBy,omitempty"` // a user id, or "autosync"
-	LastSuccessAt *time.Time  `json:"lastSuccessAt,omitempty"`
-	LastError     string      `json:"lastError,omitempty"`
-	LastResult    *SyncResult `json:"lastResult,omitempty"`
+	OrgID          string      `json:"orgId"`
+	LeaseUntil     time.Time   `json:"leaseUntil"`
+	LeaseHolder    string      `json:"leaseHolder,omitempty"`
+	FirstSyncAt    *time.Time  `json:"firstSyncAt,omitempty"`
+	LastRunAt      *time.Time  `json:"lastRunAt,omitempty"`
+	LastRunBy      string      `json:"lastRunBy,omitempty"` // a user id, or "autosync"
+	LastRunByEmail string      `json:"lastRunByEmail,omitempty"`
+	LastSuccessAt  *time.Time  `json:"lastSuccessAt,omitempty"`
+	LastError      string      `json:"lastError,omitempty"`
+	LastResult     *SyncResult `json:"lastResult,omitempty"`
 }
 
 // Claim takes the lease for a run, or reports why it cannot: ErrConflict

@@ -206,9 +206,11 @@ export class EventScreen extends View {
       <div id="extras-problems"></div>
       ${textField({ id: "x-nameEn", label: enLabel(L("Nazwa", "Name")), value: x.nameEn, path: "nameEn", max: 200 })}
       ${textField({ id: "x-descriptionEn", label: enLabel(L("Opis", "Description")), value: x.descriptionEn, path: "descriptionEn", kind: "long", max: 10000 })}
-      <div class="grid">
+      <div class="pair">
         ${textField({ id: "x-summary-pl", label: html`${L("Skrót", "Summary")} <span class="muted">(PL)</span>`, value: x.summary.pl, path: "summary.pl", kind: "short", max: 500 })}
         ${textField({ id: "x-summary-en", label: enLabel(L("Skrót", "Summary")), value: x.summary.en, path: "summary.en", kind: "short", max: 500 })}
+        </div>
+        <div class="pair">
         ${textField({ id: "x-price-pl", label: html`${L("Cena / wstęp", "Price / admission")} <span class="muted">(PL)</span>`, value: x.price.pl, path: "price.pl", max: 500 })}
         ${textField({ id: "x-price-en", label: enLabel(L("Cena / wstęp", "Price / admission")), value: x.price.en, path: "price.en", max: 500 })}
       </div>

@@ -142,7 +142,7 @@ class PostView extends View {
     // With the stored token, posting needs a Recent sign-in (decision 13).
     const guarded = d.storedToken && !conn.recentSignIn;
     const limitReached = d.postsToday >= d.dailyLimit;
-    const canPost = conn.connected && !guarded && !limitReached && !conn.autosync?.needsReconnect;
+    const canPost = PLATFORMS.some((pl) => this.available(pl)) && !guarded && !limitReached && !conn.autosync?.needsReconnect;
     this.set(html`${back}
       <h1>${L("Ogłoś w mediach", "Announce on social media")}</h1>
       ${guarded ? recentSignInBanner(true) : ""}

@@ -395,3 +395,22 @@ func TestSocialRetryRule(t *testing.T) {
 		t.Fatal("caption too long")
 	}
 }
+
+func TestCheckImage(t *testing.T) {
+	good := &Image{ID: "0123456789abcdef", Alt: Text{PL: " opis\x00 "}, Variants: []ImageVariant{{Width: 960, Height: 540, Path: "media/org-a/0123456789abcdef-960.jpg"}},
+		Instagram: &ImageVariant{Width: 1080, Height: 1350, Path: "media/org-a/0123456789abcdef-ig.jpg"}}
+	img, err := CheckImage("org-a", good, "cover")
+	if err != nil || img.Alt.PL != "opis" {
+		t.Fatalf("%v %+v", err, img)
+	}
+	for _, path := range []string{"media/org-b/0123456789abcdef-960.jpg", "media/org-a/0123456789abcdef-960.png", "https://evil.example/x.jpg", "media/org-a/0123456789abcdef-../../x.jpg"} {
+		bad := *good
+		bad.Variants = []ImageVariant{{Width: 1, Height: 1, Path: path}}
+		if _, err := CheckImage("org-a", &bad, "cover"); !IsValidation(err) {
+			t.Errorf("accepted %q", path)
+		}
+	}
+	if img, err := CheckImage("org-a", nil, "cover"); img != nil || err != nil {
+		t.Fatal("nil is no image")
+	}
+}

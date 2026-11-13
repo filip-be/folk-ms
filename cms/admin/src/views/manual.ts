@@ -146,11 +146,11 @@ export class ManualView extends View {
 
         <section class="card" aria-labelledby="m-text-title">
           <h2 id="m-text-title">${L("Nazwa i opis", "Name and description")}</h2>
-          <div class="grid">
+          <div class="pair">
             ${textField({ id: "m-name-pl", label: plLabel(L("Nazwa", "Name")), value: c.name.pl, path: "name.pl", required: true, max: 200 })}
             ${textField({ id: "m-name-en", label: enLabel(L("Nazwa", "Name")), value: c.name.en, path: "name.en", max: 200 })}
           </div>
-          <div class="grid">
+          <div class="pair">
             ${textField({ id: "m-description-pl", label: plLabel(L("Opis", "Description")), value: c.description.pl, path: "description.pl", kind: "long", max: 10000 })}
             ${textField({ id: "m-description-en", label: enLabel(L("Opis", "Description")), value: c.description.en, path: "description.en", kind: "long", max: 10000 })}
           </div>
@@ -185,7 +185,7 @@ export class ManualView extends View {
           <h2 id="m-img-title">${L("Obrazy", "Images")}</h2>
           ${imageBlock(this.me, "cover", c.cover, L("Zdjęcie główne (poziome)", "Cover image (landscape)"), binned)}
           ${c.cover
-            ? html`<div class="grid">
+            ? html`<div class="pair">
                 ${textField({ id: "m-alt-pl", label: plLabel(L("Tekst alternatywny", "Alternative text")), value: c.cover.alt?.pl, path: "cover.alt.pl", max: 200 })}
                 ${textField({ id: "m-alt-en", label: enLabel(L("Tekst alternatywny", "Alternative text")), value: c.cover.alt?.en, path: "cover.alt.en", max: 200 })}
               </div>`
@@ -195,9 +195,11 @@ export class ManualView extends View {
 
         <section class="card" aria-labelledby="m-extra-title">
           <h2 id="m-extra-title">${L("Skrót i cena", "Summary and price")}</h2>
-          <div class="grid">
+          <div class="pair">
             ${textField({ id: "m-summary-pl", label: plLabel(L("Skrót", "Summary")), value: c.summary.pl, path: "summary.pl", kind: "short", max: 500 })}
             ${textField({ id: "m-summary-en", label: enLabel(L("Skrót", "Summary")), value: c.summary.en, path: "summary.en", kind: "short", max: 500 })}
+            </div>
+            <div class="pair">
             ${textField({ id: "m-price-pl", label: plLabel(L("Cena / wstęp", "Price / admission")), value: c.price.pl, path: "price.pl", max: 500 })}
             ${textField({ id: "m-price-en", label: enLabel(L("Cena / wstęp", "Price / admission")), value: c.price.en, path: "price.en", max: 500 })}
           </div>

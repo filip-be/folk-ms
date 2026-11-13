@@ -645,7 +645,7 @@ func TestPostOutcomesMatchAdmin(t *testing.T) {
 	}
 	for _, code := range []string{
 		app.RefusedCancelled, app.RefusedExpired, app.RefusedLogin, app.RefusedPage, app.RefusedInvalid,
-		app.RefusedInstagram, app.RefusedQuota, app.RefusedConfirm, string(domain.PostPosted), string(domain.PostFailed),
+		app.RefusedInstagram, app.RefusedQuota, app.RefusedLimit, app.RefusedToken, app.RefusedConfirm, string(domain.PostPosted), string(domain.PostFailed),
 	} {
 		if !strings.Contains(string(src), `case "`+code+`":`) {
 			t.Errorf("cms/admin/src/views/post.ts has no message for the outcome %q", code)

@@ -351,6 +351,8 @@ textarea { resize: vertical; }
 fieldset { margin: 0 0 var(--space-16); padding: 0; border: none; }
 legend { margin-bottom: var(--space-6); padding: 0; font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 var(--space-24); }
+/* A Polish and an English field side by side; stacked on narrow screens. */
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 0 var(--space-24); }
 .chip {
   display: inline-flex; align-items: center; margin: 0 var(--space-6) var(--space-6) 0; padding: var(--space-6) var(--space-12);
   border: 1px solid var(--line); border-radius: var(--radius-pill); font-weight: var(--weight-medium); color: var(--text); cursor: pointer;

@@ -111,7 +111,7 @@ class EventsView extends View {
 
   private syncPanel(): ReturnType<typeof html> {
     const s = this.sync;
-    const by = s.lastRunBy === "autosync" ? L("Autosync", "Autosync") : s.lastRunBy ? L("moderator", "a Moderator") : "";
+    const by = s.lastRunBy === "autosync" ? L("Autosync", "Autosync") : s.lastRunBy ? s.lastRunByEmail || L("moderator", "a Moderator") : "";
     const failed = s.lastError && (!s.lastSuccessAt || (!!s.lastRunAt && Date.parse(s.lastRunAt) > Date.parse(s.lastSuccessAt)));
     return html`<section class="card sync-panel" aria-labelledby="sync-title">
       <div class="section-head">

@@ -251,6 +251,9 @@ func (a *App) CreateManualEvent(ctx context.Context, p domain.Principal, org str
 	if err != nil {
 		return EventView{}, err
 	}
+	if err := checkImages(org, &in.Cover, "cover", &in.SocialImage, "socialImage"); err != nil {
+		return EventView{}, err
+	}
 	m, x, err := domain.ValidateManual(in, o.Location())
 	if err != nil {
 		return EventView{}, err
@@ -284,6 +287,9 @@ func (a *App) CreateManualEvent(ctx context.Context, p domain.Principal, org str
 func (a *App) UpdateManualEvent(ctx context.Context, p domain.Principal, org, id, etag string, in domain.ManualInput) (EventView, error) {
 	o, err := a.authorize(p, org)
 	if err != nil {
+		return EventView{}, err
+	}
+	if err := checkImages(org, &in.Cover, "cover", &in.SocialImage, "socialImage"); err != nil {
 		return EventView{}, err
 	}
 	m, x, err := domain.ValidateManual(in, o.Location())
@@ -342,6 +348,9 @@ func (a *App) SetOverride(ctx context.Context, p domain.Principal, org, id strin
 	case in.Keep:
 		action = "event.override_kept"
 	}
+	if err := checkImages(org, &in.Cover, "cover"); err != nil {
+		return EventView{}, err
+	}
 	return a.edit(ctx, p, o, id, "", action, func(e *domain.Event) error {
 		return e.SetOverride(in, p.ID(), a.now())
 	})
@@ -355,6 +364,9 @@ func (a *App) SetExtras(ctx context.Context, p domain.Principal, org, id, etag s
 	}
 	if etag == "" {
 		return EventView{}, fmt.Errorf("%w: missing version", domain.ErrConflict)
+	}
+	if err := checkImages(org, &in.SocialImage, "socialImage"); err != nil {
+		return EventView{}, err
 	}
 	return a.edit(ctx, p, o, id, etag, "event.extras_updated", func(e *domain.Event) error {
 		return e.SetExtras(in, p.ID(), a.now())
@@ -471,4 +483,17 @@ func (a *App) PurgeBin(ctx context.Context) (int, error) {
 		}
 	}
 	return purged, errors.Join(errs...)
+}
+
+// checkImages runs domain.CheckImage on pairs of (*image pointer, field).
+func checkImages(org string, pairs ...any) error {
+	for i := 0; i+1 < len(pairs); i += 2 {
+		img, field := pairs[i].(**domain.Image), pairs[i+1].(string)
+		c, err := domain.CheckImage(org, *img, field)
+		if err != nil {
+			return err
+		}
+		*img = c
+	}
+	return nil
 }
