@@ -601,6 +601,24 @@ func run(ctx context.Context, cfg config, out io.Writer) error {
 	for _, id := range cfg.CoHosted {
 		a = s.get(ctx, "/"+url.PathEscape(id), url.Values{"fields": {"id,name,owner,start_time,updated_time"}}, pageToken, true)
 		s.printf("- %s: in the list **%v**; read by id with page token: %s %s\n", id, listed[id], okOr(a), compact(a))
+		a = s.get(ctx, "/"+url.PathEscape(id), url.Values{"fields": {strings.Join(eventFields, ",")}}, ll.AccessToken, true)
+		s.printf("  - read by id with the user token: %s %s\n", okOr(a), compact(a))
+	}
+	// user_events: the events the signed-in person hosts or answered.
+	userEvents := map[string]bool{}
+	a = s.get(ctx, "/me/events", url.Values{"fields": {"id,name,start_time,rsvp_status"}, "limit": {"100"}}, ll.AccessToken, true)
+	if !a.ok() {
+		s.printf("- /me/events (needs `user_events`; run with `-scopes user_events`): %s\n", okOr(a))
+	} else {
+		var l listing
+		_ = json.Unmarshal(a.Body, &l)
+		for _, e := range parseEvents(l.Data) {
+			userEvents[e.ID] = true
+		}
+		s.printf("- /me/events: %d events %s\n", len(l.Data), compact(a))
+		for _, id := range cfg.CoHosted {
+			s.printf("  - %s in /me/events: **%v**\n", id, userEvents[id])
+		}
 	}
 	s.printf("\n")
 

@@ -56,6 +56,8 @@ func fakeGraph(t *testing.T, eventsOK bool) *httptest.Server {
 				map[string]any{"permission": "pages_show_list", "status": "granted"},
 				map[string]any{"permission": "pages_manage_posts", "status": "declined"},
 			}})
+		case path == "/me/events":
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{map[string]any{"id": "77", "name": "Cohosted", "rsvp_status": "attending"}}})
 		case path == "/me/accounts":
 			json.NewEncoder(w).Encode(map[string]any{"data": []any{
 				map[string]any{"id": "42", "name": "Test", "access_token": pageTok, "tasks": []string{"MANAGE", "CREATE_CONTENT"}},
@@ -91,7 +93,7 @@ func TestReportGo(t *testing.T) {
 	for _, want := range []string{
 		"**GO**", "**2 events**", "refused (HTTP 400, code 100", "expires_at 0 (never)",
 		"data_access_expires_at 2026-", "Read child 11 by id: OK", "co-hosted events appear in the list",
-		"2: in the list **true**", "77: in the list **false**", "gone with page token: **failed**", "`X-App-Usage`",
+		"2: in the list **true**", "77: in the list **false**", "read by id with the user token: OK", "/me/events: 1 events", "77 in /me/events: **true**", "gone with page token: **failed**", "`X-App-Usage`",
 		"Permissions granted: `pages_show_list`", "pages_manage_posts (declined)", "**Test**: id `42`, tasks `MANAGE,CREATE_CONTENT`",
 	} {
 		if !strings.Contains(rep, want) {
