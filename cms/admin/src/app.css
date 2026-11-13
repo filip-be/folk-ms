@@ -411,11 +411,52 @@ table.audit td.small { max-width: 30rem; word-break: break-word; }
   &.binned, &.failed, &.revoked, &.expired { background: var(--danger-soft); color: var(--danger); }
 }
 
-/* ── Messages ────────────────────────────────────────────────────────── */
-.banner {
-  margin: var(--space-12) 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-md);
+/* A row of flag badges under a name (patterns.ts, flagBadges). */
+.badges {
+  display: flex; flex-wrap: wrap; gap: var(--space-4); margin-top: var(--space-4);
 
+  & .badge { white-space: normal; }
+}
+
+/* ── Messages ────────────────────────────────────────────────────────── */
+/* A banner: a message about the whole screen, with an optional action
+   (a button or link after the text). info, warn, danger by severity. */
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-8) var(--space-16);
+  margin: var(--space-12) 0; padding: var(--space-12) var(--space-16); border-radius: var(--radius-md);
+  background: var(--surface-sunken); color: var(--text);
+
+  & > p, & > ul { flex: 1 1 20rem; margin: 0; }
+  & > p:has(+ ul) { flex-basis: 100%; }
+  & ul { padding-left: var(--space-20); }
+  & li + li { margin-top: var(--space-4); }
+  & a:not(.button) { color: inherit; font-weight: var(--weight-semibold); }
+  &.info { background: var(--info-soft); color: var(--info); }
   &.warn { background: var(--warn-soft); color: var(--warn); }
+  &.danger { background: var(--danger-soft); color: var(--danger); }
+}
+
+/* ── Switch: a checkbox with role=switch that acts at once (Hide, Autosync). ── */
+label.switch {
+  display: inline-flex; align-items: center; gap: var(--space-8); min-height: var(--control-height);
+  font-weight: var(--weight-medium); color: var(--text); cursor: pointer;
+
+  & input { position: absolute; width: 1px; height: 1px; margin: 0; opacity: 0; }
+  & .track {
+    position: relative; flex: none; width: var(--space-40); height: var(--space-24);
+    border-radius: var(--radius-pill); background: var(--line); transition: background var(--duration);
+
+    &::after {
+      content: ""; position: absolute; top: var(--space-2); left: var(--space-2); width: var(--space-20); height: var(--space-20);
+      border-radius: var(--radius-pill); background: var(--surface); box-shadow: var(--shadow-sm); transition: transform var(--duration);
+    }
+  }
+  & input:checked + .track { background: var(--action); }
+  & input:checked + .track::after { transform: translateX(var(--space-16)); }
+  & input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  &:has(input:disabled) { color: var(--disabled-text); cursor: not-allowed; }
+  & input:disabled + .track { background: var(--disabled-line); }
+  & input:disabled + .track::after { background: var(--disabled-bg); box-shadow: none; }
 }
 .problems {
   margin-bottom: var(--space-16); padding: var(--space-12) var(--space-16); border-radius: var(--radius-md);
@@ -425,8 +466,6 @@ table.audit td.small { max-width: 30rem; word-break: break-word; }
   /* Links to the fields (ui.ts, markProblems). */
   & button.link { display: inline; padding: 0; font: inherit; font-weight: var(--weight-semibold); color: inherit; }
 }
-.hint { margin: 0 0 var(--space-8); padding-left: var(--space-20); color: var(--warn); }
-
 /* ── Event editor ────────────────────────────────────────────────────── */
 .section-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: var(--space-16); }
 .lang-tabs {
@@ -438,13 +477,6 @@ table.audit td.small { max-width: 30rem; word-break: break-word; }
 
     &[aria-selected=true] { background: var(--surface); color: var(--text); box-shadow: var(--shadow-sm); }
   }
-}
-.editor {
-  &[data-lang=pl] .lang-en, &[data-lang=en] .lang-pl { display: none; }
-  & .k-multiDay, & .k-recurring, & .k-single { display: none; }
-  &[data-kind=multiDay] .k-multiDay, &[data-kind=recurring] .k-recurring, &[data-kind=single] .k-single { display: block; }
-  &[data-kind=recurring] .grid.k-recurring { display: grid; }
-  &:not([data-freq=monthly]) .nth { display: none; }
 }
 .permalink { word-break: break-all; }
 ol.occurrences {
@@ -460,8 +492,40 @@ ol.occurrences {
     &.past { opacity: .6; }
   }
   & .when { min-width: min(16rem, 100%); font-variant-numeric: tabular-nums; }
-  & details summary { font-size: var(--text-s); color: var(--accent); cursor: pointer; }
 }
+
+/* Override row (event.ts): the Facebook value read-only beside the CMS control. */
+form.override {
+  padding: var(--space-16) 0; border-top: 1px solid var(--line-subtle);
+
+  & .override-head {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-bottom: var(--space-8);
+
+    & h3 { margin: 0; }
+  }
+  & .override-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr)); gap: 0 var(--space-24); }
+  & .override-same { margin-top: var(--space-24); }
+  & .label { margin: 0 0 var(--space-6); font-weight: var(--weight-medium); color: var(--text-secondary); }
+  & fieldset { margin: 0; }
+  &.changed .override-head h3::before { content: "● " / ""; color: var(--warn); }
+}
+.override-image {
+  display: block; max-width: min(320px, 100%); height: auto; max-height: 200px;
+  border: 1px solid var(--line); border-radius: var(--radius-md);
+}
+/* Manual Event dates entered one by one (manual.ts). */
+ol.occurrence-list {
+  margin: 0 0 var(--space-8); padding: 0; list-style: none;
+
+  & li {
+    display: grid; grid-template-columns: repeat(4, minmax(8rem, 1fr)) auto auto; align-items: end; gap: 0 var(--space-12);
+    padding: var(--space-8) 0; border-bottom: 1px solid var(--line-subtle);
+
+    & .field { margin-bottom: var(--space-4); }
+    & label.inline, & button { margin-bottom: var(--space-12); }
+  }
+}
+.form-actions { margin-top: var(--space-16); }
 
 /* ── Images ──────────────────────────────────────────────────────────── */
 .image-block {
@@ -502,19 +566,8 @@ ul.history {
   & li { padding: var(--space-6) 0; border-bottom: 1px solid var(--line-subtle); }
 }
 
-/* ── Venues, users, Facebook pages ───────────────────────────────────── */
-ul.venues, ul.users, ul.pages { margin: 0 0 var(--space-16); padding: 0; list-style: none; }
-.venue {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: var(--space-16);
-
-  &.archived { opacity: .65; }
-}
-.new-venue {
-  margin-bottom: var(--space-16); padding: var(--space-16) var(--space-20);
-  background: var(--bg); border: 1px dashed var(--line); border-radius: var(--radius-lg);
-
-  & h3 { margin-top: 0; }
-}
+/* ── Users, Facebook pages ────────────────────────────────────────────── */
+ul.users, ul.pages { margin: 0 0 var(--space-16); padding: 0; list-style: none; }
 ul.users li {
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-8);
   padding: var(--space-12) 0; border-bottom: 1px solid var(--line-subtle);
@@ -537,20 +590,6 @@ dl.facts {
   & dt { color: var(--muted); }
   & dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 }
-
-/* ── Facebook Event Handoff ──────────────────────────────────────────── */
-ul.fb-links {
-  margin: 0; padding: 0; list-style: none;
-
-  & li {
-    padding: var(--space-10) 0; border-top: 1px solid var(--line);
-
-    &.detached { background: var(--warn-soft); }
-  }
-  & .row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6); margin-top: var(--space-6); }
-  & input[type="url"] { flex: 1 1 18rem; min-width: 0; }
-}
-.fb-handoff textarea { width: 100%; }
 
 /* ── Design system reference (views/design.ts) ───────────────────────── */
 .swatches {
@@ -617,6 +656,7 @@ table.type-scale {
     & th, & td { padding: var(--space-10) var(--space-12); }
     & th:nth-child(3), & td:nth-child(3) { display: none; }
   }
+  ol.occurrence-list li { grid-template-columns: 1fr 1fr; }
   .toolbar.sticky { position: static; }
   .toast { left: calc(var(--space-16) + var(--safe-left)); max-width: none; }
 }

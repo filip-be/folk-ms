@@ -7,33 +7,8 @@ export interface Text {
   pl: string;
   en?: string;
 }
-export type Kind = "single" | "multiDay" | "recurring";
-export type Freq = "weekly" | "biweekly" | "monthly";
-export type Status = "draft" | "published" | "binned";
+export type Source = "facebook" | "manual";
 
-export interface Recurrence {
-  freq: Freq;
-  weekday: number;
-  nth?: number;
-  endDate: string;
-}
-export interface Exception {
-  date: string;
-  cancelled?: boolean;
-  startTime?: string;
-  endTime?: string;
-  venueId?: string;
-  note?: Text;
-}
-export interface Schedule {
-  kind: Kind;
-  startDate: string;
-  startTime: string;
-  endDate?: string;
-  endTime: string;
-  recurrence?: Recurrence;
-  exceptions?: Exception[];
-}
 export interface ImageVariant {
   width: number;
   height: number;
@@ -45,36 +20,104 @@ export interface Image {
   variants: ImageVariant[];
   instagram?: ImageVariant;
 }
-export interface Content {
-  slug: string;
-  title: Text;
-  summary?: Text;
-  description?: Text;
-  schedule: Schedule;
-  venueId?: string;
-  price?: { text?: Text; url?: string };
+export interface Location {
+  name: string;
+  address?: string;
+  mapUrl?: string;
+}
+/** One date of an Event; facebookId is the Facebook Event of that date. */
+export interface Occurrence {
+  facebookId?: string;
+  start: string;
+  end: string;
+  cancelled?: boolean;
+}
+/** What Sync last read from Facebook (written only by Sync). */
+export interface FacebookPart {
+  pageId: string;
+  eventId: string;
+  name: string;
+  description?: string;
+  location?: Location;
+  online?: boolean;
+  cancelled?: boolean;
+  ticketUrl?: string;
+  coverId?: string;
   cover?: Image;
+  occurrences: Occurrence[];
+  updatedTime: string;
+  syncedAt: string;
+}
+export interface TextOverride {
+  value: string;
+  against: string;
+}
+export interface Overrides {
+  name?: TextOverride;
+  description?: TextOverride;
+  location?: { value?: Location; against?: Location };
+  cover?: { value?: Image; against: string };
+  ticketUrl?: TextOverride;
+}
+export type OverrideField = keyof Overrides;
+export interface Extras {
+  nameEn?: string;
+  descriptionEn?: string;
+  summary?: Text;
+  price?: Text;
   socialImage?: Image;
+  writtenAgainst?: { name: string; description: string };
+}
+export interface ManualPart {
+  name: Text;
+  description?: Text;
+  location?: Location;
+  online?: boolean;
+  cover?: Image;
+  ticketUrl?: string;
+  facebookEventId: string;
+  occurrences: Occurrence[];
 }
 export interface Event {
   id: string;
   orgId: string;
   shortId: string;
-  draft: Content;
-  published?: Content;
-  publishedAt?: string;
+  source: Source;
+  facebook?: FacebookPart;
+  manual?: ManualPart;
+  overrides?: Overrides;
+  extras?: Extras;
+  hidden?: boolean;
+  syncConflict?: boolean;
   deletedAt?: string;
-  draftRevision: number;
-  publishedRevision?: number;
+  binReason?: "gone" | "removed";
+  createdAt: string;
   updatedAt: string;
 }
-export interface Occurrence {
-  key: string;
-  start: string;
-  end: string;
+/** The values the Site shows. */
+export interface Effective {
+  name: Text;
+  description: Text;
+  summary: Text;
+  price: Text;
+  location?: Location;
+  online: boolean;
   cancelled: boolean;
-  venueId: string;
-  note?: Text;
+  ticketUrl?: string;
+  cover?: Image;
+  socialImage?: Image;
+  occurrences: Occurrence[];
+}
+/** What the Event list marks. */
+export interface Flags {
+  hidden?: boolean;
+  cancelled?: boolean;
+  manual?: boolean;
+  overrideChanged?: OverrideField[];
+  textOutOfDate?: boolean;
+  formerPage?: boolean;
+  syncConflict?: boolean;
+  binned?: boolean;
 }
 export interface FieldError {
   field: string;
@@ -84,36 +127,83 @@ export interface FieldError {
 export interface EventView {
   event: Event;
   etag: string;
-  status: Status;
-  occurrences: Occurrence[];
-  problems: FieldError[];
+  effective: Effective;
+  flags: Flags;
   permalink: Record<Lang, string>;
+  facebookUrl?: string;
 }
 export interface EventSummary {
   id: string;
   shortId: string;
   slug: string;
-  title: Text;
-  kind: Kind;
-  status: Status;
-  unpublishedChanges: boolean;
+  source: Source;
+  name: Text;
+  flags: Flags;
   firstStart?: string;
   nextStart?: string;
   lastEnd?: string;
   occurrences: number;
   deletedAt?: string;
+  binReason?: "gone" | "removed";
   updatedAt: string;
   hasCover: boolean;
-  facebookOutOfDate?: boolean;
-  facebookDetached?: boolean;
+  facebookUrl?: string;
 }
-export interface Venue {
-  id: string;
-  name: string;
-  address: string;
-  mapUrl?: string;
-  archived?: boolean;
-  etag: string;
+/** Sets, confirms (keep) or clears (follow) one Override of a synced Event. */
+export interface OverrideInput {
+  field: OverrideField;
+  follow?: boolean;
+  keep?: boolean;
+  text?: string;
+  location?: Location;
+  cover?: Image;
+}
+export interface ExtrasInput {
+  nameEn: string;
+  descriptionEn: string;
+  summary: Text;
+  price: Text;
+  socialImage?: Image;
+}
+/** One date as entered: local date and times; endDate empty means the same day (or the next, past midnight). */
+export interface OccurrenceInput {
+  startDate: string;
+  startTime: string;
+  endDate: string;
+  endTime: string;
+  cancelled: boolean;
+}
+export interface ManualInput {
+  name: Text;
+  description: Text;
+  location?: Location;
+  online: boolean;
+  cover?: Image;
+  ticketUrl: string;
+  facebookUrl: string;
+  occurrences: OccurrenceInput[];
+  summary: Text;
+  price: Text;
+  socialImage?: Image;
+}
+export interface SyncResult {
+  listed: number;
+  added: number;
+  updated: number;
+  binned: number;
+  conflicts: number;
+  errors?: string[];
+}
+export interface SyncStatus {
+  firstSyncAt?: string;
+  lastRunAt?: string;
+  /** A user id, or "autosync". */
+  lastRunBy?: string;
+  lastSuccessAt?: string;
+  lastError?: string;
+  lastResult?: SyncResult;
+  autosync: boolean;
+  running: boolean;
 }
 export interface OrgInfo {
   id: string;
@@ -134,6 +224,13 @@ export interface PageInfo {
   name: string;
   igUsername?: string;
 }
+export interface AutosyncStatus {
+  byEmail: string;
+  at: string;
+  dataAccessExpiresAt?: string;
+  reconnectSoon: boolean;
+  needsReconnect: boolean;
+}
 export interface ConnectionStatus {
   connected: boolean;
   pageName?: string;
@@ -142,6 +239,12 @@ export interface ConnectionStatus {
   createdByEmail?: string;
   createdAt?: string;
   pendingPages?: PageInfo[];
+  /** Present while Autosync is on. */
+  autosync?: AutosyncStatus;
+  /** Autosync ended because the person who turned it on lost access (decision 19). */
+  autosyncLost?: { reason: string; byEmail: string; at: string };
+  /** The session may do guarded actions now (Recent sign-in). */
+  recentSignIn: boolean;
 }
 export type Platform = "facebook" | "instagram";
 export interface PostDraft {
@@ -159,71 +262,26 @@ export interface SocialPost {
   attemptedAt: string;
 }
 export interface PostsView {
-  published: boolean;
+  /** Hidden Events and Events in the Bin cannot be posted. */
+  postable: boolean;
   captions: Record<Lang, string>;
   posts: SocialPost[];
   images: Partial<Record<Platform, string>>;
   connection: ConnectionStatus;
   canInstagram: boolean;
+  /** Autosync is on: posting uses the stored token after a Recent sign-in. */
+  storedToken: boolean;
+  postsToday: number;
+  dailyLimit: number;
 }
-export interface HandedOver {
-  title: string;
-  start: string;
-  end: string;
-  venueName: string;
-  venueAddress: string;
-  cancelled: boolean;
+export interface PlatformResult {
+  platform: Platform;
+  status: string;
+  reason?: string;
 }
-export interface FacebookEventLink {
-  id: string;
-  url: string;
-  occurrenceKey: string;
-  handedOver: HandedOver;
-  recordedBy: string;
-  recordedAt: string;
-}
-export type ChangedField = "title" | "start" | "end" | "venue" | "cancelled";
-export interface FacebookEventState {
-  link: FacebookEventLink;
-  occurrence?: Occurrence;
-  detached: boolean;
-  unpublished: boolean;
-  outOfDate: boolean;
-  changed: ChangedField[];
-  current?: HandedOver;
-}
-export interface FacebookEventFields {
-  occurrenceKey: string;
-  name: string;
-  startDate: string;
-  startTime: string;
-  endDate: string;
-  endTime: string;
-  start: string;
-  end: string;
-  timezone: string;
-  location: string;
-  venueName: string;
-  venueAddress: string;
-  description: string;
-  ticketUrl?: string;
-}
-export interface HandoffView {
-  published: boolean;
-  connection: ConnectionStatus;
-  title: Text;
-  fields?: FacebookEventFields;
-  coverUrl?: string;
-  coverName?: string;
-  token?: string;
-  links: FacebookEventState[];
-  occurrences: Occurrence[];
-  nextLinked: boolean;
-}
-export interface LinkInput {
-  url?: string;
-  occurrenceKey?: string;
-  token?: string;
+export interface PostOutcome {
+  refused?: string;
+  results?: PlatformResult[];
 }
 
 export interface User {
@@ -290,39 +348,31 @@ export const api = {
 
   events: (org: string, view: string) => request<EventSummary[]>("GET", `${o(org)}/events?view=${view}`),
   event: (org: string, id: string) => request<EventView>("GET", `${o(org)}/events/${id}`),
-  createEvent: (org: string, c: Partial<Content>) => request<EventView>("POST", `${o(org)}/events`, c),
-  updateEvent: (org: string, id: string, etag: string, c: Content) =>
-    request<EventView>("PUT", `${o(org)}/events/${id}`, c, { "If-Match": etag }),
-  eventAction: (org: string, id: string, action: "publish" | "unpublish" | "delete" | "restore" | "duplicate") =>
+  createManual: (org: string, m: ManualInput) => request<EventView>("POST", `${o(org)}/events`, m),
+  updateManual: (org: string, id: string, etag: string, m: ManualInput) =>
+    request<EventView>("PUT", `${o(org)}/events/${id}/manual`, m, { "If-Match": etag }),
+  setExtras: (org: string, id: string, etag: string, x: ExtrasInput) =>
+    request<EventView>("PUT", `${o(org)}/events/${id}/extras`, x, { "If-Match": etag }),
+  setOverride: (org: string, id: string, in_: OverrideInput) => request<EventView>("POST", `${o(org)}/events/${id}/override`, in_),
+  eventAction: (org: string, id: string, action: "hide" | "show" | "dismiss-text" | "delete" | "restore") =>
     request<EventView>("POST", `${o(org)}/events/${id}/${action}`),
-  preview: (org: string, c: Content) =>
-    request<{ occurrences: Occurrence[]; problems: FieldError[] }>("POST", `${o(org)}/occurrences/preview`, c),
   uploadImage: (org: string, kind: "cover" | "social", file: File) =>
     request<Image>("POST", `${o(org)}/images?kind=${kind}`, file, { "Content-Type": file.type || "application/octet-stream" }),
 
   posts: (org: string, id: string) => request<PostsView>("GET", `${o(org)}/events/${id}/posts`),
-  /** Starts a Post Request; the answer is the Meta sign-in to send the browser to. */
-  requestPost: (org: string, id: string, posts: PostDraft[], confirm: boolean) =>
-    request<{ url: string }>("POST", `${o(org)}/events/${id}/posts`, { posts, confirm }),
+  /** With Autosync off the answer is the Meta sign-in to send the browser to (`url`); with it on, the `outcome`. */
+  post: (org: string, id: string, posts: PostDraft[], confirm: boolean) =>
+    request<{ url?: string; outcome?: PostOutcome }>("POST", `${o(org)}/events/${id}/posts`, { posts, confirm }),
 
-  facebookEvent: (org: string, id: string) => request<HandoffView>("GET", `${o(org)}/events/${id}/facebook-event`),
-  addFacebookEvent: (org: string, id: string, l: LinkInput) => request<HandoffView>("POST", `${o(org)}/events/${id}/facebook-event`, l),
-  changeFacebookEvent: (org: string, id: string, link: string, l: LinkInput) =>
-    request<HandoffView>("PUT", `${o(org)}/events/${id}/facebook-event/${link}`, l),
-  removeFacebookEvent: (org: string, id: string, link: string) => request<HandoffView>("DELETE", `${o(org)}/events/${id}/facebook-event/${link}`),
-  dismissFacebookEvent: (org: string, id: string, link: string) =>
-    request<HandoffView>("POST", `${o(org)}/events/${id}/facebook-event/${link}/dismiss`),
-  autofillReport: (org: string, r: unknown) => request<{ ok: boolean }>("POST", `${o(org)}/autofill-reports`, r),
-
-  venues: (org: string) => request<Venue[]>("GET", `${o(org)}/venues`),
-  createVenue: (org: string, v: Partial<Venue>) => request<Venue>("POST", `${o(org)}/venues`, v),
-  updateVenue: (org: string, id: string, etag: string, v: Partial<Venue>) =>
-    request<Venue>("PUT", `${o(org)}/venues/${id}`, { name: v.name, address: v.address, mapUrl: v.mapUrl }, { "If-Match": etag }),
-  archiveVenue: (org: string, id: string, archived: boolean) => request<Venue>("POST", `${o(org)}/venues/${id}/archive`, { archived }),
+  syncStatus: (org: string) => request<SyncStatus>("GET", `${o(org)}/sync`),
+  /** "Sync now": the `result` with Autosync on, else the Meta sign-in (`url`) whose callback runs it. */
+  syncNow: (org: string) => request<{ url?: string; result?: SyncResult }>("POST", `${o(org)}/sync`),
 
   social: (org: string) => request<ConnectionStatus>("GET", `${o(org)}/social`),
   connect: (org: string) => request<{ url: string }>("POST", `${o(org)}/social/connect`),
-  selectPage: (org: string, pageId: string) => request<ConnectionStatus>("POST", `${o(org)}/social/select`, { pageId }),
+  selectPage: (org: string, pageId: string, confirm: boolean) => request<ConnectionStatus>("POST", `${o(org)}/social/select`, { pageId, confirm }),
+  /** On answers the Meta sign-in that issues the token (`url`); off deletes the token. */
+  setAutosync: (org: string, on: boolean) => request<{ url?: string; ok?: boolean }>("POST", `${o(org)}/social/autosync`, { on }),
   disconnect: (org: string) => request<{ ok: boolean }>("POST", `${o(org)}/social/disconnect`),
 
   users: () => request<User[]>("GET", "/api/users"),

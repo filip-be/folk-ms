@@ -2,7 +2,7 @@
 
 import { ApiError, type FieldError, type Text } from "./api.ts";
 import { icon } from "./icons.ts";
-import { inLang, L, lang, locale } from "./i18n.ts";
+import { inLang, L, locale } from "./i18n.ts";
 
 const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
 
@@ -49,13 +49,12 @@ const df = new Intl.DateTimeFormat(locale, { timeZone: "Europe/Warsaw", day: "nu
 
 export const fmtDateTime = (s?: string) => (s ? dtf.format(new Date(s)) : "–");
 export const fmtDate = (s?: string) => (s ? df.format(new Date(s)) : "–");
+const tf = new Intl.DateTimeFormat(locale, { timeZone: "Europe/Warsaw", hour: "2-digit", minute: "2-digit" });
+export const fmtTime = (s?: string) => (s ? tf.format(new Date(s)) : "–");
+/** The address of a Facebook Event (as the CMS stores it). */
+export const facebookEventUrl = (id: string) => `https://www.facebook.com/events/${encodeURIComponent(id)}/`;
 /** Bilingual text in the UI language, falling back to Polish. */
 export const t = (x?: Text) => inLang(x);
-
-export const WEEKDAYS =
-  lang === "pl"
-    ? ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"]
-    : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export function toast(message: string, kind: "ok" | "error" = "ok"): void {
   const el = document.createElement("div");
@@ -77,6 +76,10 @@ export function showError(err: unknown, summary?: HTMLElement | null, form?: Par
       location.href = "/auth/login?return=" + encodeURIComponent(location.pathname);
       return;
     }
+    if (err.code === "recent_sign_in") {
+      showRecentSignIn();
+      return;
+    }
     const root = form ?? summary?.closest("form");
     if (err.problems.length && (root || summary)) {
       markProblems(root ?? document, err.problems, summary);
@@ -87,6 +90,42 @@ export function showError(err: unknown, summary?: HTMLElement | null, form?: Par
   }
   console.error(err);
   toast(L("Wystąpił błąd. Spróbuj ponownie.", "Something went wrong. Try again."), "error");
+}
+
+// ── Recent sign-in ────────────────────────────────────────────────────
+// Posting with the stored token, turning Autosync on or off and changing or
+// removing the connection need a sign-in in the last 15 minutes (decision 13).
+
+/** Where "Sign in again" goes: the sign-in, then back to this screen. */
+export const signInAgainUrl = () => "/auth/login?return=" + encodeURIComponent(location.pathname);
+
+/** The banner explaining a Recent sign-in, with "Sign in again". */
+export function recentSignInBanner(proactive = false): Raw {
+  return html`<div class="banner warn recent-sign-in" role="${proactive ? "status" : "alert"}">
+    <p><strong>${L("Potrzebne ponowne logowanie", "Sign in again to continue")}</strong><br>
+      ${proactive
+        ? L(
+            "Publikowanie z zapisanym tokenem strony oraz włączanie i wyłączanie Autosync, zmiana i odłączenie strony wymagają logowania do CMS w ciągu ostatnich 15 minut.",
+            "Posting with the stored page token, turning Autosync on or off, and changing or disconnecting the Facebook page need a sign-in to the CMS within the last 15 minutes.",
+          )
+        : L(
+            "Ta operacja wymaga logowania do CMS w ciągu ostatnich 15 minut. Zaloguj się ponownie i spróbuj jeszcze raz.",
+            "This action needs a sign-in to the CMS within the last 15 minutes. Sign in again, then try once more.",
+          )}</p>
+    <a class="button" href="${signInAgainUrl()}">${L("Zaloguj się ponownie", "Sign in again")}</a>
+  </div>`;
+}
+
+/** Shows the Recent sign-in banner at the top of the current screen. */
+export function showRecentSignIn(): void {
+  const view = document.getElementById("view");
+  if (!view) {
+    location.href = signInAgainUrl();
+    return;
+  }
+  view.querySelector(".recent-sign-in")?.remove();
+  view.insertAdjacentHTML("afterbegin", recentSignInBanner().value);
+  view.querySelector(".recent-sign-in")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
 // ── Field validation ──────────────────────────────────────────────────────
@@ -149,7 +188,7 @@ export function clearFieldError(el: HTMLElement): void {
  * and, given a `summary` element, lists them all there: each with a link to
  * its field, so a problem in a hidden or distant field is still reachable.
  */
-export function markProblems(root: ParentNode, problems: FieldError[], summary?: Element | null, heading = L("Do poprawy przed publikacją:", "To fix before publishing:")): void {
+export function markProblems(root: ParentNode, problems: FieldError[], summary?: Element | null, heading = L("Do poprawy:", "To fix:")): void {
   root.querySelectorAll<HTMLElement>("[aria-invalid=true]").forEach(clearFieldError);
   const byField = new Map<HTMLElement, string[]>();
   const items = problems.map((p) => {
@@ -223,21 +262,6 @@ document.addEventListener("click", (e) => {
   const link = (e.target as Element).closest?.<HTMLElement>("[data-goto-field]");
   if (link) gotoField(link.dataset.gotoField!, link);
 });
-
-export const STATUS_LABEL: Record<string, string> = {
-  draft: L("Szkic", "Draft"),
-  published: L("Opublikowane", "Published"),
-  binned: L("W koszu", "In the bin"),
-};
-export const KIND_LABEL: Record<string, string> = {
-  single: L("Jednorazowe", "Single"),
-  multiDay: L("Wielodniowe", "Multi-day"),
-  recurring: L("Cykliczne", "Recurring"),
-};
-
-export function badge(status: string, extra = ""): Raw {
-  return html`<span class="badge ${status}">${STATUS_LABEL[status] ?? status}</span>${extra ? html` <span class="badge warn">${extra}</span>` : ""}`;
-}
 
 export function navigate(path: string): void {
   history.pushState(null, "", path);
