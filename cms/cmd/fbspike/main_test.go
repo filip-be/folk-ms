@@ -51,6 +51,17 @@ func fakeGraph(t *testing.T, eventsOK bool) *httptest.Server {
 					"event_times": []any{map[string]any{"id": "11", "start_time": "2026-12-01T19:00:00+0100"}}},
 				map[string]any{"id": "2", "name": "Warsztaty", "owner": map[string]any{"id": "99", "name": "Other"}},
 			}})
+		case path == "/me/permissions":
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{
+				map[string]any{"permission": "pages_show_list", "status": "granted"},
+				map[string]any{"permission": "pages_manage_posts", "status": "declined"},
+			}})
+		case path == "/me/accounts":
+			json.NewEncoder(w).Encode(map[string]any{"data": []any{
+				map[string]any{"id": "42", "name": "Test", "access_token": pageTok, "tasks": []string{"MANAGE", "CREATE_CONTENT"}},
+			}})
+		case path == "/profile-id":
+			fail(400, 100, "Unsupported get request. Object with ID 'profile-id' does not exist, cannot be loaded due to missing permissions")
 		case path == "/42":
 			json.NewEncoder(w).Encode(map[string]any{"id": "42", "name": "Test", "access_token": pageTok})
 		case path == "/gone":
@@ -61,11 +72,13 @@ func fakeGraph(t *testing.T, eventsOK bool) *httptest.Server {
 	}))
 }
 
-func runFake(t *testing.T, eventsOK bool) string {
+func runFake(t *testing.T, eventsOK bool) string { return runFakePage(t, eventsOK, "42") }
+
+func runFakePage(t *testing.T, eventsOK bool, pageID string) string {
 	srv := fakeGraph(t, eventsOK)
 	defer srv.Close()
 	var out bytes.Buffer
-	cfg := config{AppID: "123", AppSecret: appSecret, Version: "v24.0", GraphURL: srv.URL, PageID: "42",
+	cfg := config{AppID: "123", AppSecret: appSecret, Version: "v24.0", GraphURL: srv.URL, PageID: pageID,
 		UserToken: userTok, Probe: []string{"gone"}, CoHosted: []string{"2", "77"}, MaxPages: 2}
 	if err := run(context.Background(), cfg, &out); err != nil {
 		t.Fatal(err)
@@ -79,6 +92,7 @@ func TestReportGo(t *testing.T) {
 		"**GO**", "**2 events**", "refused (HTTP 400, code 100", "expires_at 0 (never)",
 		"data_access_expires_at 2026-", "Read child 11 by id: OK", "co-hosted events appear in the list",
 		"2: in the list **true**", "77: in the list **false**", "gone with page token: **failed**", "`X-App-Usage`",
+		"Permissions granted: `pages_show_list`", "pages_manage_posts (declined)", "**Test**: id `42`, tasks `MANAGE,CREATE_CONTENT`",
 	} {
 		if !strings.Contains(rep, want) {
 			t.Errorf("report lacks %q:\n%s", want, rep)
@@ -95,5 +109,17 @@ func TestReportNoGo(t *testing.T) {
 	rep := runFake(t, false)
 	if !strings.Contains(rep, "**NO-GO**") || !strings.Contains(rep, "code 10") {
 		t.Errorf("want NO-GO with the Graph error:\n%s", rep)
+	}
+}
+
+func TestReportPageNotGranted(t *testing.T) {
+	rep := runFakePage(t, true, "profile-id")
+	for _, want := range []string{"Page token for profile-id: **failed**", "**Test**: id `42`", "run again with `-page <that id>`"} {
+		if !strings.Contains(rep, want) {
+			t.Errorf("report lacks %q:\n%s", want, rep)
+		}
+	}
+	if strings.Contains(rep, pageTok) {
+		t.Error("report leaks the page token")
 	}
 }

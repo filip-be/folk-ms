@@ -391,16 +391,72 @@ func run(ctx context.Context, cfg config, out io.Writer) error {
 		return nil
 	}
 	s.remember(ll.AccessToken)
-	s.printf("- Long-lived user token: obtained, expires_in %d s (about %d days).\n", ll.ExpiresIn, ll.ExpiresIn/86400)
-
-	a = s.get(ctx, "/"+page, url.Values{"fields": {"id,name,access_token"}}, ll.AccessToken, true)
-	var pg struct {
-		ID, Name    string
-		AccessToken string `json:"access_token"`
+	if ll.ExpiresIn == 0 {
+		s.printf("- Long-lived user token: obtained, no expires_in in the answer (see debug_token below).\n")
+	} else {
+		s.printf("- Long-lived user token: obtained, expires_in %d s (about %d days).\n", ll.ExpiresIn, ll.ExpiresIn/86400)
 	}
-	if !a.ok() || json.Unmarshal(a.Body, &pg) != nil || pg.AccessToken == "" {
-		s.printf("- Page token: **failed** (%s). Does the signed-in person have a role on page %s?\n", a.describe(), cfg.PageID)
-		return nil
+
+	// What the sign-in granted: permissions, and the pages chosen in the dialog.
+	a = s.get(ctx, "/me/permissions", nil, ll.AccessToken, true)
+	var perms struct {
+		Data []struct{ Permission, Status string } `json:"data"`
+	}
+	if a.ok() && json.Unmarshal(a.Body, &perms) == nil {
+		var granted, other []string
+		for _, p := range perms.Data {
+			if p.Status == "granted" {
+				granted = append(granted, p.Permission)
+			} else {
+				other = append(other, p.Permission+" ("+p.Status+")")
+			}
+		}
+		s.printf("- Permissions granted: `%s`\n", strings.Join(granted, ","))
+		if len(other) > 0 {
+			s.printf("- Permissions not granted: `%s`\n", strings.Join(other, ","))
+		}
+	} else {
+		s.printf("- /me/permissions: **failed** (%s)\n", a.describe())
+	}
+	type account struct {
+		ID, Name    string
+		AccessToken string   `json:"access_token"`
+		Tasks       []string `json:"tasks"`
+	}
+	a = s.get(ctx, "/me/accounts", url.Values{"fields": {"id,name,access_token,tasks"}, "limit": {"100"}}, ll.AccessToken, true)
+	var accounts struct {
+		Data []account `json:"data"`
+	}
+	if !a.ok() || json.Unmarshal(a.Body, &accounts) != nil {
+		s.printf("- /me/accounts: **failed** (%s)\n", a.describe())
+	} else {
+		s.printf("- Pages this sign-in can act for (/me/accounts): %d\n", len(accounts.Data))
+		for _, p := range accounts.Data {
+			s.remember(p.AccessToken)
+			s.printf("  - **%s**: id `%s`, tasks `%s`\n", p.Name, p.ID, strings.Join(p.Tasks, ","))
+		}
+	}
+
+	var pg account
+	for _, p := range accounts.Data {
+		if p.ID == cfg.PageID {
+			pg = p
+		}
+	}
+	if pg.AccessToken == "" {
+		a = s.get(ctx, "/"+page, url.Values{"fields": {"id,name,access_token"}}, ll.AccessToken, true)
+		if !a.ok() || json.Unmarshal(a.Body, &pg) != nil || pg.AccessToken == "" {
+			s.printf("- Page token for %s: **failed** (%s).\n\n", cfg.PageID, a.describe())
+			s.printf("Page %s is not among the pages above. If the page is listed under another id, run again with `-page <that id>`. "+
+				"If it is not listed, sign in again and, in the Facebook dialog, choose *Edit access* and select the page; "+
+				"the signed-in person needs full control of the page (a Facebook access with *tasks* including `MANAGE` or `CREATE_CONTENT`).\n", cfg.PageID)
+			return nil
+		}
+	}
+	if pg.ID != "" && pg.ID != cfg.PageID {
+		s.printf("- Page %s resolves to id %s; using that.\n", cfg.PageID, pg.ID)
+		cfg.PageID, s.cfg.PageID = pg.ID, pg.ID
+		page = url.PathEscape(pg.ID)
 	}
 	pageToken := pg.AccessToken
 	s.remember(pageToken)
