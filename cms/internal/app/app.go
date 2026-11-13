@@ -187,8 +187,7 @@ func pendingPagesKey(org, user string) string {
 	return pendingPagesPrefix(org) + user + ".json"
 }
 func postRequestsPrefix(org string) string { return "orgs/" + org + "/social/requests/" }
-func syncRequestsPrefix(org string) string { return "orgs/" + org + "/sync/requests/" }
-func syncRequestKey(org, id string) string { return syncRequestsPrefix(org) + id + ".json" }
+
 func postRequestKey(org, id string) string { return postRequestsPrefix(org) + id + ".json" }
 func userKey(id string) string             { return "users/" + id + ".json" }
 func invitationKey(id string) string       { return "invitations/" + id + ".json" }

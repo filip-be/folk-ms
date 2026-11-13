@@ -187,7 +187,7 @@ func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID st
 		if old.PageID != page.ID && !confirm {
 			return ConnectionStatus{}, fmt.Errorf("%w: replace %s with %s", domain.ErrNeedsConfirm, old.PageName, page.Name)
 		}
-		if old.Autosync != nil {
+		if old.Autosync != nil && old.PageID != page.ID {
 			if err := a.turnOffAutosync(ctx, p, org, nil); err != nil {
 				return ConnectionStatus{}, err
 			}
@@ -196,6 +196,12 @@ func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID st
 	c := domain.Connection{
 		OrgID: org, PageID: page.ID, PageName: page.Name, IGUserID: page.IGUserID, IGUsername: page.IGUsername,
 		CreatedBy: p.ID(), CreatedByEmail: p.User.Email, CreatedAt: a.now(),
+	}
+	if old != nil && old.PageID == page.ID {
+		// The same page chosen again (e.g. its Instagram link changed):
+		// Autosync and its token stay.
+		c.Autosync, c.AutosyncLost = old.Autosync, old.AutosyncLost
+		c.CreatedBy, c.CreatedByEmail, c.CreatedAt = old.CreatedBy, old.CreatedByEmail, old.CreatedAt
 	}
 	if _, err := save(ctx, a.Docs, connectionKey(org), c, ports.AnyETag); err != nil {
 		return ConnectionStatus{}, err

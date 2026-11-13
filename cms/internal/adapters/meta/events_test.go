@@ -26,8 +26,8 @@ func TestEventsAndLongLivedToken(t *testing.T) {
 			}
 			if r.Form.Get("after") == "" {
 				out["data"] = []any{map[string]any{"id": "1", "name": "Bal", "start_time": "2026-12-01T19:00:00+0100",
-					"place": map[string]any{"name": "Zamek", "location": map[string]any{"city": "Poznań", "latitude": 52.4, "longitude": 16.9}},
-					"cover": map[string]any{"id": "c1", "source": "https://scontent.xx.fbcdn.net/x.jpg"},
+					"place":       map[string]any{"name": "Zamek", "location": map[string]any{"city": "Poznań", "latitude": 52.4, "longitude": 16.9}},
+					"cover":       map[string]any{"id": "c1", "source": "https://scontent.xx.fbcdn.net/x.jpg"},
 					"event_times": []any{map[string]any{"id": "11", "start_time": "2026-12-01T19:00:00+0100", "end_time": "2026-12-01T22:00:00+0100"}}}}
 				out["paging"] = map[string]any{"cursors": map[string]string{"after": "A"}, "next": "https://graph/next"}
 			} else {

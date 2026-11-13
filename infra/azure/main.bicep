@@ -313,7 +313,7 @@ resource superAdminAlerts 'Microsoft.Insights/actionGroups@2023-01-01' = {
 // secrets App Service reads for the references above are left out of the
 // count (each start reads them); a read by another identity counts for
 // every secret. Multi-line strings do not interpolate, hence replace().
-var maxSecretGetsPerHour = 30
+var maxSecretGetsPerHour = 100
 var unusualReadsQuery = replace(replace('''
 let cms = tolower('CMS_PRINCIPAL_ID');
 let gets = AzureDiagnostics

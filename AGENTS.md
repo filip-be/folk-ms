@@ -38,6 +38,19 @@ inactive controls `disabled`/`readonly`, never only faded. Show a new pattern on
 and check it in light and dark. A new validation problem path in `cms/internal/domain/` needs a
 matching `data-field`: see [Design system, Change together](docs/design-system/README.md#change-together).
 
+## Sync and Autosync
+
+Rules that no test enforces; change both sides together (details in the
+"Change together" tables of [Sync](docs/sync/README.md) and [Platform](docs/platform/README.md)):
+
+- The `?sync=` and `?autosync=` callback codes in `cms/internal/http/auth.go` and the
+  admin messages for them; `domain.Flags` and `domain.OverrideFields` and the admin
+  Event screens.
+- The `sync` timer schedule (`cms/deploy/functions/sync/function.json`) and
+  `domain.AutosyncInterval`.
+- The Key Vault alert threshold (`maxSecretGetsPerHour` in `infra/azure/main.bicep`) and
+  how often the CMS reads page tokens (`SyncNowInterval`, `AutosyncInterval`, `DailyPostLimit`).
+
 ## Memory files
 
 Repository memory lives in this `AGENTS.md`. Never create a `CLAUDE.md` anywhere in

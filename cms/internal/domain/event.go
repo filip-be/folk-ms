@@ -289,8 +289,8 @@ func (e *Event) LastEnd() time.Time {
 }
 
 // Followed reports whether Sync still updates the Event: synced from the
-// connected Facebook page, not in the Bin by a Moderator, and not over for
-// longer than FollowFor.
+// connected Facebook page and not over for longer than FollowFor. (Sync
+// skips Events in the Bin separately.)
 func (e *Event) Followed(pageID string, now time.Time) bool {
 	if e.Source != SourceFacebook || e.Facebook == nil || e.Facebook.PageID != pageID {
 		return false
@@ -545,17 +545,17 @@ func (e *Event) SetHidden(hidden bool, by string, now time.Time) error {
 
 // ManualInput is a Manual Event as the Moderator enters it.
 type ManualInput struct {
-	Name          Text              `json:"name"`
-	Description   Text              `json:"description"`
-	Location      *Location         `json:"location"`
-	Online        bool              `json:"online"`
-	Cover         *Image            `json:"cover"`
-	TicketURL     string            `json:"ticketUrl"`
-	FacebookURL   string            `json:"facebookUrl"`
-	Occurrences   []OccurrenceInput `json:"occurrences"`
-	Summary       Text              `json:"summary"`
-	Price         Text              `json:"price"`
-	SocialImage   *Image            `json:"socialImage"`
+	Name        Text              `json:"name"`
+	Description Text              `json:"description"`
+	Location    *Location         `json:"location"`
+	Online      bool              `json:"online"`
+	Cover       *Image            `json:"cover"`
+	TicketURL   string            `json:"ticketUrl"`
+	FacebookURL string            `json:"facebookUrl"`
+	Occurrences []OccurrenceInput `json:"occurrences"`
+	Summary     Text              `json:"summary"`
+	Price       Text              `json:"price"`
+	SocialImage *Image            `json:"socialImage"`
 }
 
 // OccurrenceInput is one date as entered: local date and times.

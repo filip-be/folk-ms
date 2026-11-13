@@ -63,4 +63,3 @@ func (a *App) storeImage(ctx context.Context, org string, kind ports.ImageKind, 
 	}
 	return img, nil
 }
-

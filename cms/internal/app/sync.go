@@ -270,8 +270,9 @@ func (a *App) syncPage(ctx context.Context, org, pageID, token string) (domain.S
 			}
 			r.Conflicts++
 		case e != nil:
-			if !e.Followed(pageID, now) && e.Facebook.PageID == pageID {
-				continue // over: it stays as it was
+			goneBack := e.DeletedAt != nil && e.BinReason == domain.BinGone
+			if !e.Followed(pageID, now) && e.Facebook.PageID == pageID && !goneBack {
+				continue // over: it stays as it was (unless it was wrongly thought gone)
 			}
 			c, err := a.updateSynced(ctx, org, e.ID, part, fe.CoverURL, &r)
 			if err != nil {
