@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-08
+- Amended by [ADR 0010](0010-autosync-keeps-a-page-token-in-key-vault.md): an Organization may opt in to Autosync, which keeps a Facebook page token in Key Vault
 
 ## Context
 

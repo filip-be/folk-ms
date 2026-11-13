@@ -1,6 +1,6 @@
 # 0006. Facebook Events through a Handoff and Autofill, not an API
 
-- Status: accepted
+- Status: superseded by [ADR 0009](0009-facebook-events-are-the-source-of-events.md)
 - Date: 2026-11-10
 
 ## Context
