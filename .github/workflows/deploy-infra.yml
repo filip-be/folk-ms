@@ -23,6 +23,15 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - run: .github/scripts/az-login.sh
+      # main.bicep references the CMS identity as `existing`; an Owner creates
+      # it in the runbook (README, First deployment step 2). Without it ARM
+      # fails with a bare ResourceNotFound, so say what to do instead.
+      - name: Check the CMS identity exists
+        run: |
+          if ! az identity show --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --name folkms-cms-id --output none 2>/dev/null; then
+            echo "::error title=CMS identity missing::The managed identity folkms-cms-id does not exist in ${{ vars.AZURE_RESOURCE_GROUP }}. An Owner must create it and the deploy identity's role-assignment condition first: README, First deployment, step 2 (and Upgrade notes)."
+            exit 1
+          fi
       - name: Deploy main.bicep
         env:
           SUPER_ADMIN_EMAIL: ${{ secrets.SUPER_ADMIN_EMAIL }}

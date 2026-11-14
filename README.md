@@ -199,8 +199,9 @@ Changing the Organization's Facebook page or disconnecting it is done under *Soc
 
 **To Facebook Events as the source of Events** ([ADR 0009](docs/architecture/adr/0009-facebook-events-are-the-source-of-events.md)), one-off. Existing CMS Events, Venues and their index documents are discarded; Events come back from Facebook through Sync. Social Post records of the discarded Events go with them (the Audit Log keeps their URLs).
 
-1. Deploy this version. The CMS and both Sites must deploy together (snapshot schema version 2); the change touches `contract/client/`, so the push runs both `deploy-cms` and `deploy-site`.
-2. Delete the old documents. In Azure, an `Owner` grants themselves `Storage Blob Data Contributor` on the storage account for this and removes it afterwards; then:
+1. Before merging, or before re-running the failed deploys: an `Owner` runs [First deployment](#first-deployment) step 2. It creates the CMS identity `folkms-cms-id` and replaces the deploy identity's role-assignment condition with the three-role one (delete the old `Role Based Access Control Administrator` assignment first, as step 2 says). Without it `deploy-infra` stops at *Check the CMS identity exists*. Then run `deploy-infra`, and only after it succeeds `deploy-cms`: the new CMS needs the identity and the token vault that `deploy-infra` creates. Afterwards delete the storage account's role assignment shown as *Identity not found* ([infra README](infra/azure/README.md#cms-identity-and-key-vault)).
+2. Deploy this version. The CMS and both Sites must deploy together (snapshot schema version 2); the change touches `contract/client/`, so the push runs both `deploy-cms` and `deploy-site`.
+3. Delete the old documents. In Azure, an `Owner` grants themselves `Storage Blob Data Contributor` on the storage account for this and removes it afterwards; then:
 
    ```bash
    for p in events venues shortids posts; do
@@ -209,9 +210,9 @@ Changing the Organization's Facebook page or disconnecting it is done under *Soc
    ```
 
    Locally, stop the CMS and run `rm -rf .data/cms/orgs/*/events .data/cms/orgs/*/venues .data/cms/orgs/*/shortids .data/cms/orgs/*/posts`. Blob versioning and soft delete keep copies for 90 and 30 days.
-3. Restart the Function app (or the local CMS): it rebuilds every snapshot when it starts, now without the old Events.
-4. In each Organization, connect the Facebook page if needed and press *Sync now*; add co-hosted events as Manual Events.
-5. **Moderators: remove Autofill.** The Autofill browser extension and userscript are gone and do nothing any more. Remove the extension (Chrome or Edge: `chrome://extensions` or `edge://extensions`; Firefox: `about:addons`) and the userscript from Violentmonkey, Tampermonkey or the iOS userscript manager. Whoever published the unlisted extension listings removes them from the Chrome Web Store and addons.mozilla.org.
+4. Restart the Function app (or the local CMS): it rebuilds every snapshot when it starts, now without the old Events.
+5. In each Organization, connect the Facebook page if needed and press *Sync now*; add co-hosted events as Manual Events.
+6. **Moderators: remove Autofill.** The Autofill browser extension and userscript are gone and do nothing any more. Remove the extension (Chrome or Edge: `chrome://extensions` or `edge://extensions`; Firefox: `about:addons`) and the userscript from Violentmonkey, Tampermonkey or the iOS userscript manager. Whoever published the unlisted extension listings removes them from the Chrome Web Store and addons.mozilla.org.
 
 **From a version that stored Facebook page tokens** (before ADR 0005): the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
 
