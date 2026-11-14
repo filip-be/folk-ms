@@ -130,6 +130,9 @@ export function renderShell(me: Me, org: string): void {
         </div>
         ${themeButton()}
         ${langSwitch(true)}
+        ${me.superAdmin
+          ? ""
+          : html`<a class="nav-item" href="/auth/login?provider=facebook&return=${encodeURIComponent(location.pathname)}" title="${L("Połącz logowanie przez Facebooka z tym kontem", "Link Facebook sign-in to this account")}">${icon("link")}<span class="label">${L("Połącz z Facebookiem", "Link Facebook")}</span></a>`}
         <button type="button" class="nav-item" id="logout" title="${L("Wyloguj", "Sign out")}">${icon("logout")}<span class="label">${L("Wyloguj", "Sign out")}</span></button>
       </div>
     </aside>

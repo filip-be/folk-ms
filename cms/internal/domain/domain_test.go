@@ -240,11 +240,14 @@ func TestRecentSignIn(t *testing.T) {
 	if u.SignedInAt("forged") != nil || u.SignedInAt("") != nil {
 		t.Fatal("unknown nonce")
 	}
-	for i := range 10 {
+	for i := range maxSignIns + 2 {
 		u.RecordSignIn(string(rune('a'+i)), now)
 	}
 	if len(u.SignIns) != maxSignIns || u.SignedInAt("n1") != nil {
 		t.Fatal("bounded")
+	}
+	if !u.ForgetSignIn("c") || u.SignedInAt("c") != nil || u.ForgetSignIn("c") || len(u.SignIns) != maxSignIns-1 {
+		t.Fatal("sign-out forgets the session")
 	}
 }
 

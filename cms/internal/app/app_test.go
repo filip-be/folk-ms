@@ -35,6 +35,8 @@ type env struct {
 	// fb is what the Recorder's Facebook page lists.
 	fb     []ports.FacebookEvent
 	nonces int
+	// linkAs is the user of the browser's current session at sign-in.
+	linkAs string
 }
 
 const cb = "https://cms/auth/meta/callback"
@@ -67,7 +69,7 @@ func (e *env) signInWith(t *testing.T, id ports.Identity) (domain.Principal, err
 	t.Helper()
 	e.nonces++
 	nonce := fmt.Sprintf("nonce-%d", e.nonces)
-	u, err := e.a.SignIn(e.ctx, id, nonce)
+	u, err := e.a.SignIn(e.ctx, id, nonce, e.linkAs)
 	if err != nil {
 		return domain.Principal{}, err
 	}
@@ -231,27 +233,38 @@ func TestSignInAndInvitations(t *testing.T) {
 	if invs[0].ID != inv.ID || invs[0].EffectiveStatus != domain.InvitationBound {
 		t.Fatalf("%+v", invs)
 	}
-	// A session's Recent sign-in is known only from its nonce on the user
-	// document, and lasts 15 minutes.
-	if p := must[domain.Principal](t)(e.a.Principal(e.ctx, ola.User.ID, e.clock.t, "forged")); p.SignedInAt != nil {
-		t.Fatal("unknown nonce must not count as a sign-in")
+	// A session is valid only with a nonce recorded on the user document
+	// (a cookie forged with the session key alone is refused), and its
+	// Recent sign-in lasts 15 minutes.
+	for _, nonce := range []string{"forged", ""} {
+		if _, err := e.a.Principal(e.ctx, ola.User.ID, e.clock.t, nonce); !errors.Is(err, domain.ErrUnauthorized) {
+			t.Fatalf("nonce %q: %v", nonce, err)
+		}
 	}
-	if p := must[domain.Principal](t)(e.a.Principal(e.ctx, ola.User.ID, e.clock.t, "")); p.SignedInAt != nil {
-		t.Fatal("no nonce must not count as a sign-in")
-	}
+	// Access changes need the Super Admin's Recent sign-in.
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "late@example.org", []string{"org-b"}))
 	e.advance(16 * time.Minute)
 	if ola.RecentlySignedIn(e.clock.t) {
 		t.Fatal("a sign-in 16 minutes ago is not recent")
 	}
+	if _, err := e.a.CreateInvitation(e.ctx, sa, "mallory@example.org", []string{"org-a"}); !errors.Is(err, domain.ErrRecentSignIn) {
+		t.Fatalf("invitation without a recent sign-in: %v", err)
+	}
+	if _, err := e.a.RevokeUser(e.ctx, sa, ola.User.ID); !errors.Is(err, domain.ErrRecentSignIn) {
+		t.Fatalf("revoke without a recent sign-in: %v", err)
+	}
+	if _, err := e.a.SetUserOrgs(e.ctx, sa, ola.User.ID, nil); !errors.Is(err, domain.ErrRecentSignIn) {
+		t.Fatalf("set orgs without a recent sign-in: %v", err)
+	}
 	// Expired invitation.
-	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "late@example.org", []string{"org-b"}))
 	e.advance(15 * 24 * time.Hour)
+	sa = must[domain.Principal](t)(e.signIn(t, "sa-sub", "admin@example.org"))
 	if _, err := e.signIn(t, "late-sub", "late@example.org"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatal("expired invitation")
 	}
 	// Revocation takes effect on the next request.
 	must[*domain.User](t)(e.a.RevokeUser(e.ctx, sa, ola.User.ID))
-	if _, err := e.a.Principal(e.ctx, ola.User.ID, e.clock.t.Add(-time.Hour), ""); !errors.Is(err, domain.ErrUnauthorized) {
+	if _, err := e.a.Principal(e.ctx, ola.User.ID, e.clock.t.Add(-time.Hour), "ola-nonce"); !errors.Is(err, domain.ErrUnauthorized) {
 		t.Fatal("revoked session")
 	}
 }
@@ -1096,8 +1109,18 @@ func TestSignInMatchesUsersByEmail(t *testing.T) {
 	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "ola@example.org", []string{"org-a"}))
 	ola := must[domain.Principal](t)(e.signIn(t, "ola-sub", "ola@example.org"))
 
-	// Facebook with the same email is the same user, with the same access.
+	// Facebook with the same email is the same user, with the same access,
+	// once linked from a session of that user: an email alone is not enough.
+	if _, err := e.signInWith(t, fb("fb-ola", "Ola@Example.org")); !errors.Is(err, app.ErrLinkRequired) {
+		t.Fatalf("unlinked facebook identity: %v", err)
+	}
+	e.linkAs = sa.User.ID
+	if _, err := e.signInWith(t, fb("fb-ola", "Ola@Example.org")); !errors.Is(err, app.ErrLinkRequired) {
+		t.Fatalf("linked from another user's session: %v", err)
+	}
+	e.linkAs = ola.User.ID
 	viaFB := must[domain.Principal](t)(e.signInWith(t, fb("fb-ola", "Ola@Example.org")))
+	e.linkAs = ""
 	if viaFB.User.ID != ola.User.ID || !viaFB.CanManageOrg("org-a") || !viaFB.RecentlySignedIn(e.clock.t) {
 		t.Fatalf("matched %+v", viaFB.User)
 	}
@@ -1255,5 +1278,113 @@ func TestAutosyncOffRetriesAFailedDelete(t *testing.T) {
 	}
 	if e.conn(t, "org-a").Autosync != nil {
 		t.Fatal("Autosync off")
+	}
+}
+
+// failingLog is an Audit Log that refuses every line.
+type failingLog struct{ ports.AppendLog }
+
+func (failingLog) Append(context.Context, string, []byte) error {
+	return errors.New("append blob full")
+}
+
+// The stored token is read only when it will be used, never unrecorded,
+// never past Meta's data access, and only under a name of its own
+// Organization (T8, T10, T11).
+func TestStoredTokenIsGuarded(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	e.connect(t, sa, "org-a", "1001", false)
+	e.autosyncOn(t, sa, "org-a")
+
+	// Repeated "Sync now" and timer calls inside the interval read no secret.
+	must[domain.SyncResult](t)(e.a.SyncNow(e.ctx, sa, "org-a"))
+	if e.secrets.Gets != 1 {
+		t.Fatalf("first run: %d reads", e.secrets.Gets)
+	}
+	for range 20 {
+		if _, err := e.a.SyncNow(e.ctx, sa, "org-a"); !errors.Is(err, domain.ErrTooSoon) {
+			t.Fatalf("again: %v", err)
+		}
+		_, _ = e.a.AutosyncAll(e.ctx)
+	}
+	if e.secrets.Gets != 1 {
+		t.Fatalf("calls inside the interval read the secret %d times", e.secrets.Gets)
+	}
+
+	// Each use is in the Audit Log before the token is read.
+	log := string(must[[]byte](t)(e.a.Audit.Read(e.ctx, e.clock.t.Format(time.DateOnly))))
+	if !strings.Contains(log, `"action":"autosync.token_used"`) || !strings.Contains(log, `"purpose":"sync"`) {
+		t.Fatalf("audit: %s", log)
+	}
+	// No Audit Log, no token.
+	audit := e.a.Audit
+	e.a.Audit = failingLog{audit}
+	e.advance(2 * time.Minute)
+	if _, err := e.a.SyncNow(e.ctx, sa, "org-a"); err == nil || e.secrets.Gets != 1 {
+		t.Fatalf("sync without audit: %v, %d reads", err, e.secrets.Gets)
+	}
+	e.a.Audit = audit
+
+	// A connection naming another Organization's secret is refused.
+	c := e.conn(t, "org-a")
+	good := c.Autosync.SecretName
+	for _, name := range []string{"fbpage-org-b-0123456789abcdef", "session-key", "fbpage-org-a-x"} {
+		c.Autosync.SecretName = name
+		must[string](t)(e.a.Docs.Put(e.ctx, "orgs/org-a/social/connection.json", must[[]byte](t)(json.Marshal(c)), ports.AnyETag))
+		e.advance(2 * time.Minute)
+		if _, err := e.a.SyncNow(e.ctx, sa, "org-a"); !errors.Is(err, domain.ErrInvalidState) || e.secrets.Gets != 1 {
+			t.Fatalf("secret %q: %v, %d reads", name, err, e.secrets.Gets)
+		}
+	}
+	c.Autosync.SecretName = good
+
+	// Past Meta's data access the token is not used and a reconnect is asked for.
+	past := e.clock.t.Add(-time.Minute)
+	c.Autosync.DataAccessExpiresAt = &past
+	must[string](t)(e.a.Docs.Put(e.ctx, "orgs/org-a/social/connection.json", must[[]byte](t)(json.Marshal(c)), ports.AnyETag))
+	e.advance(2 * time.Minute)
+	if _, err := e.a.SyncNow(e.ctx, sa, "org-a"); !errors.Is(err, domain.ErrInvalidState) || e.secrets.Gets != 1 {
+		t.Fatalf("expired: %v, %d reads", err, e.secrets.Gets)
+	}
+	if !e.conn(t, "org-a").Autosync.NeedsReconnect {
+		t.Fatal("expired data access asks for a reconnect")
+	}
+}
+
+// The daily purge deletes token secrets no connection names once they are
+// an hour old, and keeps the one in use (T11).
+func TestOrphanedSecretsAreSwept(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	e.connect(t, sa, "org-a", "1001", false)
+	inUse := e.autosyncOn(t, sa, "org-a")
+	for _, n := range []string{"fbpage-org-a-0000000000000001", "fbpage-org-b-0000000000000002"} {
+		if err := e.secrets.Set(e.ctx, n, "orphan-token"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := e.secrets.Set(e.ctx, "fbpage-org-b-0000000000000003", "fresh-token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.secrets.Set(e.ctx, "session-key", "not-a-token"); err != nil {
+		t.Fatal(err)
+	}
+	old := e.clock.t.Add(-2 * time.Hour)
+	for _, n := range []string{inUse, "fbpage-org-a-0000000000000001", "fbpage-org-b-0000000000000002", "session-key"} {
+		e.secrets.SetCreated(n, old)
+	}
+	e.secrets.SetCreated("fbpage-org-b-0000000000000003", e.clock.t.Add(-time.Minute))
+	must[int](t)(e.a.PurgeBin(e.ctx))
+	left := must[[]ports.SecretInfo](t)(e.secrets.List(e.ctx, ""))
+	var names []string
+	for _, s := range left {
+		names = append(names, s.Name)
+	}
+	slices.Sort(names)
+	want := []string{"fbpage-org-b-0000000000000003", inUse, "session-key"}
+	slices.Sort(want)
+	if !slices.Equal(names, want) {
+		t.Fatalf("left %v, want %v", names, want)
 	}
 }

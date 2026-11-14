@@ -111,7 +111,16 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	nonce := randToken()
-	u, err := s.App.SignIn(r.Context(), id, nonce)
+	signedInAs := ""
+	if cur, err := s.principal(r); err == nil {
+		signedInAs = cur.ID()
+	}
+	u, err := s.App.SignIn(r.Context(), id, nonce, signedInAs)
+	if errors.Is(err, app.ErrLinkRequired) {
+		s.authError(w, r, msg("To konto Facebook nie jest jeszcze połączone z Twoim kontem w CMS. Zaloguj się kontem, którego używasz dotąd, a potem – w tej samej przeglądarce – zaloguj się przez Facebooka, aby je połączyć.",
+			"This Facebook account is not linked to your CMS account yet. Sign in with the account you have used so far, then, in the same browser, sign in with Facebook to link it."))
+		return
+	}
 	if errors.Is(err, app.ErrSuperAdminIdentity) {
 		s.authError(w, r, msg("Administrator loguje się wyłącznie kontem Google, z którym jest powiązany.",
 			"The administrator signs in only with the Google account they are bound to."))
@@ -144,6 +153,12 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	var sd sessionData
+	if err := s.readCookie(r, sessionCookie, "session", &sd); err == nil {
+		if err := s.App.SignOut(r.Context(), sd.UserID, sd.Nonce); err != nil {
+			s.Log.Error("sign out", "err", err)
+		}
+	}
 	s.setCookie(w, sessionCookie, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -372,7 +387,8 @@ func (s *Server) timerPurge(w http.ResponseWriter, r *http.Request) {
 	n, err := s.App.PurgeBin(context.WithoutCancel(r.Context()))
 	if err != nil {
 		s.Log.Error("purge", "err", err)
-		logs = append(logs, "purge error: "+err.Error())
+		// /purge is public: the details go to the log only.
+		logs = append(logs, "purge failed")
 		// Retry a failed run after a minute rather than after purgeInterval,
 		// while still bounding how often public calls can trigger a scan.
 		s.purgeMu.Lock()
@@ -404,7 +420,9 @@ func (s *Server) timerSync(w http.ResponseWriter, r *http.Request) {
 	n, err := s.App.AutosyncAll(context.WithoutCancel(r.Context()))
 	if err != nil {
 		s.Log.Error("autosync", "err", err)
-		logs = append(logs, "autosync error: "+err.Error())
+		// /sync is public: the details (Organization ids, secret names,
+		// Graph's answers) go to the log only.
+		logs = append(logs, "autosync failed")
 	}
 	s.Log.Info("autosync", "synced", n)
 	writeJSON(w, http.StatusOK, map[string]any{"Outputs": map[string]any{}, "Logs": logs, "ReturnValue": nil})

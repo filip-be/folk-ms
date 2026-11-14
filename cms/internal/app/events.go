@@ -166,7 +166,7 @@ func (a *App) GetEvent(ctx context.Context, p domain.Principal, org, id string) 
 	if err != nil {
 		return EventView{}, err
 	}
-	e, etag, err := load[domain.Event](ctx, a.Docs, eventKey(org, id))
+	e, etag, err := a.loadEvent(ctx, org, id)
 	if err != nil {
 		return EventView{}, err
 	}
@@ -309,11 +309,19 @@ func (a *App) edit(ctx context.Context, p domain.Principal, o *domain.Organizati
 	var e *domain.Event
 	var tag string
 	var err error
+	if !domain.ValidID(id) {
+		return EventView{}, fmt.Errorf("%w: event", domain.ErrNotFound)
+	}
 	if etag == "" {
-		e, tag, err = mutate(ctx, a.Docs, eventKey(o.ID, id), fn)
+		e, tag, err = mutate(ctx, a.Docs, eventKey(o.ID, id), func(e *domain.Event) error {
+			if err := ownEvent(e, o.ID, id); err != nil {
+				return err
+			}
+			return fn(e)
+		})
 	} else {
 		var cur string
-		e, cur, err = load[domain.Event](ctx, a.Docs, eventKey(o.ID, id))
+		e, cur, err = a.loadEvent(ctx, o.ID, id)
 		if err != nil {
 			return EventView{}, err
 		}
@@ -481,6 +489,9 @@ func (a *App) PurgeBin(ctx context.Context) (int, error) {
 		if err := a.purgeSocial(ctx, o.ID, now); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	if a.Secrets != nil {
+		errs = append(errs, a.sweepSecrets(ctx, now))
 	}
 	return purged, errors.Join(errs...)
 }

@@ -91,6 +91,30 @@ func DocumentStore(t *testing.T, newStore func(t *testing.T) ports.DocumentStore
 		}
 	})
 
+	t.Run("keys cannot leave their namespace", func(t *testing.T) {
+		s := newStore(t)
+		if _, err := s.Put(ctx, "orgs/b/events/x.json", []byte(`{}`), ""); err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range []string{
+			"orgs/a/events/../../b/events/x.json", "orgs/a/./x.json", "orgs//x.json", "/orgs/x.json",
+			"orgs/a/x%2F..json", "orgs/a/x\\y.json", "orgs/a/x y.json", "orgs/a/", "",
+		} {
+			if _, err := s.Get(ctx, k); !errors.Is(err, ports.ErrInvalidKey) {
+				t.Errorf("Get(%q): want ErrInvalidKey, got %v", k, err)
+			}
+			if _, err := s.Put(ctx, k, []byte(`{}`), ports.AnyETag); !errors.Is(err, ports.ErrInvalidKey) {
+				t.Errorf("Put(%q): want ErrInvalidKey, got %v", k, err)
+			}
+			if err := s.Delete(ctx, k, ""); !errors.Is(err, ports.ErrInvalidKey) {
+				t.Errorf("Delete(%q): want ErrInvalidKey, got %v", k, err)
+			}
+		}
+		if _, err := s.List(ctx, "orgs/a/../b/"); !errors.Is(err, ports.ErrInvalidKey) {
+			t.Errorf("List: want ErrInvalidKey, got %v", err)
+		}
+	})
+
 	t.Run("concurrent CAS has one winner per round", func(t *testing.T) {
 		s := newStore(t)
 		etag, _ := s.Put(ctx, "c/n.json", []byte(`"init"`), "")

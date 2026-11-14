@@ -12,6 +12,9 @@ import (
 )
 
 func TestEventsAndLongLivedToken(t *testing.T) {
+	var revoked []string
+	debug := map[string]any{"is_valid": true, "app_id": "app", "type": "PAGE", "profile_id": "p1",
+		"scopes": []string{"pages_show_list", "pages_read_engagement", "pages_manage_posts"}, "data_access_expires_at": 1790000000}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
 		out := map[string]any{}
@@ -43,12 +46,30 @@ func TestEventsAndLongLivedToken(t *testing.T) {
 			}
 			out["access_token"] = "long-user"
 		case "/v24.0/p1":
-			if r.Form.Get("access_token") != "long-user" {
+			if bearer(r) != "long-user" {
 				t.Error("page token derived from the long-lived user token")
 			}
 			out["id"], out["name"], out["access_token"] = "p1", "Page", "long-page"
+		case "/v24.0/me/permissions":
+			if bearer(r) != "long-user" {
+				t.Error("permissions read with the long-lived user token")
+			}
+			out["data"] = []any{
+				map[string]any{"permission": "pages_read_engagement", "status": "granted"},
+				map[string]any{"permission": "business_management", "status": "granted"},
+				map[string]any{"permission": "user_events", "status": "declined"},
+			}
+		case "/v24.0/me/permissions/business_management":
+			if r.Method != http.MethodDelete || r.URL.Query().Get("appsecret_proof") == "" {
+				t.Errorf("revoke: %s %v", r.Method, r.URL.Query())
+			}
+			revoked = append(revoked, "business_management")
+			out["success"] = true
 		case "/v24.0/debug_token":
-			out["data"] = map[string]any{"is_valid": true, "data_access_expires_at": 1790000000}
+			if bearer(r) != "app|sec" || r.Form.Get("input_token") != "long-page" {
+				t.Error("debug_token with the app token")
+			}
+			out["data"] = debug
 		}
 		_ = json.NewEncoder(w).Encode(out)
 	}))
@@ -76,6 +97,22 @@ func TestEventsAndLongLivedToken(t *testing.T) {
 	tok, page, exp, err := c.LongLivedPageToken(ctx, "short", "p1")
 	if err != nil || tok != "long-page" || page.Name != "Page" || exp.Year() != 2026 {
 		t.Fatalf("%q %+v %v %v", tok, page, exp, err)
+	}
+	if len(revoked) != 1 {
+		t.Fatalf("extra permissions revoked: %v", revoked)
+	}
+	// A token that is not this app's page token for this page, or still
+	// carries a permission outside Scopes, is never handed over to be stored.
+	for name, change := range map[string][2]any{
+		"other app": {"app_id", "other"}, "user token": {"type", "USER"}, "other page": {"profile_id", "p2"},
+		"extra scope": {"scopes", []string{"pages_read_engagement", "business_management"}}, "invalid": {"is_valid", false},
+	} {
+		old := debug[change[0].(string)]
+		debug[change[0].(string)] = change[1]
+		if tok, _, _, err := c.LongLivedPageToken(ctx, "short", "p1"); !errors.Is(err, ports.ErrTokenRejected) || tok != "" {
+			t.Errorf("%s: %q %v", name, tok, err)
+		}
+		debug[change[0].(string)] = old
 	}
 }
 

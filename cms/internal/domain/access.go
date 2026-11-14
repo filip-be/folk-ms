@@ -35,9 +35,9 @@ type User struct {
 	// SessionsValidAfter invalidates sessions issued before it.
 	SessionsValidAfter time.Time `json:"sessionsValidAfter"`
 	// SignIns are the latest real sign-ins: a hash of each session's nonce
-	// and when it signed in. Actions that need a Recent sign-in check the
-	// session's nonce against them, so a cookie forged with the session key
-	// alone is not enough (T5).
+	// and when it signed in. Every request checks the session's nonce
+	// against them, so a cookie forged with the session key alone is refused
+	// (T5); signing out removes its record.
 	SignIns []SignInRecord `json:"signIns,omitempty"`
 }
 
@@ -50,7 +50,9 @@ type SignInRecord struct {
 // RecentSignIn is how long a sign-in counts as recent.
 const RecentSignIn = 15 * time.Minute
 
-const maxSignIns = 8
+// maxSignIns is how many sessions a user may have at once (devices,
+// browsers); a newer sign-in ends the oldest.
+const maxSignIns = 16
 
 // HashNonce hashes a session nonce for the user document.
 func HashNonce(nonce string) string {
@@ -64,6 +66,18 @@ func (u *User) RecordSignIn(nonce string, now time.Time) {
 	if len(u.SignIns) > maxSignIns {
 		u.SignIns = slices.Clone(u.SignIns[len(u.SignIns)-maxSignIns:])
 	}
+}
+
+// ForgetSignIn removes the record of the session with this nonce (sign-out),
+// which ends that session.
+func (u *User) ForgetSignIn(nonce string) bool {
+	if nonce == "" {
+		return false
+	}
+	h := HashNonce(nonce)
+	n := len(u.SignIns)
+	u.SignIns = slices.DeleteFunc(u.SignIns, func(r SignInRecord) bool { return r.NonceHash == h })
+	return len(u.SignIns) != n
 }
 
 // SignedInAt returns when the session with this nonce signed in, if it is

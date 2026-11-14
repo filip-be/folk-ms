@@ -73,11 +73,9 @@ func (a *App) SyncNow(ctx context.Context, p domain.Principal, org string) (doma
 		}
 		return domain.SyncResult{}, ErrNeedsMetaLogin
 	}
-	token, err := a.storedToken(ctx, p, conn)
-	if err != nil {
-		return domain.SyncResult{}, err
-	}
-	return a.runSync(ctx, p, conn, token, domain.SyncNowInterval)
+	return a.runSync(ctx, p, conn, func(ctx context.Context) (string, error) {
+		return a.storedToken(ctx, p, conn, "sync")
+	}, domain.SyncNowInterval)
 }
 
 // CompleteSyncLogin runs a Sync after the Meta sign-in of "Sync now" with
@@ -101,7 +99,7 @@ func (a *App) CompleteSyncLogin(ctx context.Context, p domain.Principal, org, co
 	if err != nil {
 		return domain.SyncResult{}, err
 	}
-	return a.runSync(ctx, p, conn, pageToken, domain.SyncNowInterval)
+	return a.runSync(ctx, p, conn, func(context.Context) (string, error) { return pageToken, nil }, domain.SyncNowInterval)
 }
 
 // AutosyncAll syncs every Organization with Autosync on whose last run is
@@ -123,12 +121,9 @@ func (a *App) AutosyncAll(ctx context.Context) (int, error) {
 		if conn.Autosync == nil || conn.Autosync.NeedsReconnect {
 			continue
 		}
-		token, err := a.storedToken(ctx, system, conn)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("%s: %w", o.ID, err))
-			continue
-		}
-		_, err = a.runSync(ctx, system, conn, token, domain.AutosyncInterval)
+		_, err = a.runSync(ctx, system, conn, func(ctx context.Context) (string, error) {
+			return a.storedToken(ctx, system, conn, "autosync")
+		}, domain.AutosyncInterval)
 		switch {
 		case errors.Is(err, domain.ErrTooSoon), errors.Is(err, domain.ErrConflict):
 		case err != nil:
@@ -141,11 +136,27 @@ func (a *App) AutosyncAll(ctx context.Context) (int, error) {
 }
 
 // storedToken reads Autosync's token from the secret store, per use (T3).
-func (a *App) storedToken(ctx context.Context, p domain.Principal, conn *domain.Connection) (string, error) {
+// Every use is written to the Audit Log first, and the token is not read
+// when that fails (T8). It is refused once Meta's data access has expired,
+// and the secret name must be one this Organization's Autosync could have
+// issued, whatever the connection document says (T11).
+func (a *App) storedToken(ctx context.Context, p domain.Principal, conn *domain.Connection, purpose string) (string, error) {
 	if a.Secrets == nil || conn.Autosync == nil {
 		return "", fmt.Errorf("%w: Autosync is off", domain.ErrInvalidState)
 	}
-	token, err := a.Secrets.Get(ctx, conn.Autosync.SecretName)
+	as := conn.Autosync
+	if !a.ownSecretName(conn.OrgID, as.SecretName) {
+		a.Log.Error("autosync secret name not of this organization", "org", conn.OrgID, "secret", as.SecretName)
+		return "", fmt.Errorf("%w: the stored token's name is not this organization's", domain.ErrInvalidState)
+	}
+	if as.DataAccessExpiresAt != nil && !a.now().Before(*as.DataAccessExpiresAt) {
+		a.markNeedsReconnect(ctx, p, conn.OrgID, "data access expired")
+		return "", fmt.Errorf("%w: Meta's data access for the stored token expired; turn Autosync on again", domain.ErrInvalidState)
+	}
+	if err := a.auditStrict(ctx, p, "autosync.token_used", conn.OrgID, "", map[string]any{"purpose": purpose, "page": conn.PageID}); err != nil {
+		return "", fmt.Errorf("stored token not used, the Audit Log is unavailable: %w", err)
+	}
+	token, err := a.Secrets.Get(ctx, as.SecretName)
 	if errors.Is(err, ports.ErrNotFound) {
 		a.markNeedsReconnect(ctx, p, conn.OrgID, "secret missing")
 		return "", fmt.Errorf("%w: the stored token is gone; turn Autosync on again", domain.ErrInvalidState)
@@ -201,7 +212,11 @@ func (a *App) finishSync(ctx context.Context, org, holder, by, email string, r d
 
 // runSync runs one Sync of the connected page with a page token held in
 // memory for this call only.
-func (a *App) runSync(ctx context.Context, p domain.Principal, conn *domain.Connection, token string, minInterval time.Duration) (domain.SyncResult, error) {
+//
+// The lease is claimed before the token is fetched, so the stored token is
+// read only when a run really happens: repeated "Sync now" or /sync calls
+// read no secret (T8, T10).
+func (a *App) runSync(ctx context.Context, p domain.Principal, conn *domain.Connection, getToken func(context.Context) (string, error), minInterval time.Duration) (domain.SyncResult, error) {
 	org := conn.OrgID
 	holder := a.newID()
 	if err := a.claimSync(ctx, org, holder, minInterval); err != nil {
@@ -212,7 +227,11 @@ func (a *App) runSync(ctx context.Context, p domain.Principal, conn *domain.Conn
 		by = SyncByAutosync
 	}
 	ctx = context.WithoutCancel(ctx)
-	r, err := a.syncPage(ctx, org, conn.PageID, token)
+	var r domain.SyncResult
+	token, err := getToken(ctx)
+	if err == nil {
+		r, err = a.syncPage(ctx, org, conn.PageID, token)
+	}
 	email := ""
 	if p.User != nil {
 		email = p.User.Email

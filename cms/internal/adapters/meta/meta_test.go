@@ -13,6 +13,38 @@ import (
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
 
+// bearer is the token a request carries; it must never be in the URL.
+func bearer(r *http.Request) string {
+	if r.URL.Query().Has("access_token") {
+		panic("access token in the URL: " + r.URL.Path)
+	}
+	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return tok
+}
+
+// A token or the app secret never reaches an error: not through a URL that
+// cannot be built, a transport failure, or Graph echoing it back (T9).
+func TestErrorsCarryNoSecrets(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":{"message":"bad token ` + bearer(r) + ` for app secret-of-the-app","code":1}}`))
+	}))
+	defer srv.Close()
+	c := New("app", "secret-of-the-app", "")
+	c.GraphURL = srv.URL
+	const tok = "PAGE-TOKEN-SECRET"
+	_, err1 := c.PostFacebookPhoto(context.Background(), "p1", tok, "https://x/i.jpg", "hi")
+	c.GraphURL = "http://%zz"
+	_, err2 := c.PostFacebookPhoto(context.Background(), "p1", tok, "https://x/i.jpg", "hi")
+	c.GraphURL = "http://127.0.0.1:1"
+	_, err3 := c.PostFacebookPhoto(context.Background(), "p1", tok, "https://x/i.jpg", "hi")
+	for i, err := range []error{err1, err2, err3} {
+		if err == nil || strings.Contains(err.Error(), tok) || strings.Contains(err.Error(), "secret-of-the-app") || strings.Contains(err.Error(), "appsecret_proof") {
+			t.Errorf("error %d: %v", i+1, err)
+		}
+	}
+}
+
 func TestGraphFlow(t *testing.T) {
 	var calls []string
 	polls := 0
@@ -20,7 +52,7 @@ func TestGraphFlow(t *testing.T) {
 		_ = r.ParseForm()
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		if r.URL.Path != "/v24.0/oauth/access_token" {
-			if r.Form.Get("appsecret_proof") != (&Client{AppSecret: "sec"}).proof(r.Form.Get("access_token")) {
+			if r.Form.Get("appsecret_proof") != (&Client{AppSecret: "sec"}).proof(bearer(r)) {
 				t.Errorf("missing appsecret_proof on %s", r.URL.Path)
 			}
 		}
@@ -36,7 +68,7 @@ func TestGraphFlow(t *testing.T) {
 			}
 			out["data"] = []any{map[string]any{"id": "p1", "name": "Page",
 				"instagram_business_account": map[string]string{"id": "ig1", "username": "bal"}}}
-		case r.URL.Path == "/v24.0/p1" && r.Form.Get("access_token") == "short":
+		case r.URL.Path == "/v24.0/p1" && bearer(r) == "short":
 			out["id"], out["name"], out["access_token"] = "p1", "Page", "pt"
 			out["instagram_business_account"] = map[string]string{"id": "ig1", "username": "bal"}
 		case r.URL.Path == "/v24.0/p2":

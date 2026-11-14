@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/filip-be/folk-ms/cms/internal/domain"
@@ -174,7 +175,7 @@ func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID st
 	if page == nil {
 		return ConnectionStatus{}, fmt.Errorf("%w: page not available, sign in with Meta again", domain.ErrNotFound)
 	}
-	old, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
+	old, oldEtag, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return ConnectionStatus{}, err
 	}
@@ -191,6 +192,9 @@ func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID st
 			if err := a.turnOffAutosync(ctx, p, org, nil); err != nil {
 				return ConnectionStatus{}, err
 			}
+			if old, oldEtag, err = a.connectionWithoutAutosync(ctx, org); err != nil {
+				return ConnectionStatus{}, err
+			}
 		}
 	}
 	c := domain.Connection{
@@ -203,7 +207,9 @@ func (a *App) SelectPage(ctx context.Context, p domain.Principal, org, pageID st
 		c.Autosync, c.AutosyncLost = old.Autosync, old.AutosyncLost
 		c.CreatedBy, c.CreatedByEmail, c.CreatedAt = old.CreatedBy, old.CreatedByEmail, old.CreatedAt
 	}
-	if _, err := save(ctx, a.Docs, connectionKey(org), c, ports.AnyETag); err != nil {
+	// Conditional on the version read: a concurrent Autosync on must not be
+	// overwritten, which would leave its new token unreferenced (T11).
+	if _, err := save(ctx, a.Docs, connectionKey(org), c, oldEtag); err != nil {
 		return ConnectionStatus{}, err
 	}
 	_ = a.Docs.Delete(ctx, pendingPagesKey(org, p.ID()), "")
@@ -222,7 +228,7 @@ func (a *App) Disconnect(ctx context.Context, p domain.Principal, org string) er
 	if _, err := a.authorize(p, org); err != nil {
 		return err
 	}
-	c, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
+	c, etag, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if err != nil {
 		return err
 	}
@@ -233,12 +239,30 @@ func (a *App) Disconnect(ctx context.Context, p domain.Principal, org string) er
 		if err := a.turnOffAutosync(ctx, p, org, nil); err != nil {
 			return err
 		}
+		if c, etag, err = a.connectionWithoutAutosync(ctx, org); err != nil {
+			return err
+		}
 	}
-	if err := a.Docs.Delete(ctx, connectionKey(org), ""); err != nil {
+	// Conditional, so a concurrent Autosync on is not deleted with the
+	// document that names its token (T11).
+	if err := a.Docs.Delete(ctx, connectionKey(org), etag); err != nil {
 		return storeErr(err)
 	}
 	a.audit(ctx, p, "social.disconnected", org, c.PageID, map[string]any{"page": c.PageName})
 	return nil
+}
+
+// connectionWithoutAutosync reloads the connection after Autosync was
+// turned off, refusing when it was turned on again meanwhile.
+func (a *App) connectionWithoutAutosync(ctx context.Context, org string) (*domain.Connection, string, error) {
+	c, etag, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
+	if err != nil {
+		return nil, "", err
+	}
+	if c.Autosync != nil {
+		return nil, "", fmt.Errorf("%w: Autosync was turned on meanwhile", domain.ErrConflict)
+	}
+	return c, etag, nil
 }
 
 // StartAutosync checks that the Moderator may turn Autosync on now; the
@@ -262,6 +286,13 @@ func (a *App) StartAutosync(ctx context.Context, p domain.Principal, org string)
 // (T11: a soft-deleted name is never set again).
 func (a *App) secretName(org string) string {
 	return "fbpage-" + domain.Slugify(org) + "-" + a.newID()
+}
+
+// ownSecretName reports whether name is one secretName could have issued
+// for org.
+func (a *App) ownSecretName(org, name string) bool {
+	id, ok := strings.CutPrefix(name, "fbpage-"+domain.Slugify(org)+"-")
+	return ok && domain.ValidID(id)
 }
 
 // CompleteAutosync turns Autosync on after the Meta sign-in: the user token
@@ -455,6 +486,50 @@ func (a *App) purgeSocial(ctx context.Context, org string, now time.Time) error 
 			old = perr == nil && now.Sub(day) > 48*time.Hour
 		}
 		drop(k, old, err)
+	}
+	return errors.Join(errs...)
+}
+
+// orphanAge is how old an unreferenced token secret must be before the
+// sweep deletes it: CompleteAutosync stores the secret a moment before the
+// connection names it.
+const orphanAge = time.Hour
+
+// sweepSecrets deletes token secrets no connection names (left by a crash
+// or a failed delete) and purges deleted ones still in Key Vault's soft
+// delete, so no copy of a page token outlives Autosync (T11).
+func (a *App) sweepSecrets(ctx context.Context, now time.Time) error {
+	inUse := map[string]bool{}
+	for _, o := range a.orgs {
+		c, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(o.ID))
+		if errors.Is(err, domain.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			// Unsure what is in use: delete nothing.
+			return fmt.Errorf("secret sweep: %w", err)
+		}
+		if c.Autosync != nil {
+			inUse[c.Autosync.SecretName] = true
+		}
+	}
+	secrets, err := a.Secrets.List(ctx, "fbpage-")
+	if err != nil {
+		return fmt.Errorf("secret sweep: %w", err)
+	}
+	var errs []error
+	for _, sec := range secrets {
+		if inUse[sec.Name] || now.Sub(sec.Created) < orphanAge {
+			continue
+		}
+		if err := a.Secrets.Delete(ctx, sec.Name); err != nil && !errors.Is(err, ports.ErrNotFound) {
+			errs = append(errs, err)
+			continue
+		}
+		a.audit(ctx, system, "autosync.orphan_deleted", "", "", map[string]any{"secret": sec.Name})
+	}
+	if _, err := a.Secrets.PurgeDeleted(ctx, "fbpage-"); err != nil {
+		errs = append(errs, err)
 	}
 	return errors.Join(errs...)
 }

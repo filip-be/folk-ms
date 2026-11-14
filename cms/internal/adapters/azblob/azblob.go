@@ -16,6 +16,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -146,7 +147,20 @@ func (c *Client) DeleteContainer(ctx context.Context, name string) error {
 	return err
 }
 
+// checkName refuses a blob name that could leave its prefix or container:
+// Blob Storage resolves "." and ".." segments in the request path, and a
+// bearer token, unlike a shared-key signature, does not pin the path (T13).
+func checkName(name string) error {
+	if !ports.ValidKey(name) {
+		return fmt.Errorf("azblob: %w %q", ports.ErrInvalidKey, name)
+	}
+	return nil
+}
+
 func (c *Client) get(ctx context.Context, container, name string) (ports.Document, error) {
+	if err := checkName(name); err != nil {
+		return ports.Document{}, err
+	}
 	resp, data, err := c.do(ctx, http.MethodGet, blobPath(container, name), nil, nil, nil)
 	if err != nil {
 		return ports.Document{}, mapErr(err)
@@ -155,6 +169,9 @@ func (c *Client) get(ctx context.Context, container, name string) (ports.Documen
 }
 
 func (c *Client) put(ctx context.Context, container, name string, data []byte, contentType, cacheControl, etag string) (string, error) {
+	if err := checkName(name); err != nil {
+		return "", err
+	}
 	h := http.Header{}
 	h.Set("x-ms-blob-type", "BlockBlob")
 	h.Set("Content-Type", contentType)
@@ -180,6 +197,9 @@ type listResult struct {
 }
 
 func (c *Client) list(ctx context.Context, container, prefix string) ([]string, error) {
+	if !ports.ValidPrefix(prefix) {
+		return nil, fmt.Errorf("azblob: %w %q", ports.ErrInvalidKey, prefix)
+	}
 	var names []string
 	marker := ""
 	for {
@@ -208,6 +228,9 @@ func (c *Client) list(ctx context.Context, container, prefix string) ([]string, 
 }
 
 func (c *Client) delete(ctx context.Context, container, name, etag string) error {
+	if err := checkName(name); err != nil {
+		return err
+	}
 	h := http.Header{}
 	condHeaders(h, etag, false)
 	_, _, err := c.do(ctx, http.MethodDelete, blobPath(container, name), nil, h, nil)
@@ -272,22 +295,59 @@ func (s *PublicStore) Get(ctx context.Context, path string) (ports.Document, err
 
 func (s *PublicStore) URL(path string) string { return s.publicURL + "/" + path }
 
-// AppendLog keeps one append blob per segment.
+// AppendLog keeps one append blob per segment, or several when one fills
+// up: an append blob takes at most 50,000 blocks, one per line, and a full
+// one would otherwise refuse every later line of the day (T8). Parts after
+// the first are <segment>.<n>.log.
 type AppendLog struct {
 	c         *Client
 	container string
 	prefix    string
+
+	mu   sync.Mutex
+	part map[string]int // the part last appended to, per segment
 }
+
+// maxLogParts bounds the parts of one segment (5 million lines).
+const maxLogParts = 100
 
 // NewAppendLog returns a log whose segments are <prefix><segment>.log.
 func NewAppendLog(c *Client, container, prefix string) *AppendLog {
-	return &AppendLog{c: c, container: container, prefix: prefix}
+	return &AppendLog{c: c, container: container, prefix: prefix, part: map[string]int{}}
 }
 
-func (l *AppendLog) name(segment string) string { return l.prefix + segment + ".log" }
+func (l *AppendLog) name(segment string, part int) string {
+	if part <= 1 {
+		return l.prefix + segment + ".log"
+	}
+	return l.prefix + segment + "." + strconv.Itoa(part) + ".log"
+}
 
 func (l *AppendLog) Append(ctx context.Context, segment string, line []byte) error {
-	p := blobPath(l.container, l.name(segment))
+	if checkName(l.name(segment, 1)) != nil || strings.Contains(segment, "/") {
+		return fmt.Errorf("azblob: %w %q", ports.ErrInvalidKey, segment)
+	}
+	l.mu.Lock()
+	part := max(l.part[segment], 1)
+	l.mu.Unlock()
+	for ; part <= maxLogParts; part++ {
+		err := l.appendTo(ctx, l.name(segment, part), line)
+		var se *StatusError
+		if errors.As(err, &se) && se.Status == http.StatusConflict && se.Code == "BlockCountExceedsLimit" {
+			continue
+		}
+		if err == nil {
+			l.mu.Lock()
+			l.part[segment] = part
+			l.mu.Unlock()
+		}
+		return err
+	}
+	return fmt.Errorf("azblob: audit segment %s is full", segment)
+}
+
+func (l *AppendLog) appendTo(ctx context.Context, name string, line []byte) error {
+	p := blobPath(l.container, name)
 	appendBlock := func() error {
 		_, _, err := l.c.do(ctx, http.MethodPut, p, url.Values{"comp": {"appendblock"}}, nil, line)
 		return err
@@ -309,23 +369,41 @@ func (l *AppendLog) Append(ctx context.Context, segment string, line []byte) err
 	return err
 }
 
+// Read returns a segment's lines, all parts in order.
 func (l *AppendLog) Read(ctx context.Context, segment string) ([]byte, error) {
-	d, err := l.c.get(ctx, l.container, l.name(segment))
-	if errors.Is(err, ports.ErrNotFound) {
-		return nil, nil
+	var out []byte
+	for part := 1; part <= maxLogParts; part++ {
+		d, err := l.c.get(ctx, l.container, l.name(segment, part))
+		if errors.Is(err, ports.ErrNotFound) {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d.Data...)
 	}
-	return d.Data, err
+	return out, nil
 }
 
 func (l *AppendLog) Segments(ctx context.Context) ([]string, error) {
 	names, err := l.c.list(ctx, l.container, l.prefix)
 	var out []string
 	for _, n := range names {
-		if s, ok := strings.CutSuffix(strings.TrimPrefix(n, l.prefix), ".log"); ok && !strings.Contains(s, "/") {
+		s, ok := strings.CutSuffix(strings.TrimPrefix(n, l.prefix), ".log")
+		if !ok || strings.Contains(s, "/") {
+			continue
+		}
+		if base, num, found := strings.Cut(s, "."); found {
+			if _, err := strconv.Atoi(num); err != nil {
+				continue
+			}
+			s = base
+		}
+		if len(out) == 0 || out[len(out)-1] != s {
 			out = append(out, s)
 		}
 	}
-	return out, err
+	return slices.Compact(out), err
 }
 
 // SharedKey signs requests with the account key (Azurite or local only;

@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/filip-be/folk-ms/cms/internal/ports"
 )
@@ -143,3 +144,28 @@ func (s *Store) Delete(_ context.Context, name string) error {
 	}
 	return nil
 }
+
+// List implements ports.SecretStore: the files with a valid secret name,
+// dated by their modification time.
+func (s *Store) List(_ context.Context, prefix string) ([]ports.SecretInfo, error) {
+	entries, err := os.ReadDir(s.dir)
+	if err != nil {
+		return nil, pathErr(err)
+	}
+	out := []ports.SecretInfo{}
+	for _, e := range entries {
+		name := e.Name()
+		if !e.Type().IsRegular() || !validName(name) || !strings.HasPrefix(name, prefix) {
+			continue
+		}
+		info, err := e.Info()
+		if err != nil {
+			continue // removed meanwhile
+		}
+		out = append(out, ports.SecretInfo{Name: name, Created: info.ModTime()})
+	}
+	return out, nil
+}
+
+// PurgeDeleted implements ports.SecretStore: a removed file is gone.
+func (s *Store) PurgeDeleted(context.Context, string) (int, error) { return 0, nil }

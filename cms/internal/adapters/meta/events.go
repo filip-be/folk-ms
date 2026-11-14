@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -180,7 +181,18 @@ func (c *Client) CoverImage(ctx context.Context, raw string) ([]byte, error) {
 	return data, nil
 }
 
-// LongLivedPageToken implements ports.FacebookEvents.
+// allowedScopes are the permissions a stored token may carry: what the CMS
+// asks for (Scopes) and the two Facebook sign-in uses. Anything else a
+// person granted the app earlier (business_management was asked for before
+// 2026-11-13) is revoked before a token is stored (T12).
+func allowedScope(p string) bool {
+	return p == "public_profile" || p == "email" || slices.Contains(Scopes, p)
+}
+
+// LongLivedPageToken implements ports.FacebookEvents. Before the token is
+// handed over to be stored it narrows and checks it: permissions outside
+// Scopes are revoked from the person's grant, and debug_token must show a
+// valid PAGE token of this app for this Facebook page with no other scopes.
 func (c *Client) LongLivedPageToken(ctx context.Context, userToken, pageID string) (string, ports.SocialPage, time.Time, error) {
 	var ll struct {
 		AccessToken string `json:"access_token"`
@@ -193,6 +205,9 @@ func (c *Client) LongLivedPageToken(ctx context.Context, userToken, pageID strin
 	if ll.AccessToken == "" {
 		return "", ports.SocialPage{}, time.Time{}, errors.New("meta: no long-lived token in the answer")
 	}
+	if err := c.revokeExtraScopes(ctx, ll.AccessToken); err != nil {
+		return "", ports.SocialPage{}, time.Time{}, err
+	}
 	// A page token derived from a long-lived user token does not expire.
 	token, page, err := c.PageToken(ctx, ll.AccessToken, pageID)
 	if err != nil {
@@ -200,21 +215,58 @@ func (c *Client) LongLivedPageToken(ctx context.Context, userToken, pageID strin
 	}
 	var dbg struct {
 		Data struct {
-			IsValid           bool  `json:"is_valid"`
-			DataAccessExpires int64 `json:"data_access_expires_at"`
+			IsValid           bool     `json:"is_valid"`
+			AppID             string   `json:"app_id"`
+			Type              string   `json:"type"`
+			ProfileID         string   `json:"profile_id"`
+			Scopes            []string `json:"scopes"`
+			DataAccessExpires int64    `json:"data_access_expires_at"`
 		} `json:"data"`
 	}
 	if err := c.call(ctx, http.MethodGet, "/debug_token", url.Values{
-		"input_token": {token}, "access_token": {c.AppID + "|" + c.AppSecret},
-	}, "", &dbg); err != nil {
+		"input_token": {token},
+	}, c.AppID+"|"+c.AppSecret, &dbg); err != nil {
 		return "", ports.SocialPage{}, time.Time{}, err
 	}
-	if !dbg.Data.IsValid {
+	d := dbg.Data
+	switch {
+	case !d.IsValid:
 		return "", ports.SocialPage{}, time.Time{}, ports.ErrTokenRejected
+	case d.AppID != c.AppID, d.Type != "" && d.Type != "PAGE", d.ProfileID != "" && d.ProfileID != pageID:
+		return "", ports.SocialPage{}, time.Time{}, fmt.Errorf("%w: not a page token of this app for this page", ports.ErrTokenRejected)
+	}
+	for _, sc := range d.Scopes {
+		if !allowedScope(sc) {
+			return "", ports.SocialPage{}, time.Time{}, fmt.Errorf("%w: the token carries the extra permission %s", ports.ErrTokenRejected, sc)
+		}
 	}
 	var expires time.Time
-	if dbg.Data.DataAccessExpires > 0 {
-		expires = time.Unix(dbg.Data.DataAccessExpires, 0).UTC()
+	if d.DataAccessExpires > 0 {
+		expires = time.Unix(d.DataAccessExpires, 0).UTC()
 	}
 	return token, page, expires, nil
+}
+
+// revokeExtraScopes removes from the person's grant to this app every
+// permission outside allowedScope, so the page token derived next cannot
+// carry it.
+func (c *Client) revokeExtraScopes(ctx context.Context, userToken string) error {
+	var perms struct {
+		Data []struct {
+			Permission string `json:"permission"`
+			Status     string `json:"status"`
+		} `json:"data"`
+	}
+	if err := c.call(ctx, http.MethodGet, "/me/permissions", nil, userToken, &perms); err != nil {
+		return fmt.Errorf("meta: permissions: %w", err)
+	}
+	for _, p := range perms.Data {
+		if p.Status != "granted" || allowedScope(p.Permission) {
+			continue
+		}
+		if err := c.call(ctx, http.MethodDelete, "/me/permissions/"+url.PathEscape(p.Permission), nil, userToken, nil); err != nil {
+			return fmt.Errorf("meta: revoke %s: %w", p.Permission, err)
+		}
+	}
+	return nil
 }

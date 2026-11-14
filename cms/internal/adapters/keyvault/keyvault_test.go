@@ -51,6 +51,11 @@ type fakeVault struct {
 	deleted map[string]bool
 	tokens  map[string]bool // tokens seen
 	srv     *httptest.Server
+	// noPurge refuses purges, like a vault whose caller lacks the right;
+	// busy answers the next n purges with 409, as while a delete runs.
+	noPurge bool
+	busy    int
+	purged  []string
 }
 
 func vaultError(w http.ResponseWriter, status int, code, inner, message string) {
@@ -76,6 +81,41 @@ func newFakeVault(t *testing.T) *fakeVault {
 		v.tokens[auth] = true
 		if r.URL.Query().Get("api-version") != keyvault.APIVersion {
 			vaultError(w, http.StatusBadRequest, "BadParameter", "", "api-version")
+			return
+		}
+		list := func(m map[string]bool, base string) {
+			var vals []any
+			for n := range m {
+				vals = append(vals, map[string]any{"id": v.srv.URL + base + n, "attributes": map[string]any{"created": 1790000000}})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"value": vals})
+		}
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/secrets":
+			m := map[string]bool{}
+			for n := range v.secrets {
+				m[n] = true
+			}
+			list(m, "/secrets/")
+			return
+		case r.Method == http.MethodGet && r.URL.Path == "/deletedsecrets":
+			list(v.deleted, "/deletedsecrets/")
+			return
+		case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/deletedsecrets/"):
+			n := strings.TrimPrefix(r.URL.Path, "/deletedsecrets/")
+			switch {
+			case v.noPurge:
+				vaultError(w, http.StatusForbidden, "Forbidden", "ForbiddenByRbac", "no purge")
+			case v.busy > 0:
+				v.busy--
+				vaultError(w, http.StatusConflict, "Conflict", "ObjectIsBeingDeleted", "deleting")
+			case !v.deleted[n]:
+				vaultError(w, http.StatusNotFound, "SecretNotFound", "", "not deleted")
+			default:
+				delete(v.deleted, n)
+				v.purged = append(v.purged, n)
+				w.WriteHeader(http.StatusNoContent)
+			}
 			return
 		}
 		name, ok := strings.CutPrefix(r.URL.Path, "/secrets/")
@@ -175,10 +215,52 @@ func TestAccessTokenCachedUntilNearExpiry(t *testing.T) {
 	}
 }
 
-func TestDeletedNameIsNotReusable(t *testing.T) {
+// A deleted token is purged at once, so it cannot be recovered from the
+// vault; a purge Key Vault refuses while the delete runs is retried, and one
+// that never goes through is left to PurgeDeleted.
+func TestDeletePurges(t *testing.T) {
 	ctx := context.Background()
 	v := newFakeVault(t)
 	c := newClient(t, v.srv.URL, newFakeIdentity(t, time.Hour), v.srv.Client())
+	c.PurgeDelay = time.Millisecond
+	for _, n := range []string{"fbpage-a-1", "fbpage-a-2", "session-key"} {
+		if err := c.Set(ctx, n, "v"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := c.List(ctx, "fbpage-")
+	if err != nil || len(got) != 2 || got[0].Created.IsZero() {
+		t.Fatalf("list: %+v %v", got, err)
+	}
+	v.busy = 2
+	if err := c.Delete(ctx, "fbpage-a-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(v.purged) != 1 || v.deleted["fbpage-a-1"] {
+		t.Fatalf("purged %v, deleted %v", v.purged, v.deleted)
+	}
+	v.noPurge = true
+	if err := c.Delete(ctx, "fbpage-a-2"); err != nil {
+		t.Fatal(err)
+	}
+	if !v.deleted["fbpage-a-2"] {
+		t.Fatal("refused purge: still in soft delete")
+	}
+	v.noPurge = false
+	if n, err := c.PurgeDeleted(ctx, "fbpage-"); err != nil || n != 1 || v.deleted["fbpage-a-2"] {
+		t.Fatalf("purge deleted: %d %v", n, err)
+	}
+	if _, err := c.Get(ctx, "session-key"); err != nil {
+		t.Fatal("other secrets are untouched")
+	}
+}
+
+func TestDeletedNameIsNotReusable(t *testing.T) {
+	ctx := context.Background()
+	v := newFakeVault(t)
+	v.noPurge = true
+	c := newClient(t, v.srv.URL, newFakeIdentity(t, time.Hour), v.srv.Client())
+	c.PurgeTries = 1
 	if err := c.Set(ctx, "org-1", "v"); err != nil {
 		t.Fatal(err)
 	}

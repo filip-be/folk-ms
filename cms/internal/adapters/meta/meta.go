@@ -84,37 +84,44 @@ func (c *Client) proof(token string) string {
 	return hex.EncodeToString(m.Sum(nil))
 }
 
+// call sends one Graph request. A user or page token travels in the
+// Authorization header, never in the URL, so a URL that reaches a log, an
+// error or a proxy carries no token (T9); the appsecret_proof stays a
+// parameter, as Graph requires. Errors never quote the URL, and Graph's
+// message is scrubbed of the token and the app secret.
 func (c *Client) call(ctx context.Context, method, path string, params url.Values, token string, out any) error {
 	if params == nil {
 		params = url.Values{}
 	}
 	if token != "" {
-		params.Set("access_token", token)
 		params.Set("appsecret_proof", c.proof(token))
 	}
 	u := c.GraphURL + "/" + c.Version + path
 	var body io.Reader
-	if method == http.MethodGet {
+	if method == http.MethodGet || method == http.MethodDelete {
 		u += "?" + params.Encode()
 	} else {
 		body = strings.NewReader(params.Encode())
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
-		return err
+		// The error quotes the URL, whose query may carry the app secret.
+		return fmt.Errorf("meta: %s %s: invalid request", method, path)
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		// A *url.Error quotes the full URL, whose query carries tokens and
-		// the app secret: never let it reach logs or stored records.
+		// A *url.Error quotes the full URL: keep only the cause.
 		var ue *url.Error
 		if errors.As(err, &ue) {
 			err = ue.Err
 		}
-		return fmt.Errorf("meta: %s %s: %w", method, path, err)
+		return fmt.Errorf("meta: %s %s: %s", method, path, c.scrub(err.Error(), token))
 	}
 	defer resp.Body.Close()
 	data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
@@ -127,12 +134,26 @@ func (c *Client) call(ctx context.Context, method, path string, params url.Value
 			} `json:"error"`
 		}
 		_ = json.Unmarshal(data, &ge)
-		return &GraphError{Status: resp.StatusCode, Message: ge.Error.Message, Code: ge.Error.Code, Subcode: ge.Error.Subcode}
+		return &GraphError{Status: resp.StatusCode, Message: c.scrub(ge.Error.Message, token, params.Get("fb_exchange_token"), params.Get("input_token")), Code: ge.Error.Code, Subcode: ge.Error.Subcode}
 	}
 	if out == nil {
 		return nil
 	}
 	return json.Unmarshal(data, out)
+}
+
+// scrub removes secrets from a message that may be stored or logged, and
+// bounds its length.
+func (c *Client) scrub(msg string, secrets ...string) string {
+	for _, s := range append(secrets, c.AppSecret) {
+		if len(s) >= 8 {
+			msg = strings.ReplaceAll(msg, s, "[redacted]")
+		}
+	}
+	if len(msg) > 300 {
+		msg = msg[:300] + "…"
+	}
+	return msg
 }
 
 // LoginURL implements ports.SocialPublisher. auth_type=rerequest asks
@@ -251,7 +272,7 @@ func (c *Client) PostInstagramImage(ctx context.Context, igUserID, token, imageU
 		var st struct {
 			StatusCode string `json:"status_code"`
 		}
-		if err := c.call(ctx, http.MethodGet, "/"+container.ID, url.Values{"fields": {"status_code"}}, token, &st); err != nil {
+		if err := c.call(ctx, http.MethodGet, "/"+url.PathEscape(container.ID), url.Values{"fields": {"status_code"}}, token, &st); err != nil {
 			return ports.PostResult{}, err
 		}
 		if st.StatusCode == "FINISHED" || st.StatusCode == "" {
@@ -278,7 +299,7 @@ func (c *Client) PostInstagramImage(ctx context.Context, igUserID, token, imageU
 	var media struct {
 		Permalink string `json:"permalink"`
 	}
-	if err := c.call(ctx, http.MethodGet, "/"+pub.ID, url.Values{"fields": {"permalink"}}, token, &media); err == nil {
+	if err := c.call(ctx, http.MethodGet, "/"+url.PathEscape(pub.ID), url.Values{"fields": {"permalink"}}, token, &media); err == nil {
 		res.URL = media.Permalink
 	}
 	return res, nil

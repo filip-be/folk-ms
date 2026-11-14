@@ -49,7 +49,7 @@ func (a *App) EventPosts(ctx context.Context, p domain.Principal, org, id string
 	if err != nil {
 		return PostsView{}, err
 	}
-	e, _, err := load[domain.Event](ctx, a.Docs, eventKey(org, id))
+	e, _, err := a.loadEvent(ctx, org, id)
 	if err != nil {
 		return PostsView{}, err
 	}
@@ -91,7 +91,7 @@ func problem(field, pl, en string) error {
 // and checks each platform can be posted: Instagram needs a linked account,
 // and each platform needs its image.
 func (a *App) postable(ctx context.Context, org, id string, platforms []domain.Platform) (*domain.Event, *domain.Connection, error) {
-	e, _, err := load[domain.Event](ctx, a.Docs, eventKey(org, id))
+	e, _, err := a.loadEvent(ctx, org, id)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -193,16 +193,17 @@ func (a *App) Post(ctx context.Context, p domain.Principal, org, id string, draf
 // postWithStoredToken posts with Autosync's token, read for this request only.
 func (a *App) postWithStoredToken(ctx context.Context, p domain.Principal, conn *domain.Connection, req *domain.PostRequest) (PostOutcome, error) {
 	ctx = context.WithoutCancel(ctx)
-	token, err := a.storedToken(ctx, p, conn)
-	if err != nil {
-		return PostOutcome{}, err
-	}
 	e, conn, err := a.postable(ctx, req.OrgID, req.EventID, platformsOf(req.Drafts))
 	if err != nil {
 		return PostOutcome{}, err
 	}
-	// Counted only once nothing else can refuse the request.
+	// Counted only once nothing else can refuse the request, and before
+	// the token is read: the daily limit also bounds reads of the secret.
 	if err := a.takePosts(ctx, req.OrgID, len(req.Drafts)); err != nil {
+		return PostOutcome{}, err
+	}
+	token, err := a.storedToken(ctx, p, conn, "post")
+	if err != nil {
 		return PostOutcome{}, err
 	}
 	page := ports.SocialPage{ID: conn.PageID, Name: conn.PageName, IGUserID: conn.IGUserID, IGUsername: conn.IGUsername}

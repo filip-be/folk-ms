@@ -85,6 +85,33 @@ func SecretStore(t *testing.T, newStore func(t *testing.T) ports.SecretStore) {
 		}
 	})
 
+	t.Run("list by prefix", func(t *testing.T) {
+		s := newStore(t)
+		for _, n := range []string{"fbpage-a-1", "fbpage-b-1", "other-1"} {
+			if err := s.Set(ctx, n, secretValue); err != nil {
+				t.Fatalf("set: %v", err)
+			}
+		}
+		got, err := s.List(ctx, "fbpage-")
+		if err != nil || len(got) != 2 {
+			t.Fatalf("list: %+v %v", got, err)
+		}
+		for _, g := range got {
+			if !strings.HasPrefix(g.Name, "fbpage-") || g.Created.IsZero() || strings.Contains(g.Name, secretValue) {
+				t.Fatalf("listed %+v", g)
+			}
+		}
+		if err := s.Delete(ctx, "fbpage-a-1"); err != nil {
+			t.Fatal(err)
+		}
+		if got, err := s.List(ctx, "fbpage-"); err != nil || len(got) != 1 || got[0].Name != "fbpage-b-1" {
+			t.Fatalf("list after delete: %+v %v", got, err)
+		}
+		if _, err := s.PurgeDeleted(ctx, "fbpage-"); err != nil {
+			t.Fatalf("purge deleted: %v", err)
+		}
+	})
+
 	t.Run("name limits", func(t *testing.T) {
 		s := newStore(t)
 		for _, name := range []string{"a", "0-9", strings.Repeat("z", 127)} {

@@ -42,7 +42,10 @@ type Server struct {
 
 	sign    signer
 	limiter *limiter
-	static  *staticFS
+	// writes bounds changes per user: a stolen session cannot flood the
+	// store, the Audit Log or the Graph quota.
+	writes *limiter
+	static *staticFS
 
 	purgeMu   sync.Mutex
 	lastPurge time.Time
@@ -61,6 +64,7 @@ func NewServer(s *Server, sessionKey []byte) (*Server, error) {
 	s.BaseURL = strings.TrimRight(s.BaseURL, "/")
 	s.sign = signer{key: sessionKey}
 	s.limiter = newLimiter(20, time.Minute)
+	s.writes = newLimiter(MaxWritesPerMinute, time.Minute)
 	if s.Log == nil {
 		s.Log = slog.Default()
 	}
@@ -129,9 +133,18 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 			writeError(w, s.Log, domain.ErrUnauthorized)
 			return
 		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && !s.writes.allow(p.ID()) {
+			w.Header().Set("Retry-After", "60")
+			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("zbyt wiele zmian, spróbuj za minutę", "too many changes, try again in a minute")})
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))
 	})
 }
+
+// MaxWritesPerMinute is how many changing API requests one user may send a
+// minute, per instance; far above what a person clicks.
+const MaxWritesPerMinute = 60
 
 func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 	var sd sessionData
@@ -144,8 +157,34 @@ func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 	return s.App.Principal(r.Context(), sd.UserID, time.Unix(sd.IssuedAt, 0), sd.Nonce)
 }
 
+// pathParams are the wildcards of the API routes.
+var pathParams = []string{"org", "id", "day", "action"}
+
+// safeSegment reports whether a path value is a plain name: ids,
+// Organization ids, dates and actions never need more.
+func safeSegment(v string) bool {
+	if v == "" || len(v) > 64 {
+		return false
+	}
+	for _, c := range v {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Server) h(fn apiHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The mux unescapes wildcards, so "..%2F..%2Fx" arrives as "../../x":
+		// refuse anything but a plain name before it reaches a storage key
+		// (T13; the use cases and the store adapters check again).
+		for _, n := range pathParams {
+			if v := r.PathValue(n); v != "" && !safeSegment(v) {
+				writeError(w, s.Log, domain.ErrNotFound)
+				return
+			}
+		}
 		p, _ := r.Context().Value(principalKey{}).(domain.Principal)
 		if err := fn(w, r, p); err != nil {
 			writeError(w, s.Log, err)

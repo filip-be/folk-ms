@@ -91,7 +91,7 @@ func storeErr(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, ports.ErrNotFound):
+	case errors.Is(err, ports.ErrNotFound), errors.Is(err, ports.ErrInvalidKey):
 		return fmt.Errorf("%w: %v", domain.ErrNotFound, err)
 	case errors.Is(err, ports.ErrPrecondition):
 		return fmt.Errorf("%w: %v", domain.ErrConflict, err)
@@ -170,6 +170,32 @@ func loadAll[T any](ctx context.Context, s ports.DocumentStore, prefix string) (
 	return slices.DeleteFunc(out, func(v *T) bool { return v == nil }), nil
 }
 
+// loadEvent loads one Event of an Organization. The id comes from a
+// request, so it must have the shape of an Event id, and the document must
+// say it is that Event of that Organization (T13: a crafted id never reaches
+// another Organization's documents, whatever the store does with it).
+func (a *App) loadEvent(ctx context.Context, org, id string) (*domain.Event, string, error) {
+	if !domain.ValidID(id) {
+		return nil, "", fmt.Errorf("%w: event", domain.ErrNotFound)
+	}
+	e, etag, err := load[domain.Event](ctx, a.Docs, eventKey(org, id))
+	if err != nil {
+		return nil, "", err
+	}
+	if err := ownEvent(e, org, id); err != nil {
+		return nil, "", err
+	}
+	return e, etag, nil
+}
+
+// ownEvent checks that a loaded Event is the one its key names.
+func ownEvent(e *domain.Event, org, id string) error {
+	if e.OrgID != org || e.ID != id {
+		return fmt.Errorf("%w: event %s/%s holds %s/%s", domain.ErrNotFound, org, id, e.OrgID, e.ID)
+	}
+	return nil
+}
+
 // Keys of the documents in the private store.
 func eventKey(org, id string) string    { return "orgs/" + org + "/events/" + id + ".json" }
 func eventsPrefix(org string) string    { return "orgs/" + org + "/events/" }
@@ -206,6 +232,23 @@ type AuditEntry struct {
 	Org        string         `json:"org,omitempty"`
 	Target     string         `json:"target,omitempty"`
 	Details    map[string]any `json:"details,omitempty"`
+}
+
+// auditStrict appends an Audit Log line and reports failure, for actions
+// that must not happen unrecorded (each use of a stored token).
+func (a *App) auditStrict(ctx context.Context, p domain.Principal, action, org, target string, details map[string]any) error {
+	e := AuditEntry{Time: a.now(), Actor: p.ID(), Action: action, Org: org, Target: target, Details: details}
+	if p.User != nil {
+		e.ActorEmail = p.User.Email
+	}
+	if e.Actor == "" {
+		e.Actor = "system"
+	}
+	line, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	return a.Audit.Append(ctx, e.Time.Format(time.DateOnly), append(line, '\n'))
 }
 
 func (a *App) audit(ctx context.Context, p domain.Principal, action, org, target string, details map[string]any) {

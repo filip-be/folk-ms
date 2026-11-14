@@ -110,6 +110,21 @@ func IsValidation(err error) bool {
 	return errors.As(err, &v)
 }
 
+// ValidID reports whether id has the shape of an identifier the CMS issues:
+// NewID (16 lowercase hex characters) or UserID (32). Every id that arrives
+// in a request is checked with it before it becomes part of a storage key.
+func ValidID(id string) bool {
+	if len(id) != 16 && len(id) != 32 {
+		return false
+	}
+	for _, c := range id {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 // NewID returns a random 16-character lowercase hex identifier.
 func NewID(r io.Reader) (string, error) {
 	if r == nil {
