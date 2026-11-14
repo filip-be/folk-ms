@@ -149,9 +149,9 @@ How Sync and Autosync work: [Sync](docs/sync/README.md) and [Social posting](doc
 
 There are two Key Vaults ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)): the platform vault (output `keyVault`) holds the Meta app secret and `SESSION_KEY`, which the CMS identity `folkms-cms-id` can only read (`Key Vault Secrets User`); the token vault (output `tokenVault`) holds the Facebook page token of every Organization with Autosync on, which the CMS identity reads, writes, deletes and purges (`Key Vault Secrets Officer`). No person has a standing role on either. Both audit logs, and every write and delete in the storage account, go to the Log Analytics workspace `folkms-logs-<hash>`. Alerts email the Super Admin when:
 
-- either vault is used in any way by an identity other than the CMS, or the `cms` container is written by one;
+- either vault is used in any way by an identity other than the CMS, or the `cms` container is written by one or with an account key or SAS;
 - page tokens are read more than 100 times in an hour;
-- a role assignment, a diagnostic setting, an alert rule or a vault in the resource group changes (also after each `deploy-infra` run, which is expected);
+- a role assignment, a vault, the storage account's settings or keys, a diagnostic setting, an alert rule or the action group in the resource group changes (also after each `deploy-infra` run, which is expected);
 - costs pass half or all of the monthly budget.
 
 On an alert, see who did what in the workspace (*Logs*):

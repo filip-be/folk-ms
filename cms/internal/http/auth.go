@@ -63,6 +63,16 @@ func (s *Server) loginProvider(r *http.Request) string {
 }
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
+	// Another site must not start a sign-in silently: with Facebook an
+	// authorized account comes back with no interaction, which would renew
+	// a Recent sign-in or push out the user's other sessions. A link from
+	// elsewhere gets a page whose button starts it from this origin.
+	if r.Header.Get("Sec-Fetch-Site") == "cross-site" {
+		renderPage(w, r, http.StatusOK, page{Title: msg("Logowanie", "Sign-in"),
+			Paragraphs: []domain.Text{msg("Zaloguj się do CMS.", "Sign in to the CMS.")},
+			Link:       "/auth/login?" + r.URL.RawQuery, LinkText: msg("Zaloguj się", "Sign in")})
+		return
+	}
 	provider := s.loginProvider(r)
 	idp := s.idp(provider)
 	if idp == nil {

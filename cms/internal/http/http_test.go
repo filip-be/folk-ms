@@ -856,3 +856,26 @@ func TestClientIPBuckets(t *testing.T) {
 		t.Fatalf("unparsed: %s %s", a, b)
 	}
 }
+
+// Another site cannot start a sign-in silently; it gets a page whose
+// button starts it from this origin.
+func TestCrossSiteLoginNeedsAClick(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	resp, body := h.do(t, c, "GET", "/auth/login?provider=facebook&return=/app/events", "", map[string]string{"Sec-Fetch-Site": "cross-site"})
+	if resp.StatusCode != 200 || h.fb.logins != 0 || !strings.Contains(body, `href="/auth/login?provider=facebook&amp;return=/app/events"`) {
+		t.Fatalf("cross-site: %d, logins %d, %s", resp.StatusCode, h.fb.logins, body)
+	}
+	if resp, _ := h.do(t, c, "GET", "/auth/login?provider=facebook", "", map[string]string{"Sec-Fetch-Site": "same-origin"}); h.fb.logins != 1 {
+		t.Fatalf("same-origin: %d", resp.StatusCode)
+	}
+}
+
+func TestUnbracketedIPv6WithPort(t *testing.T) {
+	s := &Server{TrustProxy: true}
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Forwarded-For", "2001:db8:1:2::5:65000")
+	if got := s.clientIP(r); got != "2001:db8:1:2::/64" {
+		t.Fatalf("got %s", got)
+	}
+}

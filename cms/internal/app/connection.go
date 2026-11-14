@@ -347,7 +347,7 @@ func (a *App) CompleteAutosync(ctx context.Context, p domain.Principal, org, cod
 		}
 		return err
 	}
-	if previous != "" {
+	if previous != "" && a.ownSecretName(org, previous) {
 		if err := a.Secrets.Delete(ctx, previous); err != nil && !errors.Is(err, ports.ErrNotFound) {
 			a.Log.Error("delete previous autosync secret", "org", org, "err", err)
 		}
@@ -391,11 +391,20 @@ func (a *App) turnOffAutosync(ctx context.Context, p domain.Principal, org strin
 		return err
 	}
 	secret, byEmail := c.Autosync.SecretName, c.Autosync.ByEmail
+	// A name that is not this Organization's (a tampered document) is never
+	// deleted: Autosync is only cleared, and the daily sweep removes any
+	// secret left unreferenced.
+	own := a.ownSecretName(org, secret)
+	if !own {
+		a.Log.Error("autosync secret name not of this organization", "org", org, "secret", secret)
+	}
 	// The secret goes first: while it may still exist, the document keeps
 	// naming it, so a failed delete is retried by turning Autosync off again
 	// (T11). A document left naming a deleted secret is safe: storedToken
 	// answers "needs reconnect".
-	if err := a.Secrets.Delete(ctx, secret); err != nil && !errors.Is(err, ports.ErrNotFound) {
+	if !own {
+		// nothing of this Organization's to delete
+	} else if err := a.Secrets.Delete(ctx, secret); err != nil && !errors.Is(err, ports.ErrNotFound) {
 		a.Log.Error("autosync secret not deleted", "org", org, "secret", secret, "err", err)
 		a.audit(ctx, p, "autosync.secret_delete_failed", org, "", map[string]any{"secret": secret})
 		return err

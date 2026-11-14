@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/domain"
@@ -15,6 +16,8 @@ import (
 const (
 	maxJSON  = 1 << 20
 	maxImage = 16 << 20
+	// uploadWait is how long an upload waits for the upload slot.
+	uploadWait = 20 * time.Second
 )
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
@@ -155,6 +158,18 @@ func (s *Server) routes(m *http.ServeMux) {
 	m.Handle("POST /api/orgs/{org}/images", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "image/") {
 			return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano pliku obrazu", "bad request: image file expected")}
+		}
+		// One upload at a time per instance, taken before the body is read,
+		// so waiting uploads hold no image in memory (T15).
+		select {
+		case s.uploads <- struct{}{}:
+			defer func() { <-s.uploads }()
+		case <-r.Context().Done():
+			return r.Context().Err()
+		case <-time.After(uploadWait):
+			w.Header().Set("Retry-After", "10")
+			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("trwa przesyłanie innego obrazu – spróbuj za chwilę", "another image is being uploaded – try again in a moment")})
+			return nil
 		}
 		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImage))
 		if err != nil {

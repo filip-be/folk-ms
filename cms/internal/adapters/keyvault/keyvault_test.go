@@ -55,6 +55,7 @@ type fakeVault struct {
 	// busy answers the next n purges with 409, as while a delete runs.
 	noPurge bool
 	busy    int
+	notYet  int // the next n purges answer 404, before the deletion shows
 	purged  []string
 }
 
@@ -106,6 +107,9 @@ func newFakeVault(t *testing.T) *fakeVault {
 			switch {
 			case v.noPurge:
 				vaultError(w, http.StatusForbidden, "Forbidden", "ForbiddenByRbac", "no purge")
+			case v.notYet > 0:
+				v.notYet--
+				vaultError(w, http.StatusNotFound, "SecretNotFound", "", "not yet")
 			case v.busy > 0:
 				v.busy--
 				vaultError(w, http.StatusConflict, "Conflict", "ObjectIsBeingDeleted", "deleting")
@@ -232,7 +236,7 @@ func TestDeletePurges(t *testing.T) {
 	if err != nil || len(got) != 2 || got[0].Created.IsZero() {
 		t.Fatalf("list: %+v %v", got, err)
 	}
-	v.busy = 2
+	v.busy, v.notYet = 1, 1
 	if err := c.Delete(ctx, "fbpage-a-1"); err != nil {
 		t.Fatal(err)
 	}

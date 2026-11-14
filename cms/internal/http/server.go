@@ -46,7 +46,9 @@ type Server struct {
 	// writes bounds changes per user: a stolen session cannot flood the
 	// store, the Audit Log or the Graph quota.
 	writes *limiter
-	static *staticFS
+	// uploads holds the one image upload slot per instance.
+	uploads chan struct{}
+	static  *staticFS
 
 	purgeMu   sync.Mutex
 	lastPurge time.Time
@@ -66,6 +68,7 @@ func NewServer(s *Server, sessionKey []byte) (*Server, error) {
 	s.sign = signer{key: sessionKey}
 	s.limiter = newLimiter(20, time.Minute)
 	s.writes = newLimiter(MaxWritesPerMinute, time.Minute)
+	s.uploads = make(chan struct{}, 1)
 	if s.Log == nil {
 		s.Log = slog.Default()
 	}
@@ -282,6 +285,13 @@ func (s *Server) clientIP(r *http.Request) string {
 					return p.String()
 				}
 				return a.String()
+			}
+			// An unbracketed IPv6 "address:port": drop the port and try again.
+			if i := strings.LastIndex(ip, ":"); i > 0 {
+				if a, err := netip.ParseAddr(ip[:i]); err == nil && a.Is6() {
+					p, _ := a.Prefix(64)
+					return p.String()
+				}
 			}
 			return "unparsed-forwarded-for"
 		}

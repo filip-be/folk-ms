@@ -28,7 +28,9 @@ func ValidPrefix(prefix string) bool {
 	}
 	parts := strings.Split(prefix, "/")
 	for i, part := range parts {
-		if part == "." || part == ".." || part == "" && i != len(parts)-1 {
+		// A segment ending in a dot is refused too: Blob Storage trims
+		// trailing dots, so "x." would name "x".
+		if strings.HasSuffix(part, ".") || part == "" && i != len(parts)-1 {
 			return false
 		}
 	}

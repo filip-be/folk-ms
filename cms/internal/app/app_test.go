@@ -1388,3 +1388,26 @@ func TestOrphanedSecretsAreSwept(t *testing.T) {
 		t.Fatalf("left %v, want %v", names, want)
 	}
 }
+
+// A connection document naming another Organization's secret never gets
+// that secret deleted (T11).
+func TestAutosyncOffDeletesOnlyItsOwnSecret(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	e.connect(t, sa, "org-a", "1001", false)
+	e.connect(t, sa, "org-b", "1001", false)
+	e.autosyncOn(t, sa, "org-a")
+	bSecret := e.autosyncOn(t, sa, "org-b")
+	c := e.conn(t, "org-a")
+	c.Autosync.SecretName = bSecret
+	must[string](t)(e.a.Docs.Put(e.ctx, "orgs/org-a/social/connection.json", must[[]byte](t)(json.Marshal(c)), ports.AnyETag))
+	if err := e.a.DisableAutosync(e.ctx, sa, "org-a"); err != nil {
+		t.Fatal(err)
+	}
+	if e.conn(t, "org-a").Autosync != nil {
+		t.Fatal("autosync cleared")
+	}
+	if _, err := e.secrets.Get(e.ctx, bSecret); err != nil {
+		t.Fatalf("org-b's secret deleted: %v", err)
+	}
+}

@@ -98,7 +98,7 @@ func DocumentStore(t *testing.T, newStore func(t *testing.T) ports.DocumentStore
 		}
 		for _, k := range []string{
 			"orgs/a/events/../../b/events/x.json", "orgs/a/./x.json", "orgs//x.json", "/orgs/x.json",
-			"orgs/a/x%2F..json", "orgs/a/x\\y.json", "orgs/a/x y.json", "orgs/a/", "",
+			"orgs/a/x%2F..json", "orgs/a/x\\y.json", "orgs/a/x y.json", "orgs/a/", "", "orgs/a./x.json",
 		} {
 			if _, err := s.Get(ctx, k); !errors.Is(err, ports.ErrInvalidKey) {
 				t.Errorf("Get(%q): want ErrInvalidKey, got %v", k, err)

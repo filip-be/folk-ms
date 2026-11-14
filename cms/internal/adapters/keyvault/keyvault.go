@@ -242,7 +242,9 @@ func (c *Client) Delete(ctx context.Context, name string) error {
 	for i := 0; i < c.PurgeTries; i++ {
 		err := c.purge(ctx, name)
 		var se *StatusError
-		if err == nil || errors.Is(err, ports.ErrNotFound) || !errors.As(err, &se) || se.Status != http.StatusConflict {
+		// 409 while the delete runs, and 404 until the deleted secret is
+		// visible under /deletedsecrets: both mean "not yet".
+		if err == nil || !errors.Is(err, ports.ErrNotFound) && (!errors.As(err, &se) || se.Status != http.StatusConflict) {
 			break
 		}
 		select {
@@ -294,6 +296,10 @@ func (c *Client) list(ctx context.Context, collection, prefix string) ([]ports.S
 		}
 		// Follow only links on this vault, so the bearer token goes nowhere else.
 		next, ok := strings.CutPrefix(page.NextLink, c.base+collection+"?")
+		if !ok {
+			// Key Vault writes the host with its default port.
+			next, ok = strings.CutPrefix(page.NextLink, c.base+":443"+collection+"?")
+		}
 		if !ok {
 			return nil, fmt.Errorf("keyvault: list %s: next link off the vault", collection)
 		}

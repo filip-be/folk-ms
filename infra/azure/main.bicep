@@ -393,8 +393,10 @@ let many = kv
   | summarize reads = count()
   | where reads > MAX_GETS
   | extend caller = "", reason = "more than MAX_GETS page token reads in an hour";
-let blobs = union isfuzzy=true (StorageBlobLogs | where ObjectKey has "/cms/" | extend caller = tolower(RequesterObjectId))
-  | where isnotempty(caller) and caller != cms
+let blobs = union isfuzzy=true (StorageBlobLogs | where ObjectKey has "/cms/"
+    | extend caller = tolower(RequesterObjectId), auth = tostring(AuthenticationType))
+  | where caller != cms or auth != "OAuth"
+  | extend caller = iff(isempty(caller), strcat("(", auth, ")"), caller)
   | summarize reads = count() by caller
   | extend reason = "cms container written by another identity";
 union isfuzzy=true foreign, many, blobs
@@ -435,14 +437,16 @@ resource unusualReadsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pr
 }
 
 // Free (Activity Log alerts cost nothing): someone changing who may read
-// the secrets, or switching detection off. The deploy pipeline's own
+// the secrets or the data (role assignments, vault settings, the storage
+// account's settings or keys), or switching detection off (diagnostic
+// settings, alert rules, the action group). The deploy pipeline's own
 // changes also notify, which is expected after a deployment.
 resource controlPlaneAlert 'Microsoft.Insights/activityLogAlerts@2020-10-01' = {
   name: '${prefix}-control-plane-${suffix}'
   location: 'global'
   properties: {
     enabled: true
-    description: 'Role assignments, diagnostic settings, alert rules or Key Vaults in the folk-ms resource group changed. See "Key Vault and token incident response" in the README.'
+    description: 'Role assignments, Key Vaults, the storage account (settings or keys), diagnostic settings, alert rules or the action group in the folk-ms resource group changed. See "Key Vault and token incident response" in the README.'
     scopes: [ resourceGroup().id ]
     condition: {
       allOf: [
@@ -452,11 +456,19 @@ resource controlPlaneAlert 'Microsoft.Insights/activityLogAlerts@2020-10-01' = {
           anyOf: [
             { field: 'operationName', equals: 'Microsoft.Authorization/roleAssignments/write' }
             { field: 'operationName', equals: 'Microsoft.Authorization/roleAssignments/delete' }
+            { field: 'operationName', equals: 'Microsoft.Insights/diagnosticSettings/write' }
             { field: 'operationName', equals: 'Microsoft.Insights/diagnosticSettings/delete' }
+            { field: 'operationName', equals: 'Microsoft.Insights/scheduledQueryRules/write' }
             { field: 'operationName', equals: 'Microsoft.Insights/scheduledQueryRules/delete' }
+            { field: 'operationName', equals: 'Microsoft.Insights/activityLogAlerts/write' }
             { field: 'operationName', equals: 'Microsoft.Insights/activityLogAlerts/delete' }
+            { field: 'operationName', equals: 'Microsoft.Insights/actionGroups/write' }
+            { field: 'operationName', equals: 'Microsoft.Insights/actionGroups/delete' }
+            { field: 'operationName', equals: 'Microsoft.KeyVault/vaults/write' }
             { field: 'operationName', equals: 'Microsoft.KeyVault/vaults/delete' }
             { field: 'operationName', equals: 'Microsoft.KeyVault/vaults/accessPolicies/write' }
+            { field: 'operationName', equals: 'Microsoft.Storage/storageAccounts/write' }
+            { field: 'operationName', equals: 'Microsoft.Storage/storageAccounts/listKeys/action' }
           ]
         }
       ]
@@ -471,8 +483,8 @@ resource controlPlaneAlert 'Microsoft.Insights/activityLogAlerts@2020-10-01' = {
 @description('Monthly budget in the billing currency; the Super Admin is emailed at 50% and 100%.')
 param monthlyBudget int = 10
 
-@description('First day of the budget period (yyyy-MM-01); defaults to this month.')
-param budgetStart string = utcNow('yyyy-MM-01')
+@description('First day of the budget period (yyyy-MM-01). Fixed: a budget keeps its start date, so it must not change between deployments.')
+param budgetStart string = '2026-11-01'
 
 resource budget 'Microsoft.Consumption/budgets@2023-11-01' = {
   name: '${prefix}-budget'

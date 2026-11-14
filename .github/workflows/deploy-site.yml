@@ -78,11 +78,16 @@ jobs:
           test -n "$name" || { echo "no Static Web App tagged folkms-site=${{ matrix.site }}"; exit 1; }
           token=$(az staticwebapp secrets list --name "$name" --resource-group "$rg" --query properties.apiKey -o tsv)
           echo "::add-mask::$token"
-          # The npm tool below runs with this Site's deployment token only:
-          # the Azure sign-in is gone, and it cannot request the job's OIDC
-          # token. Deploy-time tool only, pinned to an exact version (ADR 0003).
+          # The npm tool below runs as a separate OS user with this Site's
+          # deployment token only (in its environment, not its command line,
+          # which other users can see): the Azure sign-in is gone, and another
+          # user cannot read the runner's environment (/proc/<pid>/environ),
+          # so it cannot request the job's OIDC token. Deploy-time tool only,
+          # pinned to an exact version (ADR 0003).
           az logout
           rm -rf ~/.azure
-          env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN -u ACTIONS_ID_TOKEN_REQUEST_URL \
-            npx --yes @azure/static-web-apps-cli@2.1.0 deploy dist \
-            --deployment-token "$token" --env production
+          sudo useradd --create-home swa
+          sudo cp -r dist /home/swa/dist
+          sudo chown -R swa: /home/swa/dist
+          printf '%s' "$token" | sudo -u swa -H env -i HOME=/home/swa PATH=/usr/local/bin:/usr/bin:/bin \
+            sh -c 'SWA_CLI_DEPLOYMENT_TOKEN="$(cat)" && export SWA_CLI_DEPLOYMENT_TOKEN && cd ~ && npx --yes @azure/static-web-apps-cli@2.1.0 deploy dist --env production'

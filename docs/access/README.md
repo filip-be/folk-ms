@@ -37,6 +37,7 @@ flowchart LR
 - Store keys never come straight from a request: ids in the path must be plain names (`[A-Za-z0-9_-]`), use cases check the id's shape and that a loaded Event names the Organization and id it was asked for, and every store adapter refuses dot segments, empty segments and other characters (T13).
 - `SameSite=Lax`, not `Strict`, because a `Strict` cookie is not sent on the navigation back from Google. This is safe only because the CMS is same-origin; see [Platform](../platform/README.md#hosting).
 - Unsafe methods are protected against CSRF: `Sec-Fetch-Site` must be `same-origin` when present, otherwise `Origin` must be the CMS origin. JSON bodies must be `application/json`.
+- A sign-in started from another site (`Sec-Fetch-Site: cross-site`) shows a page with a sign-in button instead of going to the provider, so no site can renew a Recent sign-in or push out sessions silently.
 - Sign-in and timer endpoints are rate limited per client address (IPv6 per /64), and changing API requests to 60 a minute per user; responses carry a CSP and security headers.
 
 ### Recent sign-in
