@@ -11,9 +11,11 @@ import (
 
 const contractDir = "../../../contract"
 
-func load(t *testing.T) *schema.Schema {
+func load(t *testing.T) *schema.Schema { return loadSchema(t, "events.schema.json") }
+
+func loadSchema(t *testing.T, name string) *schema.Schema {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(contractDir, "events.schema.json"))
+	data, err := os.ReadFile(filepath.Join(contractDir, name))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -25,9 +27,17 @@ func load(t *testing.T) *schema.Schema {
 }
 
 func TestFixtures(t *testing.T) {
-	s := load(t)
+	checkFixtures(t, load(t), filepath.Join(contractDir, "fixtures"))
+}
+
+// The Video Collection snapshot has its own schema and fixtures.
+func TestVideoFixtures(t *testing.T) {
+	checkFixtures(t, loadSchema(t, "videos.schema.json"), filepath.Join(contractDir, "fixtures", "videos"))
+}
+
+func checkFixtures(t *testing.T, s *schema.Schema, dir string) {
 	for _, kind := range []string{"valid", "invalid"} {
-		files, _ := filepath.Glob(filepath.Join(contractDir, "fixtures", kind, "*.json"))
+		files, _ := filepath.Glob(filepath.Join(dir, kind, "*.json"))
 		if len(files) == 0 {
 			t.Fatalf("no %s fixtures", kind)
 		}

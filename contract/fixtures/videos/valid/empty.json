@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "organization": {
+    "id": "celtycki-wroclaw",
+    "name": {
+      "pl": "Celtycki Wrocław"
+    },
+    "siteId": "celtycki-wroclaw",
+    "baseUrl": "https://celtycki-wroclaw.example",
+    "timezone": "Europe/Warsaw"
+  },
+  "forms": [],
+  "origins": [],
+  "videos": []
+}

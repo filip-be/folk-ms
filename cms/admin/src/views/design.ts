@@ -4,7 +4,7 @@
 
 import { L } from "../i18n.ts";
 import { icon, ICON_NAMES } from "../icons.ts";
-import { autosyncLostBanner, autosyncWarning, flagBadges, reconnectBanner, reconnectBeforeBanner, switchControl } from "../patterns.ts";
+import { autosyncLostBanner, autosyncWarning, bindSortable, flagBadges, grip, moveButtons, reconnectBanner, reconnectBeforeBanner, switchControl } from "../patterns.ts";
 import { html, recentSignInBanner, setFieldError } from "../ui.ts";
 import { View } from "../view.ts";
 
@@ -31,6 +31,7 @@ const WEIGHTS = [
   ["semibold", "Semibold"],
   ["bold", "Bold"],
 ];
+const SORTABLE = ["Solo", "Para", "Łańcuch"];
 const SPACES = [2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64];
 
 class DesignView extends View {
@@ -136,6 +137,12 @@ class DesignView extends View {
             <button type="button" class="secondary">${L("Zachowaj moją wartość", "Keep my value")}</button>
             <button type="button">${L("Wróć do Facebooka", "Follow Facebook again")}</button></div>
         </form>
+        <h3>${L("Lista z kolejnością", "Sortable list")}</h3>
+        <p class="muted small">${L("Kolejność zmieniają przyciski strzałek (dostępne z klawiatury) albo przeciąganie wiersza myszą (Wideopomoc: filmy, formy, kraje i regiony).", "The arrow buttons (keyboard accessible) or dragging a row with a mouse change the order (Video help: videos, forms, countries and regions).")}</p>
+        <ol class="sortable" data-list="ds" id="ds-sortable">${SORTABLE.map(
+          (name, i) => html`<li data-id="${name}" draggable="true">${grip()}<div class="row-main"><strong>${name}</strong> <span class="muted small">${L("w 2 filmach", "in 2 videos")}</span></div>
+            <span class="row-actions"><button type="button">${L("Zmień nazwę", "Rename")}</button><button type="button" class="link danger" ${i === 0 ? html`disabled title="${L("Używana w 2 filmach", "Used in 2 videos")}"` : ""}>${L("Usuń", "Remove")}</button>${moveButtons("ds", name, i, SORTABLE.length, name)}</span></li>`,
+        )}</ol>
         <h3>${L("Ikony", "Icons")}</h3>
         <ul class="icons">${ICON_NAMES.map((n) => html`<li>${icon(n)}<span class="small muted">${n}</span></li>`)}</ul>
       </section>
@@ -150,6 +157,20 @@ class DesignView extends View {
       el.style.setProperty("--ts-size", `var(--${el.dataset.size})`);
       el.style.setProperty("--ts-leading", `var(--leading-${el.dataset.size})`);
       el.style.setProperty("--ts-weight", `var(--weight-${el.dataset.weight})`);
+    });
+    // The sample reorders itself in place.
+    bindSortable(this, (_list, id, to) => {
+      const ol = this.$("#ds-sortable");
+      const li = ol.querySelector<HTMLElement>(`li[data-id="${CSS.escape(id)}"]`)!;
+      const rest = [...ol.children].filter((x) => x !== li);
+      ol.insertBefore(li, rest[to] ?? null);
+      [...ol.children].forEach((row, i, all) => {
+        const [up, down] = row.querySelectorAll<HTMLButtonElement>("button[data-move]");
+        up!.disabled = i === 0;
+        down!.disabled = i === all.length - 1;
+        up!.dataset.to = String(i - 1);
+        down!.dataset.to = String(i + 1);
+      });
     });
     setFieldError(this.$("#ds-invalid"), L("podaj poprawny adres e-mail", "enter a valid email address"));
     this.querySelectorAll<HTMLElement>("[data-space]").forEach((el) => el.style.setProperty("--bar", `var(${el.dataset.space})`));

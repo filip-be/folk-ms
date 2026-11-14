@@ -110,6 +110,7 @@ export function renderShell(me: Me, org: string): void {
       <nav class="side-nav" aria-label="${L("Sekcje", "Sections")}">
         <ul>
           ${item(`/app/orgs/${org}/events`, "calendar", L("Wydarzenia", "Events"), "events")}
+          ${item(`/app/orgs/${org}/videos`, "video", L("Wideopomoc", "Video help"), "videos")}
           ${item(`/app/orgs/${org}/social`, "social", L("Social media", "Social media"), "social")}
           ${me.superAdmin
             ? html`<li><details class="nav-group" id="nav-admin" ${adminOpen ? "open" : ""}>
@@ -184,7 +185,7 @@ function bind(app: HTMLElement): void {
 
   document.getElementById("org-select")?.addEventListener("change", (e) => {
     const id = (e.target as HTMLSelectElement).value;
-    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|social)/)?.[1] ?? "events";
+    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|videos|social)/)?.[1] ?? "events";
     navigate(`/app/orgs/${id}/${rest}`);
   });
   document.getElementById("theme-toggle")!.addEventListener("click", (e) => {

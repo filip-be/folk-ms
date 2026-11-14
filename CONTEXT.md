@@ -33,7 +33,7 @@ A CMS value replacing one Facebook-sourced field of a synced Event (name, descri
 An Event a Moderator enters by hand for a Facebook Event another Facebook page created, typically one the Organization co-hosts, which Sync cannot read. Has its Occurrences entered one by one and a required link to its Facebook Event. The Moderator keeps it up to date.
 
 **Hidden**
-An Event kept off its Site by a Moderator. Sync never shows it again.
+An Event or Video kept off its Site by a Moderator. Sync never shows a Hidden Event again.
 
 **Location**
 Where an Occurrence happens, as free text (a place name, an address), with an optional map link.
@@ -95,7 +95,19 @@ A Super Admin's grant of Moderator access to a person, identified by email, for 
 **Audit Log**
 An append-only record of who did what and when: Event changes, Syncs, Hide, Social Posts, Autosync and connection changes, access grants. Readable by the Super Admin.
 
-## Future extensions (not in v1)
+## Video Collection
 
 **Video Collection**
-A curated, categorized set of instructional dance videos (links), shown on a Site.
+An Organization's curated set of instructional dance Videos, shown on its Site. Every Organization has one, possibly empty. Its Moderators arrange the order of its Videos, and keep its lists of Forms and Origins.
+
+**Video**
+One instructional dance video in a Video Collection: a bilingual title and optional description, an optional credit (who dances, teaches or published it), an optional Origin, any number of Forms, and a link to the video on YouTube or Vimeo with an optional start time. The same video may appear in several Videos (e.g. different start times of one long tutorial). Can be Hidden. Removing a Video deletes it; the Audit Log remembers it.
+_Avoid_: "item", "clip"; "Event" or "post" (those are other things).
+
+**Form**
+How a dance is danced (solo, pair, chain, circle, …), from the Organization's open, bilingual list. A Video has any number of Forms. A Form cannot be removed while a Video has it.
+_Avoid_: "type", "category".
+
+**Origin**
+Where a dance comes from: a country, or a region of a country, from the Organization's bilingual list. A Video has at most one Origin; a country includes its regions. An Origin cannot be removed while a Video (or, for a country, one of its regions) uses it.
+_Avoid_: "region" alone (a region is one kind of Origin).

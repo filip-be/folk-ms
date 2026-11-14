@@ -581,6 +581,48 @@ ul.pages li {
 
   & button { margin-left: auto; }
 }
+/* ── Sortable list (patterns.ts, moveButtons and bindSortable) ───────────
+   Rows reordered with Move up / Move down buttons, or dragged with a mouse;
+   the drop place is a line above or below the row under the pointer. */
+ol.sortable {
+  margin: 0 0 var(--space-16); padding: 0; list-style: none;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs);
+
+  & > li {
+    display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12);
+    padding: var(--space-10) var(--space-12); border-bottom: 1px solid var(--line-subtle);
+
+    &:last-child { border-bottom: none; }
+    &.dragging { opacity: .5; }
+    &.drop-before { box-shadow: var(--shadow-drop-before); }
+    &.drop-after { box-shadow: var(--shadow-drop-after); }
+    &.hidden-row .thumb { opacity: .5; }
+  }
+  & .grip { display: inline-flex; color: var(--muted); cursor: grab; }
+  & .row-main { flex: 1 1 14rem; min-width: 0; }
+  & .row-main > a { font-weight: var(--weight-semibold); color: var(--text); text-decoration: none; }
+  & .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-left: auto; }
+  & .move { display: inline-flex; }
+  & .thumb { flex: none; width: 7.5rem; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-sm); background: var(--surface-sunken); }
+  & .label-form { align-items: end; }
+  & .label-form .field { margin-bottom: 0; }
+}
+/* Countries hold their regions and an "Add a region" form. */
+ol.sortable.countries > li {
+  & .country { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8) var(--space-12); width: 100%; }
+  & ol.regions { width: 100%; margin: 0 0 0 var(--space-24); box-shadow: none; }
+  & .add-region { width: 100%; margin-left: var(--space-24); }
+  & .add-region summary { list-style: none; margin-bottom: var(--space-8); }
+  & .add-region summary::-webkit-details-marker { display: none; }
+}
+.label-form .field { flex: 1 1 12rem; margin-bottom: 0; }
+form.label-form.add { align-items: end; }
+.video-preview {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); margin: 0;
+
+  & img { width: 15rem; max-width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: var(--radius-md); }
+  & figcaption { font-size: var(--text-s); overflow-wrap: anywhere; }
+}
 .inline-form {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-6);
 

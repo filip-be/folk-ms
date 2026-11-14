@@ -10,6 +10,8 @@ import "./views/event.ts";
 import "./views/manual.ts";
 import "./views/post.ts";
 import "./views/social.ts";
+import "./views/videos.ts";
+import "./views/video.ts";
 import "./views/access.ts";
 import "./views/audit.ts";
 import "./views/design.ts";
@@ -27,6 +29,9 @@ const routes: Route[] = [
   { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)\/post$/, tag: "folk-post", names: ["org", "id"] },
   { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)$/, tag: "folk-event", names: ["org", "id"] },
   { re: /^\/app\/orgs\/([^/]+)\/social$/, tag: "folk-social", names: ["org"] },
+  { re: /^\/app\/orgs\/([^/]+)\/videos\/?$/, tag: "folk-videos", names: ["org"] },
+  { re: /^\/app\/orgs\/([^/]+)\/videos\/new$/, tag: "folk-video", names: ["org"] },
+  { re: /^\/app\/orgs\/([^/]+)\/videos\/([a-z2-7]{8})$/, tag: "folk-video", names: ["org", "id"] },
   { re: /^\/app\/access$/, tag: "folk-access", names: [], superAdmin: true },
   { re: /^\/app\/audit$/, tag: "folk-audit", names: [], superAdmin: true },
   { re: /^\/app\/design$/, tag: "folk-design", names: [], superAdmin: true },

@@ -36,6 +36,25 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 
+// labelInput is the label of a Form or an Origin.
+type labelInput struct {
+	Label domain.Text `json:"label"`
+}
+
+// decodeMove reads {"to": index}.
+func decodeMove(w http.ResponseWriter, r *http.Request) (int, error) {
+	var in struct {
+		To *int `json:"to"`
+	}
+	if err := decode(w, r, &in); err != nil {
+		return 0, err
+	}
+	if in.To == nil {
+		return 0, &badRequest{msg: msg("nieprawidłowe żądanie: brak pozycji", "bad request: missing position")}
+	}
+	return *in.To, nil
+}
+
 func ok(w http.ResponseWriter, v any, err error) error {
 	if err != nil {
 		return err
@@ -176,6 +195,120 @@ func (s *Server) routes(m *http.ServeMux) {
 			return err
 		}
 		v, err := s.App.UploadImage(r.Context(), p, r.PathValue("org"), ports.ImageKind(r.URL.Query().Get("kind")), data)
+		return ok(w, v, err)
+	}))
+
+	// Video Collection (wideopomoc). Every change carries the version the
+	// screen loaded in If-Match and answers the whole collection.
+	m.Handle("GET /api/orgs/{org}/videos", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.GetVideos(r.Context(), p, r.PathValue("org"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/videos", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.VideoInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddVideo(r.Context(), p, r.PathValue("org"), r.Header.Get("If-Match"), in)
+		return ok(w, v, err)
+	}))
+	// Parses a link (and asks Vimeo) without saving: what the form will save.
+	m.Handle("POST /api/orgs/{org}/videos/link-preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Link  string `json:"link"`
+			Start string `json:"start"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.PreviewVideoLink(r.Context(), p, r.PathValue("org"), domain.VideoInput{Link: in.Link, Start: in.Start})
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/orgs/{org}/videos/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.VideoInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.UpdateVideo(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE /api/orgs/{org}/videos/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.DeleteVideo(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/videos/{id}/{action}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		org, id, etag, ctx := r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), r.Context()
+		switch r.PathValue("action") {
+		case "hide", "show":
+			v, err := s.App.SetVideoHidden(ctx, p, org, id, etag, r.PathValue("action") == "hide")
+			return ok(w, v, err)
+		case "move":
+			to, err := decodeMove(w, r)
+			if err != nil {
+				return err
+			}
+			v, err := s.App.MoveVideo(ctx, p, org, id, etag, to)
+			return ok(w, v, err)
+		}
+		return domain.ErrNotFound
+	}))
+	m.Handle("POST /api/orgs/{org}/videos/forms", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in labelInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddForm(r.Context(), p, r.PathValue("org"), r.Header.Get("If-Match"), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/orgs/{org}/videos/forms/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in labelInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.RenameForm(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE /api/orgs/{org}/videos/forms/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveForm(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/videos/forms/{id}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveForm(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), to)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/videos/origins", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Label    domain.Text `json:"label"`
+			ParentID string      `json:"parentId"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddOrigin(r.Context(), p, r.PathValue("org"), r.Header.Get("If-Match"), in.ParentID, in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/orgs/{org}/videos/origins/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in labelInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.RenameOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE /api/orgs/{org}/videos/origins/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST /api/orgs/{org}/videos/origins/{id}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), to)
 		return ok(w, v, err)
 	}))
 

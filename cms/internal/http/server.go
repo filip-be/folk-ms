@@ -225,7 +225,8 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 }
 
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
-	img := "'self' data: blob:"
+	// Video thumbnails come from YouTube and Vimeo (images only).
+	img := "'self' data: blob: https://i.ytimg.com https://i.vimeocdn.com"
 	if s.PublicOrigin != "" {
 		img += " " + s.PublicOrigin
 	}

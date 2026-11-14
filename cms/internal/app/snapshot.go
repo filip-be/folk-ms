@@ -51,11 +51,12 @@ func (a *App) RebuildSnapshot(ctx context.Context, org string) error {
 	return fmt.Errorf("%w: snapshot kept changing", domain.ErrConflict)
 }
 
-// RebuildAll rebuilds every Organization's snapshot (startup and repair).
+// RebuildAll rebuilds every Organization's snapshots, events.json and
+// videos.json (startup and repair).
 func (a *App) RebuildAll(ctx context.Context) error {
 	var errs []error
 	for _, o := range a.orgs {
-		errs = append(errs, a.RebuildSnapshot(ctx, o.ID))
+		errs = append(errs, a.RebuildSnapshot(ctx, o.ID), a.RebuildVideoSnapshot(ctx, o.ID))
 	}
 	return errors.Join(errs...)
 }

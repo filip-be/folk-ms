@@ -36,6 +36,7 @@ jobs:
       - name: Build
         env:
           SNAPSHOT_URL: ${{ vars.STORAGE_PUBLIC_URL }}/sites/${{ matrix.site }}/events.json
+          VIDEOS_URL: ${{ vars.STORAGE_PUBLIC_URL }}/sites/${{ matrix.site }}/videos.json
         run: bun sites/build.ts "${{ matrix.site }}"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

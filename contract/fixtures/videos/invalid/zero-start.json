@@ -1,0 +1,247 @@
+{
+  "schemaVersion": 1,
+  "organization": {
+    "id": "balfolk-poznan",
+    "name": {
+      "pl": "Bal Folk Poznań",
+      "en": "Bal Folk Poznań"
+    },
+    "siteId": "balfolk-poznan",
+    "baseUrl": "https://balfolk-poznan.example",
+    "timezone": "Europe/Warsaw"
+  },
+  "forms": [
+    {
+      "id": "formsolo",
+      "label": {
+        "pl": "Solo",
+        "en": "Solo"
+      }
+    },
+    {
+      "id": "formpara",
+      "label": {
+        "pl": "Para",
+        "en": "Pair"
+      }
+    },
+    {
+      "id": "formkolo",
+      "label": {
+        "pl": "Koło",
+        "en": "Circle"
+      }
+    },
+    {
+      "id": "formlanc",
+      "label": {
+        "pl": "Łańcuch",
+        "en": "Chain"
+      }
+    },
+    {
+      "id": "formmixr",
+      "label": {
+        "pl": "Mikser"
+      }
+    }
+  ],
+  "origins": [
+    {
+      "id": "countrfr",
+      "label": {
+        "pl": "Francja",
+        "en": "France"
+      },
+      "regions": [
+        {
+          "id": "regbreta",
+          "label": {
+            "pl": "Bretania",
+            "en": "Brittany"
+          }
+        },
+        {
+          "id": "regberry",
+          "label": {
+            "pl": "Berry"
+          }
+        },
+        {
+          "id": "reggaske",
+          "label": {
+            "pl": "Gaskonia",
+            "en": "Gascony"
+          }
+        }
+      ]
+    },
+    {
+      "id": "countrse",
+      "label": {
+        "pl": "Szwecja",
+        "en": "Sweden"
+      },
+      "regions": []
+    },
+    {
+      "id": "countrpl",
+      "label": {
+        "pl": "Polska",
+        "en": "Poland"
+      },
+      "regions": [
+        {
+          "id": "regmazow",
+          "label": {
+            "pl": "Mazowsze"
+          }
+        }
+      ]
+    },
+    {
+      "id": "countrit",
+      "label": {
+        "pl": "Włochy",
+        "en": "Italy"
+      },
+      "regions": []
+    }
+  ],
+  "videos": [
+    {
+      "id": "vidandro",
+      "title": {
+        "pl": "An dro – krok podstawowy",
+        "en": "An dro – basic step"
+      },
+      "formIds": [
+        "formlanc"
+      ],
+      "provider": "youtube",
+      "videoId": "dQw4w9WgXcQ",
+      "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ",
+      "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      "originId": "regbreta",
+      "credit": "Anna i Piotr",
+      "description": {
+        "pl": "Krok w lewo, krok w prawo.",
+        "en": "Step left, step right."
+      }
+    },
+    {
+      "id": "vidhanto",
+      "title": {
+        "pl": "Hanter dro"
+      },
+      "formIds": [
+        "formlanc",
+        "formkolo"
+      ],
+      "provider": "youtube",
+      "videoId": "aBcDeFgHiJk",
+      "url": "https://www.youtube.com/watch?v=aBcDeFgHiJk&t=90s",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/aBcDeFgHiJk?start=90",
+      "thumbnail": "https://i.ytimg.com/vi/aBcDeFgHiJk/hqdefault.jpg",
+      "originId": "regbreta",
+      "start": 0
+    },
+    {
+      "id": "vidmazur",
+      "title": {
+        "pl": "Mazurek – figury",
+        "en": "Mazurka – figures"
+      },
+      "formIds": [
+        "formpara"
+      ],
+      "provider": "youtube",
+      "videoId": "Zz_9-8y7x6W",
+      "url": "https://www.youtube.com/watch?v=Zz_9-8y7x6W",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/Zz_9-8y7x6W",
+      "thumbnail": "https://i.ytimg.com/vi/Zz_9-8y7x6W/hqdefault.jpg",
+      "originId": "countrfr"
+    },
+    {
+      "id": "vidschot",
+      "title": {
+        "pl": "Szot (Schottische)",
+        "en": "Schottische"
+      },
+      "formIds": [
+        "formpara"
+      ],
+      "provider": "vimeo",
+      "videoId": "123456789",
+      "hash": "abcdef1234",
+      "start": 75,
+      "url": "https://vimeo.com/123456789/abcdef1234#t=75s",
+      "embedUrl": "https://player.vimeo.com/video/123456789?h=abcdef1234#t=75s",
+      "thumbnail": "https://i.vimeocdn.com/video/987654321-d_640",
+      "originId": "regberry"
+    },
+    {
+      "id": "vidpolsk",
+      "title": {
+        "pl": "Polska ze Szwecji",
+        "en": "Swedish polska"
+      },
+      "formIds": [
+        "formpara"
+      ],
+      "provider": "youtube",
+      "videoId": "Qq1Ww2Ee3Rr",
+      "url": "https://www.youtube.com/watch?v=Qq1Ww2Ee3Rr",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/Qq1Ww2Ee3Rr",
+      "thumbnail": "https://i.ytimg.com/vi/Qq1Ww2Ee3Rr/hqdefault.jpg",
+      "originId": "countrse"
+    },
+    {
+      "id": "vidcircl",
+      "title": {
+        "pl": "Cercle circassien"
+      },
+      "formIds": [
+        "formkolo",
+        "formmixr"
+      ],
+      "provider": "youtube",
+      "videoId": "Tt4Yy5Uu6Ii",
+      "url": "https://www.youtube.com/watch?v=Tt4Yy5Uu6Ii",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/Tt4Yy5Uu6Ii",
+      "thumbnail": "https://i.ytimg.com/vi/Tt4Yy5Uu6Ii/hqdefault.jpg"
+    },
+    {
+      "id": "vidwalcz",
+      "title": {
+        "pl": "Walczyk na 5 czasów",
+        "en": "Five-time waltz"
+      },
+      "formIds": [
+        "formpara"
+      ],
+      "provider": "youtube",
+      "videoId": "Oo7Pp8Aa9Ss",
+      "url": "https://www.youtube.com/watch?v=Oo7Pp8Aa9Ss",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/Oo7Pp8Aa9Ss",
+      "thumbnail": "https://i.ytimg.com/vi/Oo7Pp8Aa9Ss/hqdefault.jpg"
+    },
+    {
+      "id": "vidbourr",
+      "title": {
+        "pl": "Bourrée z Owernii"
+      },
+      "formIds": [
+        "formlanc"
+      ],
+      "provider": "youtube",
+      "videoId": "Dd0Ff1Gg2Hh",
+      "url": "https://www.youtube.com/watch?v=Dd0Ff1Gg2Hh",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/Dd0Ff1Gg2Hh",
+      "thumbnail": "https://i.ytimg.com/vi/Dd0Ff1Gg2Hh/hqdefault.jpg",
+      "originId": "regberry"
+    }
+  ],
+  "updatedAt": "2026-11-07T10:00:00Z"
+}

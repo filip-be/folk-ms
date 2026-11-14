@@ -74,7 +74,7 @@ The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the p
 
 Focused fields get one 2px accent border (`--shadow-focus` thickens the 1px border), never a second ring. Selects draw their chevron with CSS gradients (the CSP allows no `data:` images); with a mouse, browsers that support customizable selects (`appearance: base-select`) also get a styled option list, while touch screens keep the native picker.
 
-Buttons (see below), fields (see [Forms](#forms); `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus and `.toast`. Each is shown on `/app/design`.
+Buttons (see below), fields (see [Forms](#forms); `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus, `.toast`, and the sortable list (`ol.sortable` with `moveButtons` and `bindSortable` from `patterns.ts`: Move up / Move down buttons for keyboard and screen readers, drag and drop with a mouse; used by the Video Collection). Each is shown on `/app/design`.
 
 ### Buttons
 

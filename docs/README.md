@@ -12,10 +12,10 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | Admin SPA | TypeScript UI for Moderators in Polish or English, built with Bun and embedded into the CMS binary | [`cms/admin/`](../cms/admin/) |
 | Storage | Private container `cms` for the CMS's documents; public container `pub` for snapshots and media | [`infra/azure/`](../infra/azure/) |
 | Secret store | Key Vault (a `0600` file store locally or on a VPS) for the Meta app secret, `SESSION_KEY` and the Facebook page tokens of Organizations with Autosync on | [`infra/azure/`](../infra/azure/), [`cms/internal/adapters/keyvault/`](../cms/internal/adapters/keyvault/) |
-| Contract | JSON Schema of the snapshot, shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
+| Contract | JSON Schemas of the snapshots (`events.json`, `videos.json`), shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
 | Sites | One static website per Organization, each with its own design | [`sites/`](../sites/) |
 | Site config | The fixed list of Organizations and Sites | [`config/sites.json`](../config/sites.json) |
-| External services | Google and Facebook (sign-in), Meta Graph API (Sync and Social Posts) | |
+| External services | Google and Facebook (sign-in), Meta Graph API (Sync and Social Posts), Vimeo oEmbed (thumbnails of Vimeo Videos) | |
 
 ## Capabilities
 
@@ -24,12 +24,13 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | [Sync](sync/README.md) | Pulling an Organization's Facebook Events into Events, on demand or hourly with Autosync; the gone rule, former pages, the local recorder |
 | [Event management](event-management/README.md) | Overrides and CMS-only fields of synced Events, Hide, Manual Events, images and the Bin |
 | [Site delivery](site-delivery/README.md) | The per-Site snapshot, its contract, and how Sites read it |
+| [Video Collection](video-collection/README.md) | Each Organization's ordered instructional dance Videos with their Forms and Origins, published as `videos.json` and shown on the Bal Folk Poznań Site |
 | [Social posting](social-posting/README.md) | The Social Account Connection and its Autosync switch, and posting Events to Facebook and Instagram with a Meta sign-in or the stored token |
 | [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log, the admin UI language |
 | [Design system](design-system/README.md) | Colours, type, spacing, components and the collapsible app shell of the admin SPA, on desktop and phone; based on the work of [Felipe Cardona](https://dribbble.com/felipecardona/) |
 | [Platform](platform/README.md) | Hosting, ports and adapters, dependency policy, infrastructure, CI/CD, local development, cost, open risks |
 
-A Moderator creates the event on the Organization's Facebook page; **Sync** turns it into an Event, through the Facebook page of the Social Account Connection. **Event management** is what Moderators do in the CMS: add English text, Summary, Price and a Social Image, override a Facebook value, hide an Event, or enter a Manual Event for a co-hosted Facebook Event Sync cannot read. Every change feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Events on the Site can be announced through **Social posting**, because a Social Post links to the Event's Permalink. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
+A Moderator creates the event on the Organization's Facebook page; **Sync** turns it into an Event, through the Facebook page of the Social Account Connection. **Event management** is what Moderators do in the CMS: add English text, Summary, Price and a Social Image, override a Facebook value, hide an Event, or enter a Manual Event for a co-hosted Facebook Event Sync cannot read. Every change feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Events on the Site can be announced through **Social posting**, because a Social Post links to the Event's Permalink. The **Video Collection** is a second, independent list Moderators keep (videos of dances), published the same way as its own snapshot. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
 
 ## Read next
 
