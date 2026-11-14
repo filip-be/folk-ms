@@ -313,6 +313,69 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+// ── Video Collection (wideopomoc) ─────────────────────────────────────
+export type VideoProvider = "youtube" | "vimeo";
+export interface VideoLink {
+  provider: VideoProvider;
+  id: string;
+  hash?: string;
+  startSeconds?: number;
+}
+export interface Video {
+  id: string;
+  title: Text;
+  description?: Text;
+  credit?: string;
+  /** A country or region id; absent: no Origin. */
+  originId?: string;
+  formIds: string[];
+  link: VideoLink;
+  hidden?: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** Canonical address with the start; linkUrl without it. */
+  url: string;
+  linkUrl: string;
+  /** m:ss */
+  start?: string;
+  thumbnailUrl: string;
+}
+/** A Form or region with the number of Videos that use it. */
+export interface Labeled {
+  id: string;
+  label: Text;
+  uses: number;
+}
+export interface Country extends Labeled {
+  regions: Labeled[];
+}
+/** The whole collection with its version; every change sends `etag` back. */
+export interface VideoCollection {
+  etag: string;
+  forms: Labeled[];
+  origins: Country[];
+  videos: Video[];
+}
+export interface VideoInput {
+  link: string;
+  start: string;
+  title: Text;
+  description: Text;
+  credit: string;
+  originId: string;
+  formIds: string[];
+}
+export interface LinkPreview {
+  provider: VideoProvider;
+  videoId: string;
+  hash?: string;
+  startSeconds?: number;
+  start?: string;
+  url: string;
+  linkUrl: string;
+  thumbnailUrl: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -375,6 +438,25 @@ export const api = {
   /** On answers the Meta sign-in that issues the token (`url`); off deletes the token. */
   setAutosync: (org: string, on: boolean) => request<{ url?: string; ok?: boolean }>("POST", `${o(org)}/social/autosync`, { on }),
   disconnect: (org: string) => request<{ ok: boolean }>("POST", `${o(org)}/social/disconnect`),
+
+  videos: (org: string) => request<VideoCollection>("GET", `${o(org)}/videos`),
+  linkPreview: (org: string, link: string, start: string) => request<LinkPreview>("POST", `${o(org)}/videos/link-preview`, { link, start }),
+  addVideo: (org: string, etag: string, v: VideoInput) => request<VideoCollection>("POST", `${o(org)}/videos`, v, { "If-Match": etag }),
+  updateVideo: (org: string, id: string, etag: string, v: VideoInput) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/${id}`, v, { "If-Match": etag }),
+  deleteVideo: (org: string, id: string, etag: string) => request<VideoCollection>("DELETE", `${o(org)}/videos/${id}`, undefined, { "If-Match": etag }),
+  videoAction: (org: string, id: string, etag: string, action: "hide" | "show") =>
+    request<VideoCollection>("POST", `${o(org)}/videos/${id}/${action}`, undefined, { "If-Match": etag }),
+  /** kind: "" for a Video, "forms/" or "origins/" for a list item. */
+  moveItem: (org: string, kind: "" | "forms/" | "origins/", id: string, etag: string, to: number) =>
+    request<VideoCollection>("POST", `${o(org)}/videos/${kind}${id}/move`, { to }, { "If-Match": etag }),
+  addForm: (org: string, etag: string, label: Text) => request<VideoCollection>("POST", `${o(org)}/videos/forms`, { label }, { "If-Match": etag }),
+  addOrigin: (org: string, etag: string, label: Text, parentId = "") =>
+    request<VideoCollection>("POST", `${o(org)}/videos/origins`, { label, parentId }, { "If-Match": etag }),
+  renameItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string, label: Text) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/${kind}${id}`, { label }, { "If-Match": etag }),
+  removeItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string) =>
+    request<VideoCollection>("DELETE", `${o(org)}/videos/${kind}${id}`, undefined, { "If-Match": etag }),
 
   users: () => request<User[]>("GET", "/api/users"),
   setUserOrgs: (id: string, orgs: string[]) => request<User>("PUT", `/api/users/${id}/orgs`, { orgs }),

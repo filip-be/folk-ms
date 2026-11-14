@@ -3,6 +3,7 @@
 // Autosync warning. Styled in app.css ("Badges", "Messages", "Switch").
 
 import type { ConnectionStatus, Flags, OverrideField } from "./api.ts";
+import { icon } from "./icons.ts";
 import { L } from "./i18n.ts";
 import { fmtDate, html, raw, type Raw } from "./ui.ts";
 
@@ -102,4 +103,80 @@ export function removeAppInstruction(byEmail?: string): string {
         "Osoba, która włączyła Autosync, powinna też usunąć aplikację na Facebooku: Ustawienia → Integracje biznesowe.",
         "The person who turned Autosync on should also remove the app on Facebook: Settings → Business integrations.",
       );
+}
+
+// ── Sortable list ──────────────────────────────────────────────────────
+// An ordered list the Moderator reorders (Videos, Forms, Origins): each row
+// has Move up / Move down buttons, the accessible way, and can also be
+// dragged with a mouse. Markup: <ol class="sortable" data-list="…"> with
+// <li data-id="…" draggable="true">; styled in app.css ("Sortable list").
+
+/** The Move up / Move down buttons of row i of n; `name` names the row for screen readers. */
+export function moveButtons(list: string, id: string, i: number, n: number, name: string): Raw {
+  return html`<span class="move">
+    <button type="button" class="icon-button" data-move="${id}" data-list="${list}" data-to="${i - 1}" data-dir="up" ${i === 0 ? "disabled" : ""}
+      aria-label="${L(`Przesuń wyżej: ${name}`, `Move up: ${name}`)}" title="${L("Przesuń wyżej", "Move up")}">${icon("arrowUp")}</button>
+    <button type="button" class="icon-button" data-move="${id}" data-list="${list}" data-to="${i + 1}" data-dir="down" ${i === n - 1 ? "disabled" : ""}
+      aria-label="${L(`Przesuń niżej: ${name}`, `Move down: ${name}`)}" title="${L("Przesuń niżej", "Move down")}">${icon("arrowDown")}</button>
+  </span>`;
+}
+
+/** The drag handle shown at the start of a row (decorative: the buttons are the accessible path). */
+export const grip = (): Raw => html`<span class="grip" aria-hidden="true">${icon("grip")}</span>`;
+
+/**
+ * Wires the sortable lists inside root: the move buttons, and drag and drop
+ * of rows within their own list. onMove gets the list, the row id and its
+ * new index.
+ */
+export function bindSortable(root: HTMLElement, onMove: (list: string, id: string, to: number, button?: HTMLButtonElement) => void): void {
+  root.addEventListener("click", (e) => {
+    const b = (e.target as Element).closest<HTMLButtonElement>("button[data-move]");
+    if (b && !b.disabled) onMove(b.dataset.list!, b.dataset.move!, Number(b.dataset.to), b);
+  });
+  let dragged: HTMLLIElement | null = null;
+  const rowOf = (t: EventTarget | null): HTMLLIElement | null => {
+    for (let el = t as Element | null; el && el !== root; el = el.parentElement) {
+      if (dragged && el.parentElement === dragged.parentElement && el instanceof HTMLLIElement) return el;
+    }
+    return null;
+  };
+  const clear = () => root.querySelectorAll(".drop-before, .drop-after").forEach((el) => el.classList.remove("drop-before", "drop-after"));
+  const after = (li: HTMLElement, e: DragEvent) => {
+    const r = li.getBoundingClientRect();
+    return e.clientY > r.top + r.height / 2;
+  };
+  root.addEventListener("dragstart", (e) => {
+    // The innermost row: a region inside a country drags alone.
+    const li = (e.target as Element).closest?.<HTMLLIElement>("ol.sortable > li[draggable=true]");
+    if (!li || !root.contains(li)) return;
+    dragged = li;
+    li.classList.add("dragging");
+    e.dataTransfer?.setData("text/plain", li.dataset.id ?? "");
+    if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+  });
+  root.addEventListener("dragover", (e) => {
+    const li = rowOf(e.target);
+    if (!li) return;
+    e.preventDefault();
+    clear();
+    if (li !== dragged) li.classList.add(after(li, e) ? "drop-after" : "drop-before");
+  });
+  root.addEventListener("drop", (e) => {
+    const li = rowOf(e.target);
+    const from = dragged;
+    clear();
+    if (!li || !from || li === from) return;
+    e.preventDefault();
+    const rows = [...from.parentElement!.children];
+    const i = rows.indexOf(from);
+    const insert = rows.indexOf(li) + (after(li, e) ? 1 : 0);
+    const to = insert > i ? insert - 1 : insert;
+    if (to !== i) onMove(from.closest<HTMLElement>("ol.sortable")!.dataset.list!, from.dataset.id!, to);
+  });
+  root.addEventListener("dragend", () => {
+    dragged?.classList.remove("dragging");
+    dragged = null;
+    clear();
+  });
 }

@@ -213,6 +213,8 @@
   --shadow-lg: 0 16px 40px rgb(16 24 40 / .2);
   --shadow-focus: 0 0 0 1px var(--accent); /* focused inputs: thickens the border to 2px, one ring */
   --shadow-focus-invalid: 0 0 0 1px var(--danger); /* the same, on a field with an error */
+  --shadow-drop-before: inset 0 2px 0 var(--action); /* sortable list: where a dragged row will land */
+  --shadow-drop-after: inset 0 -2px 0 var(--action);
   --z-toolbar: 5;
   --z-header: 10;
   --z-menu: 20;
