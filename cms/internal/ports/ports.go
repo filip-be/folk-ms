@@ -145,3 +145,16 @@ type SystemClock struct{}
 
 // Now returns time.Now.
 func (SystemClock) Now() time.Time { return time.Now() }
+
+// ErrVideoUnavailable means the video provider does not know the video or
+// does not let it be embedded.
+var ErrVideoUnavailable = errors.New("video: not found or not embeddable")
+
+// VideoInfo asks video providers about a video. Only Vimeo needs asking:
+// YouTube thumbnails are derived from the video id.
+type VideoInfo interface {
+	// Vimeo returns the https thumbnail URL (on i.vimeocdn.com) of a Vimeo
+	// video; hash is the unlisted hash or "". ErrVideoUnavailable when Vimeo
+	// does not know the video or it cannot be embedded.
+	Vimeo(ctx context.Context, id, hash string) (thumbnail string, err error)
+}

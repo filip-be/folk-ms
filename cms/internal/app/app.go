@@ -29,9 +29,11 @@ type App struct {
 	// Secrets keeps the Facebook page tokens of Organizations with Autosync on.
 	Secrets ports.SecretStore
 	Images  ports.ImageProcessor
-	Clock   ports.Clock
-	Rand    io.Reader
-	Log     *slog.Logger
+	// VideoInfo reads Vimeo thumbnails when a Video is saved.
+	VideoInfo ports.VideoInfo
+	Clock     ports.Clock
+	Rand      io.Reader
+	Log       *slog.Logger
 
 	SuperAdminEmail string
 

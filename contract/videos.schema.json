@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folk-ms/contract/videos.schema.json",
+  "title": "folk-ms Video Collection snapshot",
+  "description": "The Video Collection of one Organization (wideopomoc) as its Site reads it from pub/sites/<site>/videos.json: its Forms and Origins in list order (used or not; readers hide empty ones) and the Videos that are not Hidden, in the Moderators' order. Localized texts: Polish (pl) is always present; English (en) is optional and readers fall back to Polish.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "organization",
+    "forms",
+    "origins",
+    "videos"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "organization": {
+      "$ref": "#/$defs/organization"
+    },
+    "forms": {
+      "type": "array",
+      "description": "Forms of dance (solo, pair, chain, circle, …), in list order.",
+      "items": {
+        "$ref": "#/$defs/labeled"
+      }
+    },
+    "origins": {
+      "type": "array",
+      "description": "Countries in list order, each with its regions in list order.",
+      "items": {
+        "$ref": "#/$defs/country"
+      }
+    },
+    "videos": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/video"
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the collection last changed; absent while it was never edited."
+    }
+  },
+  "$defs": {
+    "localizedText": {
+      "type": "object",
+      "required": [
+        "pl"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+    },
+    "itemId": {
+      "type": "string",
+      "description": "Id of a Video, Form, country or region: 8 characters a–z, 2–7.",
+      "pattern": "^[a-z2-7]{8}$"
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^https?://",
+      "maxLength": 2048
+    },
+    "organization": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "siteId",
+        "baseUrl",
+        "timezone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "siteId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseUrl": {
+          "$ref": "#/$defs/url"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "labeled": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        }
+      }
+    },
+    "country": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "regions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/labeled"
+          }
+        }
+      }
+    },
+    "video": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "formIds",
+        "provider",
+        "videoId",
+        "url",
+        "embedUrl",
+        "thumbnail"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "title": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "description": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "credit": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "Who made or dances in the video; plain text."
+        },
+        "originId": {
+          "$ref": "#/$defs/itemId",
+          "description": "A country or a region id from origins; absent when the Video has no Origin."
+        },
+        "formIds": {
+          "type": "array",
+          "description": "Form ids from forms, in list order; may be empty.",
+          "items": {
+            "$ref": "#/$defs/itemId"
+          }
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "vimeo"
+          ]
+        },
+        "videoId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,20}$"
+        },
+        "hash": {
+          "type": "string",
+          "description": "The hash of an unlisted Vimeo video.",
+          "pattern": "^[0-9a-f]{6,32}$"
+        },
+        "start": {
+          "type": "integer",
+          "description": "Start time in seconds.",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "url": {
+          "type": "string",
+          "description": "Canonical watch address, with the start.",
+          "pattern": "^https://(www\\.youtube\\.com/watch\\?v=|vimeo\\.com/)",
+          "maxLength": 2048
+        },
+        "embedUrl": {
+          "type": "string",
+          "description": "Player address for an iframe, with the start.",
+          "pattern": "^https://(www\\.youtube-nocookie\\.com/embed/|player\\.vimeo\\.com/video/)",
+          "maxLength": 2048
+        },
+        "thumbnail": {
+          "type": "string",
+          "pattern": "^https://(i\\.ytimg\\.com|i\\.vimeocdn\\.com)/",
+          "maxLength": 2048
+        }
+      }
+    }
+  }
+}

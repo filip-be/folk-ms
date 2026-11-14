@@ -58,13 +58,20 @@ type harness struct {
 
 const sessionKeyByte = 3
 
-func newHarness(t *testing.T) *harness {
+func newHarness(t *testing.T) *harness { return newHarnessWith(t, "org-a") }
+
+// newHarnessWith serves the Organizations with these ids.
+func newHarnessWith(t *testing.T, ids ...string) *harness {
 	t.Helper()
-	o := &domain.Organization{ID: "org-a", Name: domain.Text{PL: "A"}, Timezone: "Europe/Warsaw",
-		Site: domain.Site{ID: "org-a", BaseURL: "https://a.example", PermalinkTemplate: "/{lang}/events/{shortId}-{slug}"}}
-	loc, _ := time.LoadLocation(o.Timezone)
-	o.SetLocation(loc)
-	a := app.New([]*domain.Organization{o})
+	var orgs []*domain.Organization
+	for _, id := range ids {
+		o := &domain.Organization{ID: id, Name: domain.Text{PL: strings.ToUpper(id)}, Timezone: "Europe/Warsaw",
+			Site: domain.Site{ID: id, BaseURL: "https://" + id + ".example", PermalinkTemplate: "/{lang}/events/{shortId}-{slug}"}}
+		loc, _ := time.LoadLocation(o.Timezone)
+		o.SetLocation(loc)
+		orgs = append(orgs, o)
+	}
+	a := app.New(orgs)
 	rec := &meta.Recorder{}
 	secrets := memory.NewSecrets()
 	a.Docs, a.Pub, a.Audit, a.Social, a.Events, a.Secrets, a.Images =

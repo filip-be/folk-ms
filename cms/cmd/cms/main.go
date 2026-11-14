@@ -27,8 +27,10 @@ import (
 	"github.com/filip-be/folk-ms/cms/internal/adapters/google"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/img"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/keyvault"
+	"github.com/filip-be/folk-ms/cms/internal/adapters/memory"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/meta"
 	"github.com/filip-be/folk-ms/cms/internal/adapters/secretfile"
+	"github.com/filip-be/folk-ms/cms/internal/adapters/vimeo"
 	"github.com/filip-be/folk-ms/cms/internal/app"
 	"github.com/filip-be/folk-ms/cms/internal/config"
 	httpapi "github.com/filip-be/folk-ms/cms/internal/http"
@@ -79,6 +81,14 @@ func run(log *slog.Logger) error {
 	a.Log = log
 	a.Images = img.Processor{}
 	a.SuperAdminEmail = os.Getenv("SUPER_ADMIN_EMAIL")
+	// Vimeo oEmbed (no key) gives a Vimeo Video's thumbnail when it is saved.
+	// Locally a fake answers unless VIMEO_OEMBED=1 asks for the real one.
+	if mode == "azure" || os.Getenv("VIMEO_OEMBED") == "1" {
+		a.VideoInfo = vimeo.New()
+	} else {
+		a.VideoInfo = &memory.VideoInfo{}
+		log.Warn("VIMEO_OEMBED not set: Vimeo videos get a placeholder thumbnail")
+	}
 
 	srv := &httpapi.Server{App: a, BaseURL: baseURL, Admin: admin.FS(), Log: log}
 
