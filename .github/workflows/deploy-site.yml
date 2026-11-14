@@ -64,6 +64,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           sparse-checkout: .github/scripts
+          persist-credentials: false
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: site-${{ matrix.site }}
@@ -89,5 +90,11 @@ jobs:
           sudo useradd --create-home swa
           sudo cp -r dist /home/swa/dist
           sudo chown -R swa: /home/swa/dist
+          # Fail if the runner image ever lets that user out of its box.
+          if sudo -u swa sudo -n true 2>/dev/null \
+            || sudo -u swa cat "/proc/$$/environ" >/dev/null 2>&1 \
+            || sudo -u swa test -w /var/run/docker.sock; then
+            echo "the swa user is not isolated on this runner"; exit 1
+          fi
           printf '%s' "$token" | sudo -u swa -H env -i HOME=/home/swa PATH=/usr/local/bin:/usr/bin:/bin \
             sh -c 'SWA_CLI_DEPLOYMENT_TOKEN="$(cat)" && export SWA_CLI_DEPLOYMENT_TOKEN && cd ~ && npx --yes @azure/static-web-apps-cli@2.1.0 deploy dist --env production'
