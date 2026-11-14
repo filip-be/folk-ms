@@ -343,29 +343,40 @@ func (a *App) DisableAutosync(ctx context.Context, p domain.Principal, org strin
 // turnOffAutosync deletes the stored token and clears Autosync. lost
 // records why, when nobody asked (decision 19).
 func (a *App) turnOffAutosync(ctx context.Context, p domain.Principal, org string, lost *domain.AutosyncLost) error {
-	var secret, byEmail string
-	_, _, err := mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
-		secret, byEmail = "", ""
-		if c.Autosync != nil {
-			secret, byEmail = c.Autosync.SecretName, c.Autosync.ByEmail
-		}
-		c.Autosync, c.AutosyncLost = nil, lost
-		return nil
-	})
+	c, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if errors.Is(err, domain.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	if secret == "" {
-		return nil
+	if c.Autosync == nil {
+		if lost != nil {
+			_, _, err = mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
+				c.AutosyncLost = lost
+				return nil
+			})
+		}
+		return err
 	}
-	// The document no longer names the secret, so a failed delete leaves an
-	// orphan: log it loudly for the runbook's clean-up.
+	secret, byEmail := c.Autosync.SecretName, c.Autosync.ByEmail
+	// The secret goes first: while it may still exist, the document keeps
+	// naming it, so a failed delete is retried by turning Autosync off again
+	// (T11). A document left naming a deleted secret is safe: storedToken
+	// answers "needs reconnect".
 	if err := a.Secrets.Delete(ctx, secret); err != nil && !errors.Is(err, ports.ErrNotFound) {
 		a.Log.Error("autosync secret not deleted", "org", org, "secret", secret, "err", err)
 		a.audit(ctx, p, "autosync.secret_delete_failed", org, "", map[string]any{"secret": secret})
+		return err
+	}
+	_, _, err = mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
+		if c.Autosync != nil && c.Autosync.SecretName != secret {
+			return nil // turned on again meanwhile with a new token: keep it
+		}
+		c.Autosync, c.AutosyncLost = nil, lost
+		return nil
+	})
+	if err != nil && !errors.Is(err, domain.ErrNotFound) {
 		return err
 	}
 	details := map[string]any{"enabledBy": byEmail}

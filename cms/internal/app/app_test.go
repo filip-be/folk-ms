@@ -1217,3 +1217,43 @@ func TestGoneEventListedAgainAfterItEnded(t *testing.T) {
 		t.Fatal("listed again: not gone")
 	}
 }
+
+// flakySecrets fails the next Delete calls, as Key Vault may.
+type flakySecrets struct {
+	ports.SecretStore
+	failDeletes int
+}
+
+func (f *flakySecrets) Delete(ctx context.Context, name string) error {
+	if f.failDeletes > 0 {
+		f.failDeletes--
+		return errors.New("key vault: HTTP 503")
+	}
+	return f.SecretStore.Delete(ctx, name)
+}
+
+// Review finding 1: a failed secret delete must leave Autosync on, naming
+// the secret, so turning it off again really deletes it (T11).
+func TestAutosyncOffRetriesAFailedDelete(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	e.connect(t, sa, "org-a", "1001", false)
+	name := e.autosyncOn(t, sa, "org-a")
+	flaky := &flakySecrets{SecretStore: e.a.Secrets, failDeletes: 1}
+	e.a.Secrets = flaky
+	if err := e.a.DisableAutosync(e.ctx, sa, "org-a"); err == nil {
+		t.Fatal("the failed delete is reported")
+	}
+	if as := e.conn(t, "org-a").Autosync; as == nil || as.SecretName != name {
+		t.Fatalf("the connection must keep naming the secret: %+v", as)
+	}
+	if err := e.a.DisableAutosync(e.ctx, sa, "org-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.a.Secrets.Get(e.ctx, name); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("secret still there: %v", err)
+	}
+	if e.conn(t, "org-a").Autosync != nil {
+		t.Fatal("Autosync off")
+	}
+}
