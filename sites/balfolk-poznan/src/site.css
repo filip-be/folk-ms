@@ -26,4 +26,10 @@ header {
 }
 .events { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr)); gap: var(--space-10); }
 .event-card img, .event img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
-.dates li.cancelled { text-decoration: line-through; }
+/* A cancelled Occurrence: its date struck through, beside the "cancelled" label. */
+.event-card {
+  &.cancelled .date { text-decoration: line-through; }
+}
+.dates {
+  & li.cancelled .when { text-decoration: line-through; }
+}

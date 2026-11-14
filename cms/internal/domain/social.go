@@ -124,8 +124,11 @@ func (sp *SocialPost) Fail(msg string, now time.Time) {
 }
 
 // Connection is an Organization's Social Account Connection: which Facebook
-// Facebook page and Instagram account it posts to. It holds no token: every Social
-// Post is sent with the posting Moderator's own Meta sign-in.
+// page and Instagram account it syncs from and posts to. While Autosync is
+// off it holds no token, and every Sync and Social Post needs the
+// Moderator's own Meta sign-in (ADR 0005). While Autosync is on, the
+// Facebook page token is kept in the secret store under SecretName; the
+// document never holds the token itself (ADR 0010).
 type Connection struct {
 	OrgID          string    `json:"orgId"`
 	PageID         string    `json:"pageId"`
@@ -135,6 +138,57 @@ type Connection struct {
 	CreatedBy      string    `json:"createdBy"`
 	CreatedByEmail string    `json:"createdByEmail"`
 	CreatedAt      time.Time `json:"createdAt"`
+	Autosync       *Autosync `json:"autosync,omitempty"`
+	// AutosyncLost records why Autosync was turned off without a Moderator
+	// asking (decision 19), for the banner asking another to turn it on.
+	AutosyncLost *AutosyncLost `json:"autosyncLost,omitempty"`
+}
+
+// Autosync is an Organization's opt-in to hourly Sync with a stored token.
+type Autosync struct {
+	SecretName string    `json:"secretName"`
+	By         string    `json:"by"`
+	ByEmail    string    `json:"byEmail"`
+	At         time.Time `json:"at"`
+	// DataAccessExpiresAt is when Meta stops letting the token read data:
+	// 90 days after the sign-in that issued it.
+	DataAccessExpiresAt *time.Time `json:"dataAccessExpiresAt,omitempty"`
+	// NeedsReconnect: Graph rejected the token.
+	NeedsReconnect bool `json:"needsReconnect,omitempty"`
+}
+
+// AutosyncLost explains an Autosync that ended by itself.
+type AutosyncLost struct {
+	Reason  string    `json:"reason"` // "access" (decision 19)
+	ByEmail string    `json:"byEmail"`
+	At      time.Time `json:"at"`
+}
+
+// ReconnectWarning is how long before the data access expiry the CMS asks
+// for a new Meta sign-in.
+const ReconnectWarning = 14 * 24 * time.Hour
+
+// ReconnectSoon reports whether the "reconnect before" banner shows.
+func (a *Autosync) ReconnectSoon(now time.Time) bool {
+	return a != nil && a.DataAccessExpiresAt != nil && now.After(a.DataAccessExpiresAt.Add(-ReconnectWarning))
+}
+
+// DailyPostLimit is how many Social Posts an Organization may attempt a day.
+const DailyPostLimit = 10
+
+// PostCounter counts an Organization's Social Post attempts on one day.
+type PostCounter struct {
+	Day   string `json:"day"`
+	Count int    `json:"count"`
+}
+
+// Take counts n more attempts or reports ErrLimit.
+func (c *PostCounter) Take(n int) error {
+	if c.Count+n > DailyPostLimit {
+		return fmt.Errorf("%w: %d posts a day", ErrLimit, DailyPostLimit)
+	}
+	c.Count += n
+	return nil
 }
 
 // PostDraft is the Caption a Moderator chose for one platform.

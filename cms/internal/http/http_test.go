@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/png"
 	"io"
@@ -47,29 +48,35 @@ func (f *fakeIdP) Exchange(context.Context, string, string, string, string) (por
 }
 
 type harness struct {
-	ts     *httptest.Server
-	idp    *fakeIdP
-	fb     *fakeIdP
-	app    *app.App
-	social *meta.Recorder
+	ts      *httptest.Server
+	idp     *fakeIdP
+	fb      *fakeIdP
+	app     *app.App
+	social  *meta.Recorder
+	secrets *memory.Secrets
 }
+
+const sessionKeyByte = 3
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	o := &domain.Organization{ID: "org-a", Name: domain.Text{PL: "A"}, Timezone: "Europe/Warsaw",
 		Site: domain.Site{ID: "org-a", BaseURL: "https://a.example", PermalinkTemplate: "/{lang}/events/{shortId}-{slug}"}}
+	loc, _ := time.LoadLocation(o.Timezone)
+	o.SetLocation(loc)
 	a := app.New([]*domain.Organization{o})
 	rec := &meta.Recorder{}
-	a.Docs, a.Pub, a.Audit, a.Social, a.Images = memory.NewDocumentStore(), memory.NewPublicStore("http://x/pub"), memory.NewAppendLog(), rec, img.Processor{}
+	secrets := memory.NewSecrets()
+	a.Docs, a.Pub, a.Audit, a.Social, a.Events, a.Secrets, a.Images =
+		memory.NewDocumentStore(), memory.NewPublicStore("http://x/pub"), memory.NewAppendLog(), rec, rec, secrets, img.Processor{}
 	a.SuperAdminEmail = "admin@example.org"
-	h := &harness{idp: &fakeIdP{email: "admin@example.org"}, fb: &fakeIdP{issuer: "fb", noSA: true}, app: a, social: rec}
+	h := &harness{idp: &fakeIdP{email: "admin@example.org"}, fb: &fakeIdP{issuer: "fb", noSA: true}, app: a, social: rec, secrets: secrets}
 	h.ts = httptest.NewUnstartedServer(nil)
 	h.ts.Start()
 	srv, err := NewServer(&Server{
 		App: a, IdP: h.idp, Facebook: h.fb, BaseURL: h.ts.URL,
-		Admin: fstest.MapFS{"index.html": {Data: []byte("<!doctype html>spa")}, "app.js": {Data: []byte("js")},
-			"autofill.user.js": {Data: []byte("// @match __FOLKMS_CMS_ORIGIN__/app/*")}},
-	}, bytes.Repeat([]byte{3}, 32))
+		Admin: fstest.MapFS{"index.html": {Data: []byte("<!doctype html>spa")}, "app.js": {Data: []byte("js")}},
+	}, bytes.Repeat([]byte{sessionKeyByte}, 32))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,6 +120,56 @@ func (h *harness) do(t *testing.T, c *http.Client, method, path, body string, hd
 	return resp, string(b)
 }
 
+// same marks a same-origin request for the CSRF check.
+func (h *harness) same() map[string]string { return map[string]string{"Origin": h.ts.URL} }
+
+// follow GETs an absolute CMS URL (a Meta sign-in that comes straight back
+// to the callback) and returns where the redirects ended.
+func (h *harness) follow(t *testing.T, c *http.Client, u string) *url.URL {
+	t.Helper()
+	if !strings.HasPrefix(u, h.ts.URL) {
+		t.Fatalf("not a CMS URL: %s", u)
+	}
+	resp, _ := h.do(t, c, "GET", strings.TrimPrefix(u, h.ts.URL), "", nil)
+	return resp.Request.URL
+}
+
+// metaLogin expects {"url": …} and follows it.
+func (h *harness) metaLogin(t *testing.T, c *http.Client, path, body string) *url.URL {
+	t.Helper()
+	resp, b := h.do(t, c, "POST", path, body, h.same())
+	var out struct{ URL string }
+	if resp.StatusCode != 200 || json.Unmarshal([]byte(b), &out) != nil || out.URL == "" {
+		t.Fatalf("%s: want a Meta sign-in URL, got %d %s", path, resp.StatusCode, b)
+	}
+	return h.follow(t, c, out.URL)
+}
+
+// connect connects org-a to the Recorder's page 1001 through the API.
+func (h *harness) connect(t *testing.T, c *http.Client) {
+	t.Helper()
+	if got := h.metaLogin(t, c, "/api/orgs/org-a/social/connect", ""); got.Path != "/app/orgs/org-a/social" || got.Query().Get("choose") != "1" {
+		t.Fatalf("connect landed on %s", got)
+	}
+	if resp, b := h.do(t, c, "POST", "/api/orgs/org-a/social/select", `{"pageId":"1001"}`, h.same()); resp.StatusCode != 200 || !strings.Contains(b, `"connected":true`) {
+		t.Fatalf("select: %d %s", resp.StatusCode, b)
+	}
+}
+
+func (h *harness) meID(t *testing.T, c *http.Client) string {
+	t.Helper()
+	_, b := h.do(t, c, "GET", "/api/me", "", nil)
+	var me struct{ ID string }
+	if json.Unmarshal([]byte(b), &me) != nil || me.ID == "" {
+		t.Fatalf("me: %s", b)
+	}
+	return me.ID
+}
+
+func manualBody(fbID string) string {
+	return `{"name":{"pl":"Bal"},"facebookUrl":"https://www.facebook.com/events/` + fbID + `/","occurrences":[{"startDate":"2030-10-01","startTime":"19:00","endTime":"22:00"}]}`
+}
+
 func TestAuthAndAPI(t *testing.T) {
 	h := newHarness(t)
 	c := h.client(t)
@@ -127,24 +184,41 @@ func TestAuthAndAPI(t *testing.T) {
 	if resp.Header.Get("Cache-Control") != "no-store" || !strings.Contains(resp.Header.Get("Content-Security-Policy"), "frame-ancestors 'none'") {
 		t.Fatalf("headers: %v", resp.Header)
 	}
-	same := map[string]string{"Origin": h.ts.URL}
-	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/venues", `{"name":"Zamek","address":"Św. Marcin 80"}`, same)
+	same := h.same()
+	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events", manualBody("777"), same)
 	if resp.StatusCode != 200 {
-		t.Fatalf("create venue: %d %s", resp.StatusCode, body)
-	}
-	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events", `{"title":{"pl":"Bal"},"schedule":{"kind":"single"}}`, same)
-	if resp.StatusCode != 200 {
-		t.Fatalf("create event: %d %s", resp.StatusCode, body)
+		t.Fatalf("create manual event: %d %s", resp.StatusCode, body)
 	}
 	var ev app.EventView
 	_ = json.Unmarshal([]byte(body), &ev)
-	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events/"+ev.Event.ID+"/publish", "", same)
-	if resp.StatusCode != 422 || !strings.Contains(body, "schedule.startDate") {
-		t.Fatalf("publish incomplete: %d %s", resp.StatusCode, body)
+	if ev.FacebookURL != "https://www.facebook.com/events/777/" || ev.ETag == "" {
+		t.Fatalf("%s", body)
 	}
-	resp, _ = h.do(t, c, "PUT", "/api/orgs/org-a/events/"+ev.Event.ID, `{"title":{"pl":"Bal 2"}}`, map[string]string{"Origin": h.ts.URL, "If-Match": `"stale"`})
+	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events", manualBody("777"), same)
+	if resp.StatusCode != 422 || !strings.Contains(body, `"field":"facebookUrl"`) {
+		t.Fatalf("same Facebook Event twice: %d %s", resp.StatusCode, body)
+	}
+	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events", `{"name":{"pl":"Bal"},"occurrences":[{"startDate":"2030-10-01","startTime":"19:00"}]}`, same)
+	if resp.StatusCode != 422 || !strings.Contains(body, `"field":"facebookUrl"`) {
+		t.Fatalf("no Facebook link: %d %s", resp.StatusCode, body)
+	}
+	manual := "/api/orgs/org-a/events/" + ev.Event.ID + "/manual"
+	resp, _ = h.do(t, c, "PUT", manual, manualBody("777"), map[string]string{"Origin": h.ts.URL, "If-Match": `"stale"`})
 	if resp.StatusCode != 409 {
 		t.Fatalf("stale put: %d", resp.StatusCode)
+	}
+	resp, body = h.do(t, c, "PUT", manual, strings.Replace(manualBody("777"), `"Bal"`, `"Bal 2"`, 1), map[string]string{"Origin": h.ts.URL, "If-Match": ev.ETag})
+	if resp.StatusCode != 200 || !strings.Contains(body, `"Bal 2"`) {
+		t.Fatalf("put: %d %s", resp.StatusCode, body)
+	}
+	if resp, body = h.do(t, c, "POST", "/api/orgs/org-a/events/"+ev.Event.ID+"/hide", "", same); resp.StatusCode != 200 || !strings.Contains(body, `"hidden":true`) {
+		t.Fatalf("hide: %d %s", resp.StatusCode, body)
+	}
+	// Removed features answer 404.
+	for _, path := range []string{"/api/orgs/org-a/venues", "/api/orgs/org-a/events/" + ev.Event.ID + "/publish", "/api/orgs/org-a/events/" + ev.Event.ID + "/duplicate"} {
+		if resp, _ := h.do(t, c, "POST", path, "", same); resp.StatusCode != 404 {
+			t.Errorf("%s: %d", path, resp.StatusCode)
+		}
 	}
 	resp, _ = h.do(t, c, "POST", "/api/orgs/nope/events", `{}`, same)
 	if resp.StatusCode != 404 {
@@ -170,18 +244,18 @@ func TestCSRF(t *testing.T) {
 	h := newHarness(t)
 	c := h.client(t)
 	h.signIn(t, c)
-	body := `{"name":"X","address":"Y"}`
+	body := manualBody("777")
 	for name, hdr := range map[string]map[string]string{
 		"cross-site fetch": {"Sec-Fetch-Site": "cross-site", "Origin": h.ts.URL},
 		"same-site fetch":  {"Sec-Fetch-Site": "same-site"},
 		"foreign origin":   {"Origin": "https://evil.example"},
 		"no origin at all": {},
 	} {
-		if resp, _ := h.do(t, c, "POST", "/api/orgs/org-a/venues", body, hdr); resp.StatusCode != 403 {
+		if resp, _ := h.do(t, c, "POST", "/api/orgs/org-a/events", body, hdr); resp.StatusCode != 403 {
 			t.Errorf("%s: want 403, got %d", name, resp.StatusCode)
 		}
 	}
-	if resp, _ := h.do(t, c, "POST", "/api/orgs/org-a/venues", body, map[string]string{"Sec-Fetch-Site": "same-origin"}); resp.StatusCode != 200 {
+	if resp, _ := h.do(t, c, "POST", "/api/orgs/org-a/events", body, map[string]string{"Sec-Fetch-Site": "same-origin"}); resp.StatusCode != 200 {
 		t.Errorf("same-origin: %d", resp.StatusCode)
 	}
 }
@@ -217,15 +291,7 @@ func TestPostWithMetaSignIn(t *testing.T) {
 	c := h.client(t)
 	h.signIn(t, c)
 	ctx := context.Background()
-	u, err := h.app.SignIn(ctx, ports.Identity{Issuer: "test", Subject: "admin@example.org", Email: "admin@example.org", EmailVerified: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	p, err := h.app.Principal(ctx, u.ID, time.Now())
-	if err != nil {
-		t.Fatal(err)
-	}
-	v, err := h.app.CreateVenue(ctx, p, "org-a", domain.Venue{Name: "Zamek", Address: "Św. Marcin 80"})
+	p, err := h.app.Principal(ctx, h.meID(t, c), time.Now(), h.session(t, c).Nonce)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,21 +301,13 @@ func TestPostWithMetaSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ev, err := h.app.CreateEvent(ctx, p, "org-a", domain.Content{Title: domain.Text{PL: "Bal"}, VenueID: v.ID, Cover: cover,
-		Schedule: domain.Schedule{Kind: domain.KindSingle, StartDate: "2030-10-01", StartTime: "19:00", EndTime: "22:00"}})
+	ev, err := h.app.CreateManualEvent(ctx, p, "org-a", domain.ManualInput{Name: domain.Text{PL: "Bal"}, Cover: cover,
+		FacebookURL: "https://www.facebook.com/events/777/", Occurrences: []domain.OccurrenceInput{{StartDate: "2030-10-01", StartTime: "19:00", EndTime: "22:00"}}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := h.app.PublishEvent(ctx, p, "org-a", ev.Event.ID); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := h.app.CompleteSocialLogin(ctx, p, "org-a", "code", h.ts.URL+"/auth/meta/callback"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := h.app.SelectPage(ctx, p, "org-a", "1001"); err != nil {
-		t.Fatal(err)
-	}
-	same := map[string]string{"Origin": h.ts.URL}
+	h.connect(t, c)
+	same := h.same()
 	posts := "/api/orgs/org-a/events/" + ev.Event.ID + "/posts"
 	start := func() string {
 		t.Helper()
@@ -262,14 +320,14 @@ func TestPostWithMetaSignIn(t *testing.T) {
 	}
 
 	// The Meta sign-in comes back to the callback, which posts on both
-	// platforms and returns to the Post dialog.
+	// platforms with its page token and returns to the Post dialog.
 	login := start()
-	resp, _ := h.do(t, c, "GET", strings.TrimPrefix(login, h.ts.URL), "", nil)
-	if got := resp.Request.URL; got.Path != "/app/orgs/org-a/events/"+ev.Event.ID+"/post" || got.Query().Get("facebook") != "posted" || got.Query().Get("instagram") != "posted" {
+	got := h.follow(t, c, login)
+	if got.Path != "/app/orgs/org-a/events/"+ev.Event.ID+"/post" || got.Query().Get("facebook") != "posted" || got.Query().Get("instagram") != "posted" {
 		t.Fatalf("landed on %s", got)
 	}
-	if len(h.social.Posts) != 2 {
-		t.Fatalf("%+v", h.social.Posts)
+	if len(h.social.Posts) != 2 || h.social.PostTokens[0] != "page-token-1001" {
+		t.Fatalf("%+v %v", h.social.Posts, h.social.PostTokens)
 	}
 	// The state cookie is used once.
 	if resp, _ := h.do(t, c, "GET", strings.TrimPrefix(login, h.ts.URL), "", nil); resp.StatusCode != 403 || len(h.social.Posts) != 2 {
@@ -279,7 +337,7 @@ func TestPostWithMetaSignIn(t *testing.T) {
 	// Cancelling the Meta sign-in posts nothing and drops the request.
 	login = start()
 	lu, _ := url.Parse(login)
-	resp, _ = h.do(t, c, "GET", "/auth/meta/callback?error=access_denied&state="+lu.Query().Get("state"), "", nil)
+	resp, _ := h.do(t, c, "GET", "/auth/meta/callback?error=access_denied&state="+lu.Query().Get("state"), "", nil)
 	if resp.Request.URL.Query().Get("refused") != app.RefusedCancelled || len(h.social.Posts) != 2 {
 		t.Fatalf("cancelled: %s", resp.Request.URL)
 	}
@@ -291,6 +349,230 @@ func TestPostWithMetaSignIn(t *testing.T) {
 	login = start()
 	if resp, _ := h.do(t, h.client(t), "GET", strings.TrimPrefix(login, h.ts.URL), "", nil); resp.StatusCode != 403 || len(h.social.Posts) != 2 {
 		t.Fatalf("foreign callback: %d", resp.StatusCode)
+	}
+}
+
+// forge returns a client whose session cookie is signed with the session
+// key but carries a nonce of no real sign-in (T5).
+// laterClock is the system clock moved forward.
+type laterClock struct{ d time.Duration }
+
+func (c laterClock) Now() time.Time { return time.Now().Add(c.d) }
+
+// session opens the client's session cookie.
+func (h *harness) session(t *testing.T, c *http.Client) sessionData {
+	t.Helper()
+	u, _ := url.Parse(h.ts.URL)
+	var sd sessionData
+	for _, ck := range c.Jar.Cookies(u) {
+		if ck.Name == sessionCookie {
+			if err := (signer{key: bytes.Repeat([]byte{sessionKeyByte}, 32)}).open("session", ck.Value, &sd); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	return sd
+}
+
+func (h *harness) forge(t *testing.T, userID, nonce string) *http.Client {
+	t.Helper()
+	now := time.Now()
+	v, err := signer{key: bytes.Repeat([]byte{sessionKeyByte}, 32)}.seal("session", sessionData{UserID: userID, IssuedAt: now.Unix(), Expires: now.Add(time.Hour).Unix(), Nonce: nonce})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := h.client(t)
+	u, _ := url.Parse(h.ts.URL)
+	c.Jar.SetCookies(u, []*http.Cookie{{Name: sessionCookie, Value: v, Path: "/"}})
+	return c
+}
+
+// A session is valid only when its nonce is on the user document: a cookie
+// forged with the session key alone gets nothing, not even reads (T5), and
+// signing out ends the session for good.
+func TestSessionNeedsARecordedSignIn(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	h.connect(t, c)
+	id := h.meID(t, c)
+
+	// The real session cookie carries a nonce whose hash is on the user.
+	sd := h.session(t, c)
+	d, err := h.app.Docs.Get(context.Background(), "users/"+id+".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sd.Nonce == "" || !strings.Contains(string(d.Data), domain.HashNonce(sd.Nonce)) || strings.Contains(string(d.Data), sd.Nonce) {
+		t.Fatalf("nonce %q, user %s", sd.Nonce, d.Data)
+	}
+
+	for _, nonce := range []string{"not-a-real-sign-in", ""} {
+		f := h.forge(t, id, nonce)
+		for _, path := range []string{"/api/me", "/api/orgs/org-a/social", "/api/orgs/org-a/events", "/api/orgs/org-a/sync", "/api/users"} {
+			if resp, body := h.do(t, f, "GET", path, "", nil); resp.StatusCode != 401 {
+				t.Fatalf("forged %q GET %s: %d %s", nonce, path, resp.StatusCode, body)
+			}
+		}
+		for _, call := range [][2]string{{"/api/invitations", `{"email":"mallory@example.org","orgs":["org-a"]}`}, {"/api/orgs/org-a/social/autosync", `{"on":true}`}} {
+			if resp, body := h.do(t, f, "POST", call[0], call[1], h.same()); resp.StatusCode != 401 {
+				t.Fatalf("forged %q POST %s: %d %s", nonce, call[0], resp.StatusCode, body)
+			}
+		}
+	}
+
+	// Sign-out removes the record, so a copy of the cookie stops working.
+	stolen := h.forge(t, id, sd.Nonce)
+	if resp, _ := h.do(t, stolen, "GET", "/api/me", "", nil); resp.StatusCode != 200 {
+		t.Fatalf("copied cookie before sign-out: %d", resp.StatusCode)
+	}
+	if resp, _ := h.do(t, c, "POST", "/auth/logout", "", h.same()); resp.StatusCode != 204 {
+		t.Fatalf("logout: %d", resp.StatusCode)
+	}
+	if resp, _ := h.do(t, stolen, "GET", "/api/me", "", nil); resp.StatusCode != 401 {
+		t.Fatalf("copied cookie after sign-out: %d", resp.StatusCode)
+	}
+}
+
+// Actions on the stored token need a Recent sign-in (15 minutes); the API
+// never returns the token.
+func TestRecentSignInGuardsTheStoredToken(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	h.connect(t, c)
+
+	// The real session turns Autosync on through a Meta sign-in.
+	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/social", "", nil); !strings.Contains(body, `"recentSignIn":true`) {
+		t.Fatalf("real session: %s", body)
+	}
+	if got := h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`); got.Path != "/app/orgs/org-a/social" || got.Query().Get("autosync") != "on" {
+		t.Fatalf("autosync landed on %s", got)
+	}
+	h.app.Clock = laterClock{16 * time.Minute}
+	for _, call := range [][2]string{{"/api/orgs/org-a/social/autosync", `{"on":false}`}, {"/api/orgs/org-a/social/disconnect", ""}} {
+		if resp, body := h.do(t, c, "POST", call[0], call[1], h.same()); resp.StatusCode != 403 || !strings.Contains(body, "recent_sign_in") {
+			t.Fatalf("not recent %s: %d %s", call[0], resp.StatusCode, body)
+		}
+	}
+	h.app.Clock = ports.SystemClock{}
+
+	// With Autosync on, "Sync now" runs at once; the API never returns the token.
+	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/sync", "", h.same())
+	if resp.StatusCode != 200 || !strings.Contains(body, `"result"`) || strings.Contains(body, `"url"`) {
+		t.Fatalf("sync now: %d %s", resp.StatusCode, body)
+	}
+	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/sync", "", h.same())
+	if resp.StatusCode != 429 || !strings.Contains(body, `"error":"too_soon"`) {
+		t.Fatalf("sync now again: %d %s", resp.StatusCode, body)
+	}
+	var events []app.EventSummary
+	_, body = h.do(t, c, "GET", "/api/orgs/org-a/events", "", nil)
+	if json.Unmarshal([]byte(body), &events) != nil || len(events) == 0 {
+		t.Fatalf("events: %s", body)
+	}
+	paths := []string{"/api/orgs/org-a/social", "/api/orgs/org-a/events", "/api/orgs/org-a/sync", "/api/orgs/org-a/events/" + events[0].ID,
+		"/api/orgs/org-a/events/" + events[0].ID + "/posts", "/api/me"}
+	for _, path := range paths {
+		resp, body := h.do(t, c, "GET", path, "", nil)
+		if resp.StatusCode != 200 || strings.Contains(body, "page-token") || strings.Contains(body, "fbpage-") {
+			t.Fatalf("GET %s: %d %s", path, resp.StatusCode, body)
+		}
+	}
+	if got := h.social.Calls[0]; !strings.HasPrefix(got, "list 1001 long-page-token-1001-") {
+		t.Fatalf("sync used %q", got)
+	}
+}
+
+// "Sync now" with Autosync off answers the Meta sign-in URL; the callback
+// with the sync state runs it with the sign-in's page token.
+func TestSyncNowWithMetaSignIn(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/sync", "", h.same())
+	if resp.StatusCode != 422 {
+		t.Fatalf("without a connection: %d %s", resp.StatusCode, body)
+	}
+	h.connect(t, c)
+	got := h.metaLogin(t, c, "/api/orgs/org-a/sync", "")
+	if got.Path != "/app/orgs/org-a/events" || got.Query().Get("sync") != "ok" {
+		t.Fatalf("sync landed on %s", got)
+	}
+	if len(h.social.Calls) != 1 || h.social.Calls[0] != "list 1001 page-token-1001" {
+		t.Fatalf("calls: %v", h.social.Calls)
+	}
+	_, body = h.do(t, c, "GET", "/api/orgs/org-a/events", "", nil)
+	var events []app.EventSummary
+	if json.Unmarshal([]byte(body), &events) != nil || len(events) != 3 {
+		t.Fatalf("events: %s", body)
+	}
+	resp, body = h.do(t, c, "POST", "/api/orgs/org-a/sync", "", h.same())
+	if resp.StatusCode != 429 || !strings.Contains(body, `"error":"too_soon"`) {
+		t.Fatalf("again within a minute: %d %s", resp.StatusCode, body)
+	}
+	_, body = h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil)
+	if !strings.Contains(body, `"autosync":false`) || !strings.Contains(body, `"lastSuccessAt"`) || strings.Contains(body, "leaseHolder") {
+		t.Fatalf("status: %s", body)
+	}
+}
+
+// POST /sync is public: it takes no input, runs Autosync only, and is
+// bounded per instance, per client and per Organization (T10).
+func TestTimerSync(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	h.connect(t, c)
+	h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	anon := h.client(t)
+	resp, body := h.do(t, anon, "POST", "/sync", `{"org":"org-a","token":"x"}`, nil)
+	if resp.StatusCode != 200 || !strings.Contains(body, `"Outputs"`) {
+		t.Fatalf("timer: %d %s", resp.StatusCode, body)
+	}
+	if len(h.social.Calls) != 1 || !strings.HasPrefix(h.social.Calls[0], "list 1001 long-page-token-") {
+		t.Fatalf("calls: %v", h.social.Calls)
+	}
+	if _, body = h.do(t, anon, "POST", "/sync", "", nil); !strings.Contains(body, "skipped") || len(h.social.Calls) != 1 {
+		t.Fatalf("a second sync right away must be skipped: %s", body)
+	}
+	limited := false
+	for range 30 {
+		if resp, _ := h.do(t, anon, "POST", "/sync", "", nil); resp.StatusCode == 429 {
+			limited = true
+			break
+		}
+	}
+	if !limited || len(h.social.Calls) != 1 {
+		t.Fatalf("rate limit: %v, calls %v", limited, h.social.Calls)
+	}
+
+	// /sync is public: a failure is answered without its details.
+	h = newHarness(t)
+	c = h.client(t)
+	h.signIn(t, c)
+	h.connect(t, c)
+	h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	h.social.FailList = errors.New("meta: HTTP 400 code 2500/0: detail about org-a")
+	resp, body = h.do(t, h.client(t), "POST", "/sync", "", nil)
+	if resp.StatusCode != 200 || !strings.Contains(body, "autosync failed") || strings.Contains(body, "org-a") || strings.Contains(body, "2500") {
+		t.Fatalf("failed timer: %d %s", resp.StatusCode, body)
+	}
+}
+
+// The pages Meta reviews say a token is kept only while automatic sync is on.
+func TestPrivacyPagesMentionTheToken(t *testing.T) {
+	h := newHarness(t)
+	for path, want := range map[string][]string{
+		"/privacy":       {"Unless the organization turned automatic sync on, we store no Meta token", "for as long as sync stays on", "Azure Key Vault"},
+		"/data-deletion": {"turn automatic sync off", "Business integrations"},
+	} {
+		resp, body := h.do(t, h.client(t), "GET", path, "", nil)
+		for _, w := range want {
+			if resp.StatusCode != 200 || !strings.Contains(body, w) {
+				t.Errorf("%s lacks %q", path, w)
+			}
+		}
 	}
 }
 
@@ -366,7 +648,7 @@ func TestErrorMessagesAreBilingual(t *testing.T) {
 	h := newHarness(t)
 	c := h.client(t)
 	h.signIn(t, c)
-	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/venues", `{"name":""}`, map[string]string{"Sec-Fetch-Site": "same-origin"})
+	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/events", `{"name":{"pl":""}}`, map[string]string{"Sec-Fetch-Site": "same-origin"})
 	if resp.StatusCode != 422 {
 		t.Fatalf("want 422, got %d %s", resp.StatusCode, body)
 	}
@@ -408,7 +690,7 @@ func TestPostOutcomesMatchAdmin(t *testing.T) {
 	}
 	for _, code := range []string{
 		app.RefusedCancelled, app.RefusedExpired, app.RefusedLogin, app.RefusedPage, app.RefusedInvalid,
-		app.RefusedInstagram, app.RefusedQuota, app.RefusedConfirm, string(domain.PostPosted), string(domain.PostFailed),
+		app.RefusedInstagram, app.RefusedQuota, app.RefusedLimit, app.RefusedToken, app.RefusedConfirm, string(domain.PostPosted), string(domain.PostFailed),
 	} {
 		if !strings.Contains(string(src), `case "`+code+`":`) {
 			t.Errorf("cms/admin/src/views/post.ts has no message for the outcome %q", code)
@@ -455,5 +737,145 @@ func TestFacebookSignIn(t *testing.T) {
 	h.fb.email = "admin@example.org"
 	if resp, body := get("/auth/login?provider=facebook"); resp.StatusCode != 403 || !strings.Contains(body, "only with the Google account") {
 		t.Fatalf("super admin via facebook: %d %s", resp.StatusCode, body)
+	}
+}
+
+// A crafted id never reaches another Organization's documents: encoded
+// slashes and dot segments are refused at the edge, and an Event document
+// must name the Organization and id it was loaded for (T13).
+func TestIDsCannotLeaveTheOrganization(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/events", manualBody("777"), h.same())
+	if resp.StatusCode != 200 {
+		t.Fatalf("create: %d %s", resp.StatusCode, body)
+	}
+	var ev app.EventView
+	_ = json.Unmarshal([]byte(body), &ev)
+	traversal := "..%2F..%2Forg-a%2Fevents%2F" + ev.Event.ID
+	for _, call := range [][3]string{
+		{"GET", "/api/orgs/org-a/events/" + traversal, ""},
+		{"GET", "/api/orgs/org-a/events/" + ev.Event.ID + "%2F..%2F" + ev.Event.ID, ""},
+		{"POST", "/api/orgs/org-a/events/" + traversal + "/hide", ""},
+		{"PUT", "/api/orgs/org-a/events/" + traversal + "/manual", manualBody("778")},
+		{"GET", "/api/orgs/org-a/events/" + traversal + "/posts", ""},
+		{"POST", "/api/users/..%2Fsystem%2Fsuperadmin/revoke", ""},
+		{"GET", "/api/audit/..%2F..%2Fx", ""},
+	} {
+		if resp, body := h.do(t, c, call[0], call[1], call[2], h.same()); resp.StatusCode != 404 {
+			t.Fatalf("%s %s: %d %s", call[0], call[1], resp.StatusCode, body)
+		}
+	}
+	// An Event document under org-a's key that says it belongs elsewhere.
+	ctx := context.Background()
+	d, err := h.app.Docs.Get(ctx, "orgs/org-a/events/"+ev.Event.ID+".json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := strings.Replace(string(d.Data), `"orgId":"org-a"`, `"orgId":"org-b"`, 1)
+	if foreign == string(d.Data) {
+		t.Fatal("orgId not found in the document")
+	}
+	if _, err := h.app.Docs.Put(ctx, "orgs/org-a/events/"+ev.Event.ID+".json", []byte(foreign), ports.AnyETag); err != nil {
+		t.Fatal(err)
+	}
+	for _, call := range [][2]string{{"GET", "/api/orgs/org-a/events/" + ev.Event.ID}, {"POST", "/api/orgs/org-a/events/" + ev.Event.ID + "/hide"}} {
+		if resp, body := h.do(t, c, call[0], call[1], "", h.same()); resp.StatusCode != 404 {
+			t.Fatalf("foreign event %s %s: %d %s", call[0], call[1], resp.StatusCode, body)
+		}
+	}
+}
+
+// Changing requests are limited per user.
+func TestWritesAreRateLimited(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	limited := 0
+	for range MaxWritesPerMinute + 5 {
+		if resp, _ := h.do(t, c, "POST", "/api/orgs/org-a/events/0123456789abcdef/hide", "", h.same()); resp.StatusCode == 429 {
+			limited++
+		}
+	}
+	if limited != 5 {
+		t.Fatalf("limited %d", limited)
+	}
+	if resp, _ := h.do(t, c, "GET", "/api/me", "", nil); resp.StatusCode != 200 {
+		t.Fatalf("reads stay allowed: %d", resp.StatusCode)
+	}
+}
+
+// A Facebook identity whose email matches an active user is linked only
+// from that user's own session (T14).
+func TestFacebookIdentityIsLinkedFromASession(t *testing.T) {
+	h := newHarness(t)
+	admin := h.client(t)
+	h.signIn(t, admin)
+	if resp, body := h.do(t, admin, "POST", "/api/invitations", `{"email":"bob@example.org","orgs":["org-a"]}`, h.same()); resp.StatusCode != 200 {
+		t.Fatalf("invite: %d %s", resp.StatusCode, body)
+	}
+	bob := h.client(t)
+	h.idp.email = "bob@example.org"
+	h.signIn(t, bob)
+	id := h.meID(t, bob)
+
+	h.fb.email = "bob@example.org"
+	mallory := h.client(t)
+	if resp, body := h.do(t, mallory, "GET", "/auth/login?provider=facebook", "", nil); resp.StatusCode != 403 || !strings.Contains(body, "not linked") {
+		t.Fatalf("facebook email alone: %d %s", resp.StatusCode, body)
+	}
+	if resp, _ := h.do(t, mallory, "GET", "/api/me", "", nil); resp.StatusCode != 401 {
+		t.Fatalf("no session for the unlinked identity: %d", resp.StatusCode)
+	}
+	// From Bob's own session the Facebook identity is linked, and later
+	// signs in on its own.
+	if resp, _ := h.do(t, bob, "GET", "/auth/login?provider=facebook&return=/app/events", "", nil); resp.Request.URL.Path != "/app/events" {
+		t.Fatalf("linking landed on %s", resp.Request.URL)
+	}
+	again := h.client(t)
+	if resp, _ := h.do(t, again, "GET", "/auth/login?provider=facebook&return=/app/events", "", nil); resp.Request.URL.Path != "/app/events" || h.meID(t, again) != id {
+		t.Fatalf("linked identity: %s", resp.Request.URL)
+	}
+}
+
+func TestClientIPBuckets(t *testing.T) {
+	s := &Server{TrustProxy: true}
+	ip := func(xff string) string {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("X-Forwarded-For", xff)
+		return s.clientIP(r)
+	}
+	if a, b := ip("1.2.3.4:1000"), ip("1.2.3.4:2000"); a != b || a != "1.2.3.4" {
+		t.Fatalf("ipv4 ports: %s %s", a, b)
+	}
+	if a, b := ip("spoofed, 2001:db8:1:2::5:1000"), ip("[2001:db8:1:2::5]:2000"); a != b {
+		t.Fatalf("ipv6: %s %s", a, b)
+	}
+	if a, b := ip("garbage-1"), ip("garbage-2"); a != b {
+		t.Fatalf("unparsed: %s %s", a, b)
+	}
+}
+
+// Another site cannot start a sign-in silently; it gets a page whose
+// button starts it from this origin.
+func TestCrossSiteLoginNeedsAClick(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	resp, body := h.do(t, c, "GET", "/auth/login?provider=facebook&return=/app/events", "", map[string]string{"Sec-Fetch-Site": "cross-site"})
+	if resp.StatusCode != 200 || h.fb.logins != 0 || !strings.Contains(body, `href="/auth/login?provider=facebook&amp;return=/app/events"`) {
+		t.Fatalf("cross-site: %d, logins %d, %s", resp.StatusCode, h.fb.logins, body)
+	}
+	if resp, _ := h.do(t, c, "GET", "/auth/login?provider=facebook", "", map[string]string{"Sec-Fetch-Site": "same-origin"}); h.fb.logins != 1 {
+		t.Fatalf("same-origin: %d", resp.StatusCode)
+	}
+}
+
+func TestUnbracketedIPv6WithPort(t *testing.T) {
+	s := &Server{TrustProxy: true}
+	r := httptest.NewRequest("GET", "/", nil)
+	r.Header.Set("X-Forwarded-For", "2001:db8:1:2::5:65000")
+	if got := s.clientIP(r); got != "2001:db8:1:2::/64" {
+		t.Fatalf("got %s", got)
 	}
 }

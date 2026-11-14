@@ -18,14 +18,17 @@ export interface Organization {
   timezone: string;
 }
 
-export interface Venue {
+/** Where an Occurrence happens: free text from Facebook or the Moderator. */
+export interface Location {
   name: string;
-  address: string;
+  address?: string;
+  /** Any http(s) address; Sites link it only through httpsUrl. */
   mapUrl?: string;
 }
 
+/** Free-text price and/or a tickets link; at least one is present. */
 export interface Price {
-  text: LocalizedText;
+  text?: LocalizedText;
   url?: string;
 }
 
@@ -40,56 +43,46 @@ export interface Image {
   variants: ImageVariant[];
 }
 
-export type Freq = "weekly" | "biweekly" | "monthly";
-
-export interface Recurrence {
-  freq: Freq;
-  /** 0 = Sunday */
-  weekday: number;
-  /** Monthly only: Nth weekday of the month, -1 = last. */
-  nth?: -1 | 1 | 2 | 3 | 4;
-  startDate: string;
-  endDate: string;
-}
-
 export interface Occurrence {
   /** RFC 3339 with offset, in the Organization's timezone. */
   start: string;
   end: string;
   cancelled: boolean;
-  venueId: string;
-  note?: LocalizedText;
-  /** The Facebook Event announcing this Occurrence, when one was recorded. */
-  facebookEventUrl?: string;
+  /** Present (and true) only for an online Occurrence. */
+  online?: boolean;
+  location?: Location;
+  /** The Facebook Event page of this Occurrence (https://www.facebook.com/events/<id>/). */
+  facebookEventUrl: string;
 }
 
-export type EventKind = "single" | "multiDay" | "recurring";
-
+/**
+ * One Facebook Event of the Organization (or a Manual Event). A repeating
+ * Facebook Event is one Event with several Occurrences. There is no kind:
+ * multi-day is derived from an Occurrence's dates (isMultiDay).
+ */
 export interface Event {
   id: string;
   shortId: string;
   slug: string;
   permalink: Record<Lang, string>;
-  kind: EventKind;
   title: LocalizedText;
   summary?: LocalizedText;
   description?: LocalizedText;
   price?: Price;
   cover?: Image;
-  recurrence?: Recurrence;
+  /** Sorted by start; at least one. */
   occurrences: Occurrence[];
-  publishedAt: string;
+  updatedAt: string;
 }
 
 export interface Snapshot {
-  schemaVersion: 1;
+  schemaVersion: 2;
   generatedAt: string;
   organization: Organization;
-  venues: Record<string, Venue>;
   events: Event[];
 }
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 /** Fetches and sanity-checks a snapshot (pub/sites/<site>/events.json). */
 export async function fetchSnapshot(url: string, init?: RequestInit): Promise<Snapshot> {
@@ -98,15 +91,28 @@ export async function fetchSnapshot(url: string, init?: RequestInit): Promise<Sn
   return parseSnapshot(await res.json());
 }
 
-/** Checks the shape the reader relies on; throws on an unsupported schema version. */
+/**
+ * Checks the shape the reader relies on. Throws on any schemaVersion other
+ * than 2: a version 1 snapshot (venues, recurrence, kind) is not readable by
+ * this reader, which means the CMS and the Site were deployed out of step.
+ */
 export function parseSnapshot(data: unknown): Snapshot {
   if (typeof data !== "object" || data === null) throw new Error("snapshot: not an object");
-  const s = data as Partial<Snapshot>;
-  if (s.schemaVersion !== SCHEMA_VERSION) throw new Error(`snapshot: unsupported schemaVersion ${String(s.schemaVersion)}`);
-  if (!s.organization || !Array.isArray(s.events) || typeof s.venues !== "object" || s.venues === null) {
-    throw new Error("snapshot: missing organization, venues or events");
+  const s = data as { schemaVersion?: unknown; organization?: unknown; events?: unknown };
+  if (s.schemaVersion !== SCHEMA_VERSION) {
+    throw new Error(
+      `snapshot: unsupported schemaVersion ${String(s.schemaVersion)}; this reader reads version ${SCHEMA_VERSION} only (deploy the Site and the CMS together)`,
+    );
   }
-  return s as Snapshot;
+  if (typeof s.organization !== "object" || s.organization === null || !Array.isArray(s.events)) {
+    throw new Error("snapshot: missing organization or events");
+  }
+  for (const e of s.events as Partial<Event>[]) {
+    if (!Array.isArray(e?.occurrences) || e.occurrences.length === 0) {
+      throw new Error(`snapshot: event ${String(e?.id)} has no occurrences`);
+    }
+  }
+  return data as Snapshot;
 }
 
 /** Translation fallback: English where present, otherwise Polish. */
@@ -120,8 +126,17 @@ export function hasTranslation(text: LocalizedText | undefined, lang: Lang): boo
   return !!text && (lang === "pl" ? !!text.pl : !!text.en);
 }
 
-export function venue(snapshot: Snapshot, occurrence: Occurrence): Venue | undefined {
-  return snapshot.venues[occurrence.venueId];
+/**
+ * The address if it is an absolute https URL, else undefined. Sites make a
+ * link only from what this returns (snapshot text from Facebook is untrusted).
+ */
+export function httpsUrl(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    return new URL(url).protocol === "https:" ? url : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export interface OccurrenceOptions {
@@ -147,25 +162,42 @@ export function nextOccurrence(event: Event, now: Date = new Date()): Occurrence
   return occurrences(event, { from: now, includeCancelled: false })[0];
 }
 
+/**
+ * The Occurrence to show for an Event in a list: the next one that has not
+ * ended and is not cancelled; else the next cancelled one that has not ended
+ * (the Event is shown as cancelled); else the last one.
+ */
+export function featuredOccurrence(event: Event, now: Date = new Date()): Occurrence {
+  const ahead = occurrences(event, { from: now });
+  const all = occurrences(event);
+  return ahead.find((o) => !o.cancelled) ?? ahead[0] ?? all[all.length - 1]!;
+}
+
+/** True when every Occurrence of the Event is cancelled. */
+export function isCancelled(event: Event): boolean {
+  return event.occurrences.every((o) => o.cancelled);
+}
+
 export interface Split {
-  /** Events with an Occurrence that has not ended, ordered by that Occurrence. */
+  /** Events with an Occurrence that has not ended, ordered by their featured Occurrence. */
   upcoming: Event[];
   /** Events whose Occurrences all ended, most recent first. */
   past: Event[];
 }
 
-/** Splits Events into upcoming and past relative to `now`. */
+/**
+ * Splits Events into upcoming and past relative to `now`. An Event whose
+ * remaining Occurrences are all cancelled stays upcoming, shown as cancelled.
+ */
 export function splitUpcomingPast(events: Event[], now: Date = new Date()): Split {
   const upcoming: { e: Event; at: number }[] = [];
   const past: { e: Event; at: number }[] = [];
   for (const e of events) {
-    const next = occurrences(e, { from: now, includeCancelled: false })[0];
-    if (next) {
-      upcoming.push({ e, at: Date.parse(next.start) });
+    const ahead = occurrences(e, { from: now });
+    if (ahead.length) {
+      upcoming.push({ e, at: Date.parse(featuredOccurrence(e, now).start) });
     } else {
-      const last = Math.max(...e.occurrences.map((o) => Date.parse(o.end)));
-      // An Event whose only remaining Occurrences are cancelled counts as past.
-      past.push({ e, at: last });
+      past.push({ e, at: Math.max(...e.occurrences.map((o) => Date.parse(o.end))) });
     }
   }
   upcoming.sort((a, b) => a.at - b.at);
@@ -197,4 +229,36 @@ export function formatStart(o: Occurrence, lang: Lang, timeZone: string): string
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(o.start));
+}
+
+const DAY = new Map<string, Intl.DateTimeFormat>();
+function dayKey(at: number, timeZone: string): string {
+  let f = DAY.get(timeZone);
+  if (!f) DAY.set(timeZone, (f = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric", month: "2-digit", day: "2-digit" })));
+  return f.format(at);
+}
+
+/** An end before this hour of a later day still belongs to the night before. */
+const NIGHT_ENDS_HOURS = 6;
+
+/**
+ * True when the Occurrence spans more than one day in the Organization's
+ * timezone. An end before 06:00 on the next day (a bal running past midnight)
+ * does not make it multi-day.
+ */
+export function isMultiDay(o: Occurrence, timeZone: string): boolean {
+  const end = Date.parse(o.end) - NIGHT_ENDS_HOURS * 3_600_000;
+  return dayKey(end, timeZone) > dayKey(Date.parse(o.start), timeZone);
+}
+
+/**
+ * Formats when an Occurrence happens: its start with the time, or for a
+ * multi-day Occurrence its date range without times.
+ */
+export function formatWhen(o: Occurrence, lang: Lang, timeZone: string): string {
+  if (!isMultiDay(o, timeZone)) return formatStart(o, lang, timeZone);
+  return new Intl.DateTimeFormat(lang === "pl" ? "pl-PL" : "en-GB", { timeZone, day: "numeric", month: "long", year: "numeric" }).formatRange(
+    new Date(o.start),
+    new Date(o.end),
+  );
 }

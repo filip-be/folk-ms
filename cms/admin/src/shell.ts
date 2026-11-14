@@ -110,7 +110,6 @@ export function renderShell(me: Me, org: string): void {
       <nav class="side-nav" aria-label="${L("Sekcje", "Sections")}">
         <ul>
           ${item(`/app/orgs/${org}/events`, "calendar", L("Wydarzenia", "Events"), "events")}
-          ${item(`/app/orgs/${org}/venues`, "venue", L("Miejsca", "Venues"), "venues")}
           ${item(`/app/orgs/${org}/social`, "social", L("Social media", "Social media"), "social")}
           ${me.superAdmin
             ? html`<li><details class="nav-group" id="nav-admin" ${adminOpen ? "open" : ""}>
@@ -131,6 +130,9 @@ export function renderShell(me: Me, org: string): void {
         </div>
         ${themeButton()}
         ${langSwitch(true)}
+        ${me.superAdmin
+          ? ""
+          : html`<a class="nav-item" href="/auth/login?provider=facebook&return=${encodeURIComponent(location.pathname)}" title="${L("Połącz logowanie przez Facebooka z tym kontem", "Link Facebook sign-in to this account")}">${icon("link")}<span class="label">${L("Połącz z Facebookiem", "Link Facebook")}</span></a>`}
         <button type="button" class="nav-item" id="logout" title="${L("Wyloguj", "Sign out")}">${icon("logout")}<span class="label">${L("Wyloguj", "Sign out")}</span></button>
       </div>
     </aside>
@@ -182,7 +184,7 @@ function bind(app: HTMLElement): void {
 
   document.getElementById("org-select")?.addEventListener("change", (e) => {
     const id = (e.target as HTMLSelectElement).value;
-    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|venues|social)/)?.[1] ?? "events";
+    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|social)/)?.[1] ?? "events";
     navigate(`/app/orgs/${id}/${rest}`);
   });
   document.getElementById("theme-toggle")!.addEventListener("click", (e) => {

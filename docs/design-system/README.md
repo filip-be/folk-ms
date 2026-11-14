@@ -82,11 +82,11 @@ Every button has exactly one role, picked by what it does, not by how prominent 
 
 | Role | Class | Look | Use |
 | --- | --- | --- | --- |
-| Primary | `.primary` | Blue fill (`--action`) | The one main action of a screen or form: Publish, Save, Invite, Add venue. At most one per form or toolbar. |
-| Secondary | `.secondary` | Violet tonal (`--action-secondary`) | A further positive action beside the primary one (Save draft next to Publish), or a repeated action in a list (Choose for each Facebook page). |
+| Primary | `.primary` | Blue fill (`--action`) | The one main action of a screen or form: Save, Invite, Sync now, Post. At most one per form or toolbar. |
+| Secondary | `.secondary` | Violet tonal (`--action-secondary`) | A further positive action beside the primary one, or a repeated action in a list (Choose for each Facebook page). |
 | Neutral | none | White, grey border | Cancel, Edit, More, navigation (`a.button` to another screen), file pickers. |
 | Danger | `.danger` | Red text and border | Removes, revokes or disconnects. Inside a `details.more` menu it is red text only. |
-| Link | `.link` (+ `.danger`) | Underlined text | Small inline actions: Copy, + New venue, Revoke. |
+| Link | `.link` (+ `.danger`) | Underlined text | Small inline actions: Copy, Follow Facebook again, Revoke. |
 | Icon | `.icon-button` | Icon only, with `aria-label` | Toolbar and shell controls. |
 
 **Disabled** (`disabled`; for an `a.button`, `aria-disabled="true"`; a `label.button` around a disabled file input) is the same for every role: grey fill `--disabled-bg`, grey text, no shadow, `cursor: not-allowed`. `busy()` in `ui.ts` disables a button while its request runs, so the look also says "working".
@@ -94,11 +94,11 @@ Every button has exactly one role, picked by what it does, not by how prominent 
 ### Forms
 
 - **Labels.** A field is `<div class="field"><label for=…>…</label><input id=…>…</div>`. Use the `for` pattern, not a label wrapped around the control: the required mark and the error message are placed relative to it.
-- **Required.** Give the control `required`. A `.field` whose label precedes a required control shows a red asterisk after the label automatically; for a group (checkboxes in a `fieldset`) or any other label, add `class="required"` to the `legend` or `label`. A form with required fields shows a `<p class="required-note">` key ("required", or "required to publish" in the event editor, which is `novalidate` so a Draft saves without them while publishing enforces them on the server).
+- **Required.** Give the control `required`. A `.field` whose label precedes a required control shows a red asterisk after the label automatically; for a group (checkboxes in a `fieldset`) or any other label, add `class="required"` to the `legend` or `label`. A form with required fields shows a `<p class="required-note">` key ("required").
 - **Validation errors** appear right below their field as `.field-error` (alert icon and message), with `aria-invalid` and `aria-describedby` on the control and a red border; editing the field clears it. `ui.ts` does this for both sources:
   - The browser's checks (`required`, `type=email|url`, `maxlength`) on a form without `novalidate`: the native bubble is replaced by the same inline message, in the admin UI language.
   - Problems from the API: `showError(err, summary, form)` calls `markProblems`, which matches each problem's `field` path to a control by `data-field` (space-separated paths) or `name`, falling back to the Polish variant (`title` → `title.pl`). A `data-field` on a `fieldset` marks the group. Given a `summary` element it also lists every problem, each linked to its field (a field in the other language tab is revealed via the `folk:reveal` event). A problem with no matching control is listed only in the summary, so add a `data-field` when a new problem path appears.
-- **Disabled and read-only.** A field the Moderator cannot change is grey (`--disabled-bg`) and flat. Prefer `readonly` for text a Moderator may still want to copy; use `disabled` for selects, checkboxes, radios and buttons. A `label` or `.chip` around a disabled checkbox is greyed (a chip also gets a dashed border). A whole screen that cannot be edited (an Event in the bin) says so in a `.banner` and makes its controls read-only or disabled.
+- **Disabled and read-only.** A field the Moderator cannot change, such as a synced Event's Facebook value beside its Override control, is grey (`--disabled-bg`) and flat. Prefer `readonly` for text a Moderator may still want to copy; use `disabled` for selects, checkboxes, radios and buttons. A `label` or `.chip` around a disabled checkbox is greyed (a chip also gets a dashed border). A whole screen that cannot be edited (an Event in the bin) says so in a `.banner` and makes its controls read-only or disabled.
 
 ## Where it lives
 

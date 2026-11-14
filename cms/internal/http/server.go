@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -36,18 +37,23 @@ type Server struct {
 	Admin      fs.FS        // the built admin SPA
 	PublicDir  string       // serve the public store at /pub/ (local only)
 	DevLogin   http.Handler // dev OIDC login page (dev builds only)
-	// DevPages serves /dev/ (dev builds only): the Autofill practice page.
-	DevPages http.Handler
 	// PublicOrigin is the origin images are served from, allowed by the CSP.
 	PublicOrigin string
 	Log          *slog.Logger
 
 	sign    signer
 	limiter *limiter
+	// writes bounds changes per user: a stolen session cannot flood the
+	// store, the Audit Log or the Graph quota.
+	writes *limiter
+	// uploads holds the one image upload slot per instance.
+	uploads chan struct{}
 	static  *staticFS
 
 	purgeMu   sync.Mutex
 	lastPurge time.Time
+	syncMu    sync.Mutex
+	lastSync  time.Time
 }
 
 // NewServer validates the configuration.
@@ -60,10 +66,9 @@ func NewServer(s *Server, sessionKey []byte) (*Server, error) {
 	}
 	s.BaseURL = strings.TrimRight(s.BaseURL, "/")
 	s.sign = signer{key: sessionKey}
-	if s.App != nil {
-		s.App.SetHandoffKey(sessionKey)
-	}
 	s.limiter = newLimiter(20, time.Minute)
+	s.writes = newLimiter(MaxWritesPerMinute, time.Minute)
+	s.uploads = make(chan struct{}, 1)
 	if s.Log == nil {
 		s.Log = slog.Default()
 	}
@@ -83,7 +88,6 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /app", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/app/", http.StatusMovedPermanently)
 	})
-	mux.HandleFunc("GET /app/autofill.user.js", s.userscript)
 	mux.Handle("GET /app/", s.static)
 	mux.HandleFunc("GET /privacy", s.privacy)
 	mux.HandleFunc("GET /data-deletion", s.dataDeletion)
@@ -100,11 +104,12 @@ func (s *Server) Handler() http.Handler {
 
 	// The Functions host invokes the timer function "purge" as POST /purge.
 	// Purging only removes what is overdue, so this is safe to expose.
-	mux.Handle("POST /purge", s.rateLimit(http.HandlerFunc(s.timerPurge)))
-
-	if s.DevPages != nil {
-		mux.Handle("GET /dev/", s.DevPages)
-	}
+	mux.Handle("POST /purge", s.timerLimit(http.HandlerFunc(s.timerPurge)))
+	// The timer function "sync" (hourly) is POST /sync: Autosync for the
+	// Organizations that turned it on. Public like /purge; it takes no input,
+	// and the per-Organization lease and interval in storage bound how often
+	// Graph is called (T10).
+	mux.Handle("POST /sync", s.timerLimit(http.HandlerFunc(s.timerSync)))
 
 	if s.PublicDir != "" {
 		mux.Handle("GET /pub/", s.publicFiles())
@@ -132,9 +137,18 @@ func (s *Server) requireSession(next http.Handler) http.Handler {
 			writeError(w, s.Log, domain.ErrUnauthorized)
 			return
 		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && !s.writes.allow(p.ID()) {
+			w.Header().Set("Retry-After", "60")
+			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("zbyt wiele zmian, spróbuj za minutę", "too many changes, try again in a minute")})
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), principalKey{}, p)))
 	})
 }
+
+// MaxWritesPerMinute is how many changing API requests one user may send a
+// minute, per instance; far above what a person clicks.
+const MaxWritesPerMinute = 60
 
 func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 	var sd sessionData
@@ -144,11 +158,37 @@ func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 	if time.Now().Unix() > sd.Expires {
 		return domain.Principal{}, domain.ErrUnauthorized
 	}
-	return s.App.Principal(r.Context(), sd.UserID, time.Unix(sd.IssuedAt, 0))
+	return s.App.Principal(r.Context(), sd.UserID, time.Unix(sd.IssuedAt, 0), sd.Nonce)
+}
+
+// pathParams are the wildcards of the API routes.
+var pathParams = []string{"org", "id", "day", "action"}
+
+// safeSegment reports whether a path value is a plain name: ids,
+// Organization ids, dates and actions never need more.
+func safeSegment(v string) bool {
+	if v == "" || len(v) > 64 {
+		return false
+	}
+	for _, c := range v {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '-' || c == '_') {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *Server) h(fn apiHandler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The mux unescapes wildcards, so "..%2F..%2Fx" arrives as "../../x":
+		// refuse anything but a plain name before it reaches a storage key
+		// (T13; the use cases and the store adapters check again).
+		for _, n := range pathParams {
+			if v := r.PathValue(n); v != "" && !safeSegment(v) {
+				writeError(w, s.Log, domain.ErrNotFound)
+				return
+			}
+		}
 		p, _ := r.Context().Value(principalKey{}).(domain.Principal)
 		if err := fn(w, r, p); err != nil {
 			writeError(w, s.Log, err)
@@ -165,7 +205,7 @@ func (s *Server) csrf(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/purge" || r.URL.Path == "/auth/dev/login" && s.DevLogin != nil {
+		if r.URL.Path == "/purge" || r.URL.Path == "/sync" || r.URL.Path == "/auth/dev/login" && s.DevLogin != nil {
 			// The timer call comes from the Functions host, not a browser;
 			// the dev login form is local only.
 			next.ServeHTTP(w, r)
@@ -234,7 +274,26 @@ func (s *Server) clientIP(r *http.Request) string {
 			if host, _, err := net.SplitHostPort(ip); err == nil {
 				ip = host
 			}
-			return ip
+			// One bucket per address: a malformed hop or an IPv6 address
+			// written without brackets must not give each source port its own.
+			if a, err := netip.ParseAddr(strings.Trim(ip, "[]")); err == nil {
+				a = a.Unmap()
+				if a.Is6() {
+					// A /64 is one subscriber, and an unbracketed
+					// "address:port" differs only in its last bits.
+					p, _ := a.Prefix(64)
+					return p.String()
+				}
+				return a.String()
+			}
+			// An unbracketed IPv6 "address:port": drop the port and try again.
+			if i := strings.LastIndex(ip, ":"); i > 0 {
+				if a, err := netip.ParseAddr(ip[:i]); err == nil && a.Is6() {
+					p, _ := a.Prefix(64)
+					return p.String()
+				}
+			}
+			return "unparsed-forwarded-for"
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -242,6 +301,25 @@ func (s *Server) clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// timerLimit rate-limits the public timer endpoints per client, except the
+// Functions host's own timer call, which comes from loopback with no
+// X-Forwarded-For: public callers cannot use up its budget. Their own
+// intervals bound the work either way.
+func (s *Server) timerLimit(next http.Handler) http.Handler {
+	limited := s.rateLimit(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.TrustProxy && r.Header.Get("X-Forwarded-For") == "" {
+			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+				if a, err := netip.ParseAddr(host); err == nil && a.IsLoopback() {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+		}
+		limited.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) rateLimit(next http.Handler) http.Handler {
@@ -320,7 +398,11 @@ func writeError(w http.ResponseWriter, log *slog.Logger, err error) {
 	case errors.Is(err, domain.ErrNotFound):
 		writeJSON(w, http.StatusNotFound, errorBody{Error: "not_found", Message: msg("nie znaleziono", "not found")})
 	case errors.Is(err, domain.ErrNeedsConfirm):
-		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: msg("potwierdź ponowną publikację", "confirm publishing again")})
+		writeJSON(w, http.StatusConflict, errorBody{Error: "needs_confirmation", Message: msg("potwierdź, aby kontynuować", "confirm to continue")})
+	case errors.Is(err, domain.ErrRecentSignIn):
+		writeJSON(w, http.StatusForbidden, errorBody{Error: "recent_sign_in", Message: msg("zaloguj się ponownie, aby potwierdzić tę operację", "sign in again to confirm this action")})
+	case errors.Is(err, domain.ErrTooSoon):
+		writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "too_soon", Message: msg("synchronizacja była przed chwilą – spróbuj za minutę", "a sync ran moments ago – try again in a minute")})
 	case errors.Is(err, domain.ErrConflict):
 		writeJSON(w, http.StatusConflict, errorBody{Error: "conflict", Message: msg("ktoś inny zmienił te dane – odśwież i spróbuj ponownie", "someone else changed this data – refresh and try again")})
 	case errors.Is(err, domain.ErrInvalidState):

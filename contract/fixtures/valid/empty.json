@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-11-07T10:00:00Z",
   "organization": {
     "id": "celtycki-wroclaw",
@@ -8,6 +8,5 @@
     "baseUrl": "https://celtycki-wroclaw.example",
     "timezone": "Europe/Warsaw"
   },
-  "venues": {},
   "events": []
 }

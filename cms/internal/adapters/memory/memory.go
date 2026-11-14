@@ -28,6 +28,9 @@ type store struct {
 func newStore() store { return store{docs: map[string]entry{}} }
 
 func (s *store) get(key string) (ports.Document, error) {
+	if !ports.ValidKey(key) {
+		return ports.Document{}, ports.ErrInvalidKey
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	e, ok := s.docs[key]
@@ -38,6 +41,9 @@ func (s *store) get(key string) (ports.Document, error) {
 }
 
 func (s *store) put(key string, data []byte, ct, cc, etag string) (string, error) {
+	if !ports.ValidKey(key) {
+		return "", ports.ErrInvalidKey
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cur, exists := s.docs[key]
@@ -68,6 +74,9 @@ func (d *DocumentStore) Put(_ context.Context, key string, data []byte, etag str
 }
 
 func (d *DocumentStore) List(_ context.Context, prefix string) ([]string, error) {
+	if !ports.ValidPrefix(prefix) {
+		return nil, ports.ErrInvalidKey
+	}
 	d.s.mu.Lock()
 	defer d.s.mu.Unlock()
 	var keys []string
@@ -81,6 +90,9 @@ func (d *DocumentStore) List(_ context.Context, prefix string) ([]string, error)
 }
 
 func (d *DocumentStore) Delete(_ context.Context, key, etag string) error {
+	if !ports.ValidKey(key) {
+		return ports.ErrInvalidKey
+	}
 	d.s.mu.Lock()
 	defer d.s.mu.Unlock()
 	cur, ok := d.s.docs[key]
@@ -133,6 +145,9 @@ type AppendLog struct {
 func NewAppendLog() *AppendLog { return &AppendLog{segs: map[string][]byte{}} }
 
 func (a *AppendLog) Append(_ context.Context, segment string, line []byte) error {
+	if !ports.ValidKey(segment) || strings.Contains(segment, "/") {
+		return ports.ErrInvalidKey
+	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.segs[segment] = append(a.segs[segment], line...)

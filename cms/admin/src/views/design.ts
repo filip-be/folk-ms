@@ -4,7 +4,8 @@
 
 import { L } from "../i18n.ts";
 import { icon, ICON_NAMES } from "../icons.ts";
-import { html, setFieldError } from "../ui.ts";
+import { autosyncLostBanner, autosyncWarning, flagBadges, reconnectBanner, reconnectBeforeBanner, switchControl } from "../patterns.ts";
+import { html, recentSignInBanner, setFieldError } from "../ui.ts";
 import { View } from "../view.ts";
 
 const STEPS = ["25", "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
@@ -68,19 +69,19 @@ class DesignView extends View {
         <h3>${L("Przyciski", "Buttons")}</h3>
         <p class="muted small">${L("Główny: jedno główne działanie formularza. Drugorzędny: kolejne działanie obok głównego. Neutralny: anuluj, edytuj, nawigacja. Niebezpieczny: usuwa lub odbiera.", "Primary: the one main action of a form. Secondary: a further action beside it. Neutral: cancel, edit, navigation. Danger: removes or revokes.")}</p>
         <div class="actions">
-          <button class="primary">${L("Opublikuj", "Publish")}</button>
-          <button class="secondary">${L("Zapisz szkic", "Save draft")}</button>
+          <button class="primary">${L("Zapisz", "Save")}</button>
+          <button class="secondary">${L("Zachowaj moją wartość", "Keep my value")}</button>
           <button>${L("Anuluj", "Cancel")}</button>
-          <button class="danger">${L("Usuń", "Delete")}</button>
+          <button class="danger">${L("Przenieś do kosza", "Move to the Bin")}</button>
           <button class="link">${L("Link", "Link")}</button>
           <button class="icon-button" aria-label="${L("Dodaj", "Add")}">${icon("plus")}</button>
         </div>
         <p class="muted small">${L("Wyłączone – wyglądają tak samo bez względu na rolę:", "Disabled – the same whatever the role:")}</p>
         <div class="actions">
-          <button class="primary" disabled>${L("Opublikuj", "Publish")}</button>
-          <button class="secondary" disabled>${L("Zapisz szkic", "Save draft")}</button>
+          <button class="primary" disabled>${L("Zapisz", "Save")}</button>
+          <button class="secondary" disabled>${L("Zachowaj moją wartość", "Keep my value")}</button>
           <button disabled>${L("Anuluj", "Cancel")}</button>
-          <button class="danger" disabled>${L("Usuń", "Delete")}</button>
+          <button class="danger" disabled>${L("Przenieś do kosza", "Move to the Bin")}</button>
           <button class="link" disabled>${L("Link", "Link")}</button>
         </div>
         <h3>${L("Pola", "Fields")}</h3>
@@ -104,8 +105,37 @@ class DesignView extends View {
         <h3>${L("Plakietki", "Badges")}</h3>
         <p class="actions"><span class="badge">neutral</span><span class="badge info">info</span><span class="badge published">ok</span>
           <span class="badge warn">warn</span><span class="badge failed">danger</span></p>
+        <p class="muted small">${L("Flagi wydarzeń na liście", "Event flags on list rows")}</p>
+        ${flagBadges({ hidden: true, cancelled: true, manual: true, overrideChanged: ["name", "location"], textOutOfDate: true, formerPage: true, syncConflict: true })}
+        ${flagBadges({ binned: true }, "gone")} ${flagBadges({ binned: true }, "removed")}
         <h3>${L("Komunikaty", "Messages")}</h3>
-        <div class="banner warn">${L("Baner ostrzeżenia.", "A warning banner.")}</div>
+        <div class="banner info"><p>${L("Baner informacyjny.", "An info banner.")}</p></div>
+        <div class="banner warn"><p>${L("Baner ostrzeżenia.", "A warning banner.")}</p></div>
+        ${reconnectBanner(html` <a href="#">${L("Przejdź do połączenia", "Go to the connection")}</a>`)}
+        ${reconnectBeforeBanner(new Date(Date.now() + 9 * 864e5).toISOString())}
+        ${autosyncLostBanner("anna@example.org", new Date().toISOString())}
+        ${recentSignInBanner(true)}
+        <h3>${L("Przełącznik", "Switch")}</h3>
+        <p class="muted small">${L("Działa od razu, bez zapisywania (Ukryte, Autosync).", "Acts at once, without saving (Hidden, Autosync).")}</p>
+        <div class="actions">
+          ${switchControl("ds-switch-off", L("Wyłączony", "Off"), false)}
+          ${switchControl("ds-switch-on", L("Włączony", "On"), true)}
+          ${switchControl("ds-switch-disabled", L("Wyłączony (nieaktywny)", "Off (disabled)"), false, true)}
+          ${switchControl("ds-switch-disabled-on", L("Włączony (nieaktywny)", "On (disabled)"), true, true)}
+        </div>
+        ${switchControl("ds-autosync", L("Synchronizuj co godzinę (Autosync)", "Sync every hour (Autosync)"), false, false, "ds-autosync-warning")}
+        ${autosyncWarning("ds-autosync-warning")}
+        <h3>${L("Nadpisanie pola z Facebooka", "Override of a Facebook field")}</h3>
+        <form class="override changed" aria-labelledby="ds-ov-title">
+          <div class="override-head"><h3 id="ds-ov-title">${L("Nazwa", "Name")}</h3><span class="badge info">${L("nadpisane", "overridden")}</span> <span class="badge warn">${L("zmienione na Facebooku", "changed on Facebook")}</span></div>
+          <div class="override-grid">
+            <div class="field"><label for="ds-ov-fb">${L("Na Facebooku", "On Facebook")}</label><input id="ds-ov-fb" readonly value="Bal folkowy – Poznań"></div>
+            <div class="field"><label for="ds-ov-cms">${L("W CMS (pokazywane na stronie)", "In the CMS (shown on the Site)")}</label><input id="ds-ov-cms" required value="Bal folkowy w Poznaniu"></div>
+          </div>
+          <div class="actions"><button type="button" class="primary">${L("Zapisz", "Save")}</button>
+            <button type="button" class="secondary">${L("Zachowaj moją wartość", "Keep my value")}</button>
+            <button type="button">${L("Wróć do Facebooka", "Follow Facebook again")}</button></div>
+        </form>
         <h3>${L("Ikony", "Icons")}</h3>
         <ul class="icons">${ICON_NAMES.map((n) => html`<li>${icon(n)}<span class="small muted">${n}</span></li>`)}</ul>
       </section>

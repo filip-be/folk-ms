@@ -7,7 +7,7 @@ import (
 )
 
 // SnapshotSchemaVersion is the contract version the builder writes.
-const SnapshotSchemaVersion = 1
+const SnapshotSchemaVersion = 2
 
 // Organization is an Organization with its Site, from config/sites.json.
 type Organization struct {
@@ -51,11 +51,10 @@ func (o *Organization) Permalink(shortID, slug string, l Lang) string {
 // Snapshot types mirror contract/events.schema.json.
 type (
 	Snapshot struct {
-		SchemaVersion int                  `json:"schemaVersion"`
-		GeneratedAt   string               `json:"generatedAt"`
-		Organization  SnapshotOrg          `json:"organization"`
-		Venues        map[string]SnapVenue `json:"venues"`
-		Events        []SnapshotEvent      `json:"events"`
+		SchemaVersion int             `json:"schemaVersion"`
+		GeneratedAt   string          `json:"generatedAt"`
+		Organization  SnapshotOrg     `json:"organization"`
+		Events        []SnapshotEvent `json:"events"`
 	}
 	SnapshotOrg struct {
 		ID       string `json:"id"`
@@ -64,13 +63,13 @@ type (
 		BaseURL  string `json:"baseUrl"`
 		Timezone string `json:"timezone"`
 	}
-	SnapVenue struct {
+	SnapLocation struct {
 		Name    string `json:"name"`
-		Address string `json:"address"`
+		Address string `json:"address,omitempty"`
 		MapURL  string `json:"mapUrl,omitempty"`
 	}
 	SnapPrice struct {
-		Text Text   `json:"text"`
+		Text *Text  `json:"text,omitempty"`
 		URL  string `json:"url,omitempty"`
 	}
 	SnapVariant struct {
@@ -82,36 +81,26 @@ type (
 		Alt      *Text         `json:"alt,omitempty"`
 		Variants []SnapVariant `json:"variants"`
 	}
-	SnapRecurrence struct {
-		Freq      Freq   `json:"freq"`
-		Weekday   int    `json:"weekday"`
-		Nth       int    `json:"nth,omitempty"`
-		StartDate string `json:"startDate"`
-		EndDate   string `json:"endDate"`
-	}
 	SnapOccurrence struct {
-		Start     string `json:"start"`
-		End       string `json:"end"`
-		Cancelled bool   `json:"cancelled"`
-		VenueID   string `json:"venueId"`
-		Note      *Text  `json:"note,omitempty"`
-		// FacebookEventURL links the Facebook Event of this Occurrence.
-		FacebookEventURL string `json:"facebookEventUrl,omitempty"`
+		Start            string        `json:"start"`
+		End              string        `json:"end"`
+		Cancelled        bool          `json:"cancelled"`
+		Online           bool          `json:"online,omitempty"`
+		Location         *SnapLocation `json:"location,omitempty"`
+		FacebookEventURL string        `json:"facebookEventUrl"`
 	}
 	SnapshotEvent struct {
 		ID          string           `json:"id"`
 		ShortID     string           `json:"shortId"`
 		Slug        string           `json:"slug"`
 		Permalink   map[Lang]string  `json:"permalink"`
-		Kind        Kind             `json:"kind"`
 		Title       Text             `json:"title"`
 		Summary     *Text            `json:"summary,omitempty"`
 		Description *Text            `json:"description,omitempty"`
 		Price       *SnapPrice       `json:"price,omitempty"`
 		Cover       *SnapImage       `json:"cover,omitempty"`
-		Recurrence  *SnapRecurrence  `json:"recurrence,omitempty"`
 		Occurrences []SnapOccurrence `json:"occurrences"`
-		PublishedAt string           `json:"publishedAt"`
+		UpdatedAt   string           `json:"updatedAt"`
 	}
 )
 
@@ -122,10 +111,10 @@ func optText(t Text) *Text {
 	return &t
 }
 
-// BuildSnapshot builds the Site snapshot of an Organization from its Events
-// (only Published, not Binned ones are included) and Venues. publicURL turns
-// a public store path into an absolute URL.
-func BuildSnapshot(org *Organization, events []*Event, venues map[string]Venue, publicURL func(path string) string, now time.Time) Snapshot {
+// BuildSnapshot builds the Site snapshot of an Organization from its Events:
+// every Event not Hidden and not in the Bin, with effective values.
+// publicURL turns a public store path into an absolute URL.
+func BuildSnapshot(org *Organization, events []*Event, publicURL func(path string) string, now time.Time) Snapshot {
 	loc := org.Location()
 	s := Snapshot{
 		SchemaVersion: SnapshotSchemaVersion,
@@ -133,57 +122,45 @@ func BuildSnapshot(org *Organization, events []*Event, venues map[string]Venue, 
 		Organization: SnapshotOrg{
 			ID: org.ID, Name: org.Name, SiteID: org.Site.ID, BaseURL: org.Site.BaseURL, Timezone: org.Timezone,
 		},
-		Venues: map[string]SnapVenue{},
 		Events: []SnapshotEvent{},
 	}
-	addVenue := func(key string, v Venue) {
-		s.Venues[key] = SnapVenue{Name: v.Name, Address: v.Address, MapURL: v.MapURL}
-	}
 	for _, e := range events {
-		if e.Published == nil || e.DeletedAt != nil || e.OrgID != org.ID {
+		if e.OrgID != org.ID || !e.OnSite() {
 			continue
 		}
-		c := e.Published
-		occ := c.Schedule.Occurrences(loc, c.VenueID)
-		if len(occ) == 0 {
-			continue // cannot happen for a validly Published Event
-		}
+		v := e.Effective()
+		slug := e.Slug()
 		se := SnapshotEvent{
-			ID: e.ID, ShortID: e.ShortID, Slug: c.Slug,
+			ID: e.ID, ShortID: e.ShortID, Slug: slug,
 			Permalink: map[Lang]string{
-				PL: org.Permalink(e.ShortID, c.Slug, PL),
-				EN: org.Permalink(e.ShortID, c.Slug, EN),
+				PL: org.Permalink(e.ShortID, slug, PL),
+				EN: org.Permalink(e.ShortID, slug, EN),
 			},
-			Kind: c.Schedule.Kind, Title: c.Title,
-			Summary: optText(c.Summary), Description: optText(c.Description),
-			PublishedAt: e.PublishedAt.UTC().Format(time.RFC3339),
+			Title: v.Name, Summary: optText(v.Summary), Description: optText(v.Description),
+			UpdatedAt: e.UpdatedAt.UTC().Format(time.RFC3339),
 		}
-		if c.Price.Text.PL != "" {
-			se.Price = &SnapPrice{Text: c.Price.Text, URL: c.Price.URL}
+		if v.Price.PL != "" || v.TicketURL != "" {
+			se.Price = &SnapPrice{Text: optText(v.Price), URL: v.TicketURL}
 		}
-		if c.Cover != nil && len(c.Cover.Variants) > 0 {
-			img := &SnapImage{Alt: optText(c.Cover.Alt)}
-			for _, v := range c.Cover.Variants {
-				img.Variants = append(img.Variants, SnapVariant{Width: v.Width, Height: v.Height, URL: publicURL(v.Path)})
+		if c := v.Cover; c != nil && len(c.Variants) > 0 {
+			img := &SnapImage{Alt: optText(c.Alt)}
+			for _, iv := range c.Variants {
+				img.Variants = append(img.Variants, SnapVariant{Width: iv.Width, Height: iv.Height, URL: publicURL(iv.Path)})
 			}
 			se.Cover = img
 		}
-		if r := c.Schedule.Recurrence; c.Schedule.Kind == KindRecurring && r != nil {
-			se.Recurrence = &SnapRecurrence{Freq: r.Freq, Weekday: r.Weekday, Nth: r.Nth, StartDate: c.Schedule.StartDate, EndDate: r.EndDate}
+		var sl *SnapLocation
+		if l := v.Location; l != nil && l.Name != "" {
+			sl = &SnapLocation{Name: l.Name, Address: l.Address, MapURL: l.MapURL}
 		}
-		fbURLs := e.FacebookEventURLs(occ)
-		for _, o := range occ {
-			venueKey := o.VenueID
-			if frozen, ok := e.PastVenues[o.Key]; ok && frozen.ID == o.VenueID {
-				venueKey = frozen.frozenKey()
-				addVenue(venueKey, frozen)
-			} else if v, ok := venues[o.VenueID]; ok {
-				addVenue(venueKey, v)
+		for _, o := range v.Occurrences {
+			fb := o.FacebookID
+			if fb == "" {
+				fb = e.FacebookID()
 			}
 			se.Occurrences = append(se.Occurrences, SnapOccurrence{
-				Start: o.Start.Format(time.RFC3339), End: o.End.Format(time.RFC3339),
-				Cancelled: o.Cancelled, VenueID: venueKey, Note: optText(o.Note),
-				FacebookEventURL: fbURLs[o.Key],
+				Start: o.Start.In(loc).Format(time.RFC3339), End: o.End.In(loc).Format(time.RFC3339),
+				Cancelled: o.Cancelled, Online: v.Online, Location: sl, FacebookEventURL: FacebookEventURL(fb),
 			})
 		}
 		s.Events = append(s.Events, se)

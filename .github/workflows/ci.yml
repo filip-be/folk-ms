@@ -52,16 +52,12 @@ jobs:
       - name: TypeScript type-checker (the only npm package)
         run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx tsc -b tsconfig.json
-      - name: Tests (contract reader, Site routes vs config/sites.json, Autofill, CSS tokens)
-        run: bun test contract sites autofill scripts
+      - name: Tests (contract reader, Site routes vs config/sites.json, CSS tokens)
+        run: bun test contract sites scripts
       - name: Build admin SPA and Sites
         run: |
           bun cms/admin/build.ts
           for s in $(jq -r '.organizations[].site.id' config/sites.json); do bun sites/build.ts "$s"; done
-      - name: Build Autofill (WebExtension for desktop Chrome/Edge and Firefox; the userscript is built with the admin SPA)
-        run: |
-          CMS_ORIGIN=https://cms.example bun autofill/build.ts
-          test -s cms/admin/dist/autofill.user.js
 
   bicep:
     runs-on: ubuntu-24.04

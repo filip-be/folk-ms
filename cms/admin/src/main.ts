@@ -6,11 +6,9 @@ import { bindLangSwitch, langSwitch, renderShell } from "./shell.ts";
 import { html, navigate, showError } from "./ui.ts";
 import { View } from "./view.ts";
 import "./views/events.ts";
-import "./views/editor.ts";
+import "./views/event.ts";
+import "./views/manual.ts";
 import "./views/post.ts";
-import "./views/facebookEvent.ts";
-import { relayReports } from "./autofill.ts";
-import "./views/venues.ts";
 import "./views/social.ts";
 import "./views/access.ts";
 import "./views/audit.ts";
@@ -25,11 +23,9 @@ interface Route {
 
 const routes: Route[] = [
   { re: /^\/app\/orgs\/([^/]+)\/events\/?$/, tag: "folk-events", names: ["org"] },
-  { re: /^\/app\/orgs\/([^/]+)\/events\/new$/, tag: "folk-editor", names: ["org"] },
+  { re: /^\/app\/orgs\/([^/]+)\/events\/new$/, tag: "folk-manual", names: ["org"] },
   { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)\/post$/, tag: "folk-post", names: ["org", "id"] },
-  { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)\/facebook$/, tag: "folk-facebook-event", names: ["org", "id"] },
-  { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)$/, tag: "folk-editor", names: ["org", "id"] },
-  { re: /^\/app\/orgs\/([^/]+)\/venues$/, tag: "folk-venues", names: ["org"] },
+  { re: /^\/app\/orgs\/([^/]+)\/events\/([a-z0-9]+)$/, tag: "folk-event", names: ["org", "id"] },
   { re: /^\/app\/orgs\/([^/]+)\/social$/, tag: "folk-social", names: ["org"] },
   { re: /^\/app\/access$/, tag: "folk-access", names: [], superAdmin: true },
   { re: /^\/app\/audit$/, tag: "folk-audit", names: [], superAdmin: true },
@@ -140,8 +136,6 @@ async function start(): Promise<void> {
     showError(err);
     return;
   }
-  // Autofill keeps failure reports until a CMS page is open.
-  relayReports((org) => me.orgs.some((o) => o.id === org));
   route();
 }
 

@@ -19,6 +19,12 @@ var ErrNoAccess = fmt.Errorf("%w: no access", domain.ErrForbidden)
 // provider or identity other than the one it is bound to.
 var ErrSuperAdminIdentity = fmt.Errorf("%w: the super admin signs in with its bound identity only", ErrNoAccess)
 
+// ErrLinkRequired is returned when an identity from a provider whose email
+// check is weaker (Facebook) is seen for the first time and its email
+// matches an active user: it is linked only from a session of that user, so
+// that an email Facebook returns cannot by itself take over an account (T14).
+var ErrLinkRequired = fmt.Errorf("%w: sign in with the linked account first", ErrNoAccess)
+
 func (a *App) superAdminEmail() string { return domain.NormalizeEmail(a.SuperAdminEmail) }
 
 // isSuperAdmin reports whether u is bound as the configured Super Admin.
@@ -41,7 +47,12 @@ func (a *App) isSuperAdmin(ctx context.Context, u *domain.User) (bool, error) {
 // identity, or by email from another provider), the configured Super Admin
 // (bound on first sign-in), or a person with a usable Invitation (bound now).
 // Everyone else is refused.
-func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, retErr error) {
+//
+// nonce is the new session's random nonce: its hash and the sign-in time
+// are recorded on the user, for actions that need a Recent sign-in (T5).
+// signedInAs is the user of the browser's current valid session, if any:
+// only it may link a new Facebook identity to an active user (T14).
+func (a *App) SignIn(ctx context.Context, id ports.Identity, nonce, signedInAs string) (_ *domain.User, retErr error) {
 	email := domain.NormalizeEmail(id.Email)
 	if !id.EmailVerified || id.Subject == "" || email == "" {
 		return nil, ErrNoAccess
@@ -72,6 +83,11 @@ func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, re
 				a.Log.Warn("super admin matched by email from another identity", "issuer", id.Issuer)
 				return nil, ErrSuperAdminIdentity
 			}
+			if id.NoSuperAdmin && !user.Revoked && !hasIdentity(user, id) && signedInAs != user.ID {
+				a.Log.Warn("new identity matched by email needs linking from a session", "issuer", id.Issuer, "user", user.ID)
+				a.audit(ctx, system, "identity.link_refused", "", user.ID, map[string]any{"email": email, "issuer": id.Issuer})
+				return nil, ErrLinkRequired
+			}
 			uid = user.ID
 			if a.addIdentity(user, id) {
 				matched := user
@@ -88,6 +104,7 @@ func (a *App) SignIn(ctx context.Context, id ports.Identity) (_ *domain.User, re
 		user = &domain.User{ID: uid, Issuer: id.Issuer, Subject: id.Subject, CreatedAt: now, Orgs: []string{}}
 	}
 	user.Email, user.Name, user.LastLoginAt = email, id.Name, now
+	user.RecordSignIn(nonce, now)
 
 	bindSA := false
 	if sa := a.superAdminEmail(); isSA {
@@ -176,11 +193,17 @@ func (a *App) userByEmail(ctx context.Context, email string) (*domain.User, stri
 	return best, bestEtag, nil
 }
 
+// hasIdentity reports whether id is u's own identity or one linked to it.
+func hasIdentity(u *domain.User, id ports.Identity) bool {
+	ref := domain.Identity{Issuer: id.Issuer, Subject: id.Subject}
+	return (u.Issuer == ref.Issuer && u.Subject == ref.Subject) || slices.Contains(u.Identities, ref)
+}
+
 // addIdentity records an identity matched to u by email; it reports whether
 // the identity is new.
 func (a *App) addIdentity(u *domain.User, id ports.Identity) bool {
 	ref := domain.Identity{Issuer: id.Issuer, Subject: id.Subject}
-	if (u.Issuer == ref.Issuer && u.Subject == ref.Subject) || slices.Contains(u.Identities, ref) {
+	if hasIdentity(u, id) {
 		return false
 	}
 	u.Identities = append(u.Identities, ref)
@@ -215,8 +238,10 @@ func (a *App) findInvitation(ctx context.Context, email string, now time.Time) (
 }
 
 // Principal resolves a session into a Principal, re-reading the user so
-// that revocation takes effect on the next request.
-func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time) (domain.Principal, error) {
+// that revocation takes effect on the next request. The session's nonce
+// must be one of the user's recorded sign-ins: a cookie sealed with a leaked
+// SESSION_KEY but no real sign-in behind it is refused (T5).
+func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time, nonce string) (domain.Principal, error) {
 	u, _, err := load[domain.User](ctx, a.Docs, userKey(userID))
 	if err != nil {
 		if errors.Is(err, domain.ErrNotFound) {
@@ -234,7 +259,26 @@ func (a *App) Principal(ctx context.Context, userID string, issuedAt time.Time) 
 	if !sa && len(u.Orgs) == 0 {
 		return domain.Principal{}, domain.ErrUnauthorized
 	}
-	return domain.Principal{User: u, SuperAdmin: sa}, nil
+	at := u.SignedInAt(nonce)
+	if at == nil {
+		return domain.Principal{}, domain.ErrUnauthorized
+	}
+	return domain.Principal{User: u, SuperAdmin: sa, SignedInAt: at}, nil
+}
+
+// SignOut ends the session with this nonce by removing its sign-in record.
+func (a *App) SignOut(ctx context.Context, userID, nonce string) error {
+	if !domain.ValidID(userID) || nonce == "" {
+		return nil
+	}
+	_, _, err := mutate(ctx, a.Docs, userKey(userID), func(u *domain.User) error {
+		u.ForgetSignIn(nonce)
+		return nil
+	})
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil
+	}
+	return err
 }
 
 // Me describes the signed-in user for the admin SPA.

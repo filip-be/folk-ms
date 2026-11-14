@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"sort"
 	"time"
 
@@ -62,10 +63,20 @@ func (a *App) ListInvitations(ctx context.Context, p domain.Principal) ([]Invita
 	return out, nil
 }
 
+// requireAccessChange guards changes to who may do what: the Super Admin,
+// signed in within RecentSignIn. A stolen or forged session alone cannot
+// invite an accomplice or lock real Moderators out (T5).
+func (a *App) requireAccessChange(p domain.Principal) error {
+	if err := requireSuperAdmin(p); err != nil {
+		return err
+	}
+	return a.requireRecentSignIn(p)
+}
+
 // CreateInvitation invites an email as Moderator of chosen Organizations.
 // The Super Admin sends the CMS link to the person; the CMS sends no email.
 func (a *App) CreateInvitation(ctx context.Context, p domain.Principal, email string, orgs []string) (*domain.Invitation, error) {
-	if err := requireSuperAdmin(p); err != nil {
+	if err := a.requireAccessChange(p); err != nil {
 		return nil, err
 	}
 	inv, err := domain.NewInvitation(a.newID(), email, orgs, func(o string) bool { _, ok := a.orgByID[o]; return ok }, p.ID(), a.now())
@@ -81,8 +92,11 @@ func (a *App) CreateInvitation(ctx context.Context, p domain.Principal, email st
 
 // RevokeInvitation cancels a pending Invitation.
 func (a *App) RevokeInvitation(ctx context.Context, p domain.Principal, id string) (*domain.Invitation, error) {
-	if err := requireSuperAdmin(p); err != nil {
+	if err := a.requireAccessChange(p); err != nil {
 		return nil, err
+	}
+	if !domain.ValidID(id) {
+		return nil, fmt.Errorf("%w: invitation", domain.ErrNotFound)
 	}
 	inv, _, err := mutate(ctx, a.Docs, invitationKey(id), func(i *domain.Invitation) error { return i.Revoke(a.now()) })
 	if err != nil {
@@ -94,8 +108,11 @@ func (a *App) RevokeInvitation(ctx context.Context, p domain.Principal, id strin
 
 // SetUserOrgs changes a Moderator's Organizations.
 func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string, orgs []string) (*domain.User, error) {
-	if err := requireSuperAdmin(p); err != nil {
+	if err := a.requireAccessChange(p); err != nil {
 		return nil, err
+	}
+	if !domain.ValidID(userID) {
+		return nil, fmt.Errorf("%w: user", domain.ErrNotFound)
 	}
 	for _, o := range orgs {
 		if _, ok := a.orgByID[o]; !ok {
@@ -114,14 +131,21 @@ func (a *App) SetUserOrgs(ctx context.Context, p domain.Principal, userID string
 		return nil, err
 	}
 	a.audit(ctx, p, "user.orgs_changed", "", userID, map[string]any{"email": u.Email, "orgs": u.Orgs, "removed": removed})
+	// Decision 19: where they turned Autosync on, it ends with their access.
+	if err := a.autosyncLostAccess(ctx, p, u, removed); err != nil {
+		return u, fmt.Errorf("access changed, but Autosync could not be turned off everywhere: %w", err)
+	}
 	return u, nil
 }
 
 // RevokeUser removes all of a Moderator's access, effective on their next
 // request.
 func (a *App) RevokeUser(ctx context.Context, p domain.Principal, userID string) (*domain.User, error) {
-	if err := requireSuperAdmin(p); err != nil {
+	if err := a.requireAccessChange(p); err != nil {
 		return nil, err
+	}
+	if !domain.ValidID(userID) {
+		return nil, fmt.Errorf("%w: user", domain.ErrNotFound)
 	}
 	if userID == p.ID() {
 		return nil, problem("user", "nie można odebrać dostępu samemu sobie", "you cannot revoke your own access")
@@ -135,6 +159,13 @@ func (a *App) RevokeUser(ctx context.Context, p domain.Principal, userID string)
 		return nil, err
 	}
 	a.audit(ctx, p, "user.revoked", "", userID, map[string]any{"email": u.Email, "removed": removed})
+	all := make([]string, 0, len(a.orgs))
+	for _, o := range a.orgs {
+		all = append(all, o.ID)
+	}
+	if err := a.autosyncLostAccess(ctx, p, u, all); err != nil {
+		return u, fmt.Errorf("access revoked, but Autosync could not be turned off everywhere: %w", err)
+	}
 	return u, nil
 }
 

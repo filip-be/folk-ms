@@ -26,18 +26,14 @@ const lockSuffix = ".lock"
 // behind by a crashed process.
 const staleLock = 30 * time.Second
 
-// ValidKey reports whether a key is safe to map onto a path.
+// ValidKey reports whether a key is safe to map onto a path: a valid store
+// key (ports.ValidKey) that does not collide with lock or temporary files.
 func ValidKey(key string) bool {
-	if key == "" || len(key) > 512 || strings.HasPrefix(key, "/") || strings.HasSuffix(key, "/") {
+	if !ports.ValidKey(key) {
 		return false
 	}
 	for _, part := range strings.Split(key, "/") {
-		if part == "" || part == "." || part == ".." || strings.HasSuffix(part, lockSuffix) || strings.HasPrefix(part, ".tmp-") {
-			return false
-		}
-	}
-	for _, c := range key {
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("-_./@", c)) {
+		if strings.HasSuffix(part, lockSuffix) || strings.HasPrefix(part, ".tmp-") {
 			return false
 		}
 	}
@@ -56,7 +52,7 @@ type dir struct {
 
 func (d *dir) path(key string) (string, error) {
 	if !ValidKey(key) {
-		return "", fmt.Errorf("fs: invalid key %q", key)
+		return "", fmt.Errorf("fs: %w %q", ports.ErrInvalidKey, key)
 	}
 	return filepath.Join(d.root, filepath.FromSlash(key)), nil
 }
@@ -180,6 +176,9 @@ func (s *DocumentStore) Put(_ context.Context, key string, data []byte, etag str
 }
 
 func (s *DocumentStore) List(_ context.Context, prefix string) ([]string, error) {
+	if !ports.ValidPrefix(prefix) {
+		return nil, fmt.Errorf("fs: %w %q", ports.ErrInvalidKey, prefix)
+	}
 	var keys []string
 	err := filepath.WalkDir(s.d.root, func(p string, e fs.DirEntry, err error) error {
 		if err != nil {

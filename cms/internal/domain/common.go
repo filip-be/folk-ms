@@ -1,5 +1,6 @@
-// Package domain holds the folk-ms domain model: Events, Recurrences,
-// Occurrences, Venues, access rules, Social Post records, the snapshot builder
+// Package domain holds the folk-ms domain model: Events (synced from Facebook
+// or Manual), their Overrides and CMS-only fields, access rules, the Social
+// Account Connection with Autosync, Social Post records, the snapshot builder
 // and the Caption generator. It does no I/O.
 package domain
 
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"sort"
 	"strings"
 	"unicode"
@@ -54,6 +56,12 @@ var (
 	ErrNeedsConfirm  = errors.New("confirmation required")
 	ErrUnauthorized  = errors.New("unauthorized")
 	ErrTooManyEvents = errors.New("too many")
+	// ErrTooSoon: the action ran moments ago (Sync now).
+	ErrTooSoon = errors.New("too soon")
+	// ErrRecentSignIn: the action needs a CMS sign-in in the last 15 minutes.
+	ErrRecentSignIn = errors.New("recent sign-in required")
+	// ErrLimit: a daily limit is used up.
+	ErrLimit = errors.New("limit reached")
 )
 
 // FieldError is one validation problem. Its Message is shown to Moderators
@@ -100,6 +108,21 @@ func (p problems) err() error {
 func IsValidation(err error) bool {
 	var v *ValidationError
 	return errors.As(err, &v)
+}
+
+// ValidID reports whether id has the shape of an identifier the CMS issues:
+// NewID (16 lowercase hex characters) or UserID (32). Every id that arrives
+// in a request is checked with it before it becomes part of a storage key.
+func ValidID(id string) bool {
+	if len(id) != 16 && len(id) != 32 {
+		return false
+	}
+	for _, c := range id {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // NewID returns a random 16-character lowercase hex identifier.
@@ -190,6 +213,81 @@ func IsSlug(s string) bool {
 	return true
 }
 
-func isHTTPURL(s string) bool {
-	return (strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "http://")) && len(s) <= 2048 && !strings.ContainsAny(s, " \t\r\n\"<>")
+// IsHTTPSURL reports whether s is an absolute https URL without spaces,
+// quotes or angle brackets, at most 2048 characters long.
+func IsHTTPSURL(s string) bool {
+	if len(s) > 2048 || !strings.HasPrefix(s, "https://") || strings.ContainsAny(s, " \t\r\n\"'<>\\") {
+		return false
+	}
+	u, err := url.Parse(s)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil
+}
+
+// cleanText makes untrusted text plain: valid UTF-8, no control characters
+// except newlines and tabs, \r\n folded to \n, trimmed, and cut to max runes.
+func cleanText(s string, max int) string {
+	s = strings.ToValidUTF8(s, "")
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.Map(func(r rune) rune {
+		switch {
+		case r == '\n' || r == '\t':
+			return r
+		case r == '\r':
+			return '\n'
+		case unicode.IsControl(r), r == '\u2028', r == '\u2029', r >= '\u202a' && r <= '\u202e', r >= '\u2066' && r <= '\u2069':
+			return -1 // controls and bidi overrides
+		}
+		return r
+	}, s)
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > max {
+		s = strings.TrimSpace(string(r[:max]))
+	}
+	return s
+}
+
+// CleanText is cleanText for other packages: Facebook text is untrusted (T7).
+func CleanText(s string, max int) string { return cleanText(s, max) }
+
+// FacebookEventURL is the canonical address of a Facebook Event.
+func FacebookEventURL(id string) string { return "https://www.facebook.com/events/" + id + "/" }
+
+// ParseFacebookEventLink accepts the address of a Facebook Event
+// (facebook.com, www., m. or web. host; https) or a bare numeric id, and
+// returns the numeric id. Nothing else is accepted (T9): the CMS never
+// fetches the address.
+func ParseFacebookEventLink(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if isDigits(s) {
+		return s, len(s) <= 30
+	}
+	if !strings.HasPrefix(s, "https://") && !strings.HasPrefix(s, "http://") {
+		s = "https://" + s
+	}
+	u, err := url.Parse(s)
+	if err != nil || u.User != nil || u.Port() != "" {
+		return "", false
+	}
+	switch strings.ToLower(u.Host) {
+	case "facebook.com", "www.facebook.com", "m.facebook.com", "web.facebook.com", "mbasic.facebook.com":
+	default:
+		return "", false
+	}
+	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
+	if len(parts) < 2 || parts[0] != "events" || !isDigits(parts[1]) || len(parts[1]) > 30 {
+		return "", false
+	}
+	return parts[1], true
+}
+
+func isDigits(s string) bool {
+	if s == "" {
+		return false
+	}
+	for _, c := range s {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
 }

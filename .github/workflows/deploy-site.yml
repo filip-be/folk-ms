@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   sites:
@@ -20,10 +19,38 @@ jobs:
       - id: ids
         run: echo "ids=$(jq -c '[.organizations[].site.id]' config/sites.json)" >> "$GITHUB_OUTPUT"
 
-  deploy:
+  # Bun and the Site build run without an environment or OIDC token.
+  build:
     needs: sites
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        site: ${{ fromJSON(needs.sites.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Bun (latest release, checksum-verified)
+        run: .github/scripts/setup-bun.sh
+      - name: Test routes against config/sites.json
+        run: bun test sites
+      - name: Build
+        env:
+          SNAPSHOT_URL: ${{ vars.STORAGE_PUBLIC_URL }}/sites/${{ matrix.site }}/events.json
+        run: bun sites/build.ts "${{ matrix.site }}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: site-${{ matrix.site }}
+          path: sites/${{ matrix.site }}/dist
+          retention-days: 1
+          if-no-files-found: error
+
+  deploy:
+    needs: [sites, build]
+    runs-on: ubuntu-24.04
     environment: production
+    permissions:
+      contents: read
+      id-token: write
     strategy:
       fail-fast: false
       matrix:
@@ -35,14 +62,13 @@ jobs:
       AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Bun (latest release, checksum-verified)
-        run: .github/scripts/setup-bun.sh
-      - name: Test routes against config/sites.json
-        run: bun test sites
-      - name: Build
-        env:
-          SNAPSHOT_URL: ${{ vars.STORAGE_PUBLIC_URL }}/sites/${{ matrix.site }}/events.json
-        run: bun sites/build.ts "${{ matrix.site }}"
+        with:
+          sparse-checkout: .github/scripts
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: site-${{ matrix.site }}
+          path: dist
       - run: .github/scripts/az-login.sh
       - name: Deploy to Static Web Apps
         run: |
@@ -53,6 +79,22 @@ jobs:
           test -n "$name" || { echo "no Static Web App tagged folkms-site=${{ matrix.site }}"; exit 1; }
           token=$(az staticwebapp secrets list --name "$name" --resource-group "$rg" --query properties.apiKey -o tsv)
           echo "::add-mask::$token"
-          # Deploy-time tool only, pinned to an exact version (see ADR 0003).
-          npx --yes @azure/static-web-apps-cli@2.1.0 deploy "sites/${{ matrix.site }}/dist" \
-            --deployment-token "$token" --env production
+          # The npm tool below runs as a separate OS user with this Site's
+          # deployment token only (in its environment, not its command line,
+          # which other users can see): the Azure sign-in is gone, and another
+          # user cannot read the runner's environment (/proc/<pid>/environ),
+          # so it cannot request the job's OIDC token. Deploy-time tool only,
+          # pinned to an exact version (ADR 0003).
+          az logout
+          rm -rf ~/.azure
+          sudo useradd --create-home swa
+          sudo cp -r dist /home/swa/dist
+          sudo chown -R swa: /home/swa/dist
+          # Fail if the runner image ever lets that user out of its box.
+          if sudo -u swa sudo -n true 2>/dev/null \
+            || sudo -u swa cat "/proc/$$/environ" >/dev/null 2>&1 \
+            || sudo -u swa test -w /var/run/docker.sock; then
+            echo "the swa user is not isolated on this runner"; exit 1
+          fi
+          printf '%s' "$token" | sudo -u swa -H env -i HOME=/home/swa PATH=/usr/local/bin:/usr/bin:/bin \
+            sh -c 'SWA_CLI_DEPLOYMENT_TOKEN="$(cat)" && export SWA_CLI_DEPLOYMENT_TOKEN && cd ~ && npx --yes @azure/static-web-apps-cli@2.1.0 deploy dist --env production'
