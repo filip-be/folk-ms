@@ -12,7 +12,7 @@ For Google, the CMS runs the authorization code flow with PKCE, nonce and state,
 
 The same `/auth/callback` serves both providers: the provider is in the signed state cookie, never taken from the query. A non-secret cookie remembers the last provider that worked, so an expired session and "Sign in again" go back to it.
 
-A user's id comes from the issuer and subject it first signed in with. Another identity, from either provider, signs in as that user when it returns the same email. This matching is done again on every sign-in, and its first use is written to the Audit Log. A Facebook identity with no email is refused. The Super Admin is excluded from matching (see below).
+A user's id comes from the issuer and subject it first signed in with. Another identity signs in as that user when it returns the same email, with one limit for Facebook, whose email carries no verified flag (T14): a Facebook identity seen for the first time is linked to an active user only when the browser already holds a valid session of that user. The Moderator signs in as before, then chooses *Link Facebook* in the sidebar; from then on the Facebook identity signs in on its own. Without that session the sign-in is refused and the Audit Log has `identity.link_refused`. A Google identity matched by email, and a Facebook identity redeeming an Invitation (a new or revoked user), need no link. Each first match is written to the Audit Log (`identity.matched`). A Facebook identity with no email is refused. The Super Admin is excluded from matching (see below).
 
 Locally, a dev OIDC stub stands in for both Google and Facebook. It is compiled only with the `dev` build tag, and CI checks that the production binary does not contain it.
 
@@ -27,26 +27,28 @@ flowchart LR
 ### Roles and Invitations
 
 - The **Super Admin** is configured by the app setting `SUPER_ADMIN_EMAIL`, set at deploy from a GitHub secret (secrets are masked in logs, variables are not). It works as a permanent Invitation, bound to the Google identity it first signs in with, and can act as a Moderator of every Organization. It signs in only with that identity: never with Facebook (Meta's email field carries no verified flag), and never through email matching, also after its email changed.
-- A **Moderator** is invited by email for chosen Organizations. The Invitation is bound to the identity, Google or Facebook, that redeems it on first sign-in. After that, any identity from either provider that returns the user's current email signs in as them. It expires after 14 days if unused and can be revoked while pending. The CMS sends no email: the Super Admin passes the link on.
-- The Super Admin can change a Moderator's Organizations or revoke all access. When that person is the one who turned Autosync on for an Organization they lose, Autosync turns off at once and its Facebook page token is deleted (decision 19); see [Social posting](../social-posting/README.md#autosync).
+- A **Moderator** is invited by email for chosen Organizations. The Invitation is bound to the identity, Google or Facebook, that redeems it on first sign-in. After that, a Google identity that returns the user's current email signs in as them, and a Facebook one once linked (see above). It expires after 14 days if unused and can be revoked while pending. The CMS sends no email: the Super Admin passes the link on.
+- The Super Admin can invite, change a Moderator's Organizations, revoke an Invitation or revoke all access, each with a Recent sign-in (below). Revoking someone in the CMS does not remove them from the Meta app: also remove their *Tester* role (Meta app → *App roles*), or they can still sign in with Facebook if invited again, and connect, sync or post with their own Meta sign-in wherever they keep a page role. When that person is the one who turned Autosync on for an Organization they lose, Autosync turns off at once and its Facebook page token is deleted (decision 19); see [Social posting](../social-posting/README.md#autosync).
 - Every use case checks the user's access to the Organization it touches.
 
 ### Sessions and request security
 
-- The session cookie (`__Host-folkms`) is HMAC-signed, `HttpOnly; Secure; SameSite=Lax; Path=/`, valid for 8 hours. The user document is re-read on every request, so a revocation takes effect immediately; revocation also invalidates sessions issued before it.
+- The session cookie (`__Host-folkms`) is HMAC-signed, `HttpOnly; Secure; SameSite=Lax; Path=/`, valid for 8 hours. It carries a random nonce drawn at sign-in, whose SHA-256 hash is on the user document with the sign-in time (the last 16 are kept, one per device or browser). The user document is re-read on every request, and a session counts only if its nonce is there: so a cookie forged with a leaked `SESSION_KEY` is refused outright (T5), signing out deletes the record and ends that session for good, also for a copied cookie, and a revocation takes effect immediately.
+- Store keys never come straight from a request: ids in the path must be plain names (`[A-Za-z0-9_-]`), use cases check the id's shape and that a loaded Event names the Organization and id it was asked for, and every store adapter refuses dot segments, empty segments and other characters (T13).
 - `SameSite=Lax`, not `Strict`, because a `Strict` cookie is not sent on the navigation back from Google. This is safe only because the CMS is same-origin; see [Platform](../platform/README.md#hosting).
 - Unsafe methods are protected against CSRF: `Sec-Fetch-Site` must be `same-origin` when present, otherwise `Origin` must be the CMS origin. JSON bodies must be `application/json`.
-- Sign-in endpoints are rate limited; responses carry a CSP and security headers.
+- Sign-in and timer endpoints are rate limited per client address (IPv6 per /64), and changing API requests to 60 a minute per user; responses carry a CSP and security headers.
 
 ### Recent sign-in
 
-While an Organization has Autosync on, the CMS keeps a Facebook page token that can post on its behalf ([ADR 0010](../architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)). Since sessions are a stateless HMAC cookie, whoever holds `SESSION_KEY` could forge one, so a valid session alone is not enough for actions that use or change that token (T5). These need a Recent sign-in, a real Google or Facebook sign-in in the last 15 minutes:
+While an Organization has Autosync on, the CMS keeps a Facebook page token that can post on its behalf ([ADR 0010](../architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)). A session cookie can be copied while it is valid, so a session alone is not enough for actions that use or change that token, or that change who has access (T5). These need a Recent sign-in, a real Google or Facebook sign-in in the last 15 minutes:
 
 - posting a Social Post with the stored token,
 - turning Autosync on or off,
-- replacing or disconnecting the Social Account Connection while Autosync is on.
+- replacing or disconnecting the Social Account Connection while Autosync is on,
+- inviting, changing a Moderator's Organizations, revoking an Invitation or a Moderator (the Super Admin).
 
-Each real sign-in draws a random nonce, puts it in the session cookie and writes its SHA-256 hash with the sign-in time to the user document (the last 8 are kept). A guarded action looks up the cookie's nonce on the user document and checks that time on the server, so a cookie forged without a stored nonce passes nothing. When the sign-in is older, the API answers so and the SPA sends the Moderator to sign in again. While Autosync is off, the Meta sign-in each action needs is the guard instead, as under [ADR 0005](../architecture/adr/0005-meta-sign-in-for-every-post.md). `SESSION_KEY` is itself a Key Vault reference ([Platform](../platform/README.md#infrastructure-and-cicd)).
+The time comes from the sign-in record the session's nonce points to (above), checked on the server. When the sign-in is older, the API answers so and the SPA sends the Moderator to sign in again. While Autosync is off, the Meta sign-in each action needs is the guard instead, as under [ADR 0005](../architecture/adr/0005-meta-sign-in-for-every-post.md). `SESSION_KEY` is itself a Key Vault reference ([Platform](../platform/README.md#infrastructure-and-cicd)).
 
 ### Admin UI language
 
@@ -56,7 +58,7 @@ The API does not depend on the language: every message it returns (errors, valid
 
 ### Audit Log
 
-An append-only record of Event changes (Overrides, CMS-only fields, Hide, Manual Events, the Bin), every Sync run, Social Posts and refusals, Autosync and connection changes, and access grants, in one append blob per day. Every use of a stored Facebook page token is in it, with the acting Moderator or `autosync`. Only the Super Admin can read it. It outlives Events purged from the Bin.
+An append-only record of Event changes (Overrides, CMS-only fields, Hide, Manual Events, the Bin), every Sync run, Social Posts and refusals, Autosync and connection changes, and access grants, in one append blob per day; when a day's blob is full (50,000 lines), it goes on in `<day>.2.log` and so on. Every use of a stored Facebook page token is in it, with the acting Moderator or `autosync`: the line `autosync.token_used` is written before the token is read, and the token is not used when it cannot be written (T8). Other lines are best effort. Only the Super Admin can read it. It outlives Events purged from the Bin. The CMS identity could rewrite it; every write to the `cms` container by any other identity raises an alert, and earlier versions of a rewritten blob are kept 90 days ([Platform](../platform/README.md#hosting)).
 
 ## Where it lives
 

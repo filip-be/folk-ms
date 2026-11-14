@@ -98,18 +98,18 @@ The CMS address contains a hash that `main.bicep` derives from the resource grou
    cms=$(az identity show -g "$rg" -n folkms-cms-id --query principalId -o tsv)
    deploy=$(az ad sp show --id <AZURE_CLIENT_ID> --query id -o tsv)
    scope=$(az group show -n "$rg" --query id -o tsv)
-   roles='b7e6dc6d-f1e8-4753-8033-0f276bb0955b, b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
+   roles='b7e6dc6d-f1e8-4753-8033-0f276bb0955b, 4633458b-17de-408a-b874-0445c86b69e6, b86a8fe4-44ce-4948-aee5-eccb2c155cd7'
    condition="((!(ActionMatches{'Microsoft.Authorization/roleAssignments/write'})) OR (@Request[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles} AND @Request[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$cms})) AND ((!(ActionMatches{'Microsoft.Authorization/roleAssignments/delete'})) OR (@Resource[Microsoft.Authorization/roleAssignments:RoleDefinitionId] ForAnyOfAnyValues:GuidEquals {$roles} AND @Resource[Microsoft.Authorization/roleAssignments:PrincipalId] ForAnyOfAnyValues:GuidEquals {$cms}))"
    az role assignment create --assignee-object-id "$deploy" --assignee-principal-type ServicePrincipal \
      --role "Role Based Access Control Administrator" --scope "$scope" \
      --condition "$condition" --condition-version 2.0 \
-     --description "folk-ms deploy: only Storage Blob Data Owner and Key Vault Secrets Officer, only to folkms-cms-id"
+     --description "folk-ms deploy: only Storage Blob Data Owner, Key Vault Secrets User and Key Vault Secrets Officer, only to folkms-cms-id"
    ```
 
-   The two role ids are `Storage Blob Data Owner` and `Key Vault Secrets Officer`, the only roles `main.bicep` assigns. The identity's name must be `<prefix>-cms-id` (`main.bicep` parameter `cmsIdentityName`). If the deploy identity still holds `User Access Administrator` from an earlier setup, remove it: `az role assignment delete --assignee "$deploy" --role "User Access Administrator" --scope "$scope"`. No person gets a standing Key Vault data role; see [Key Vault and token incident response](#key-vault-and-token-incident-response) for the rare case someone must read a secret.
+   The three role ids are `Storage Blob Data Owner`, `Key Vault Secrets User` (the platform vault) and `Key Vault Secrets Officer` (the token vault), the only roles `main.bicep` assigns. An existing assignment made with the two-role condition is replaced by running the command again after `az role assignment delete --assignee "$deploy" --role "Role Based Access Control Administrator" --scope "$scope"`. The identity's name must be `<prefix>-cms-id` (`main.bicep` parameter `cmsIdentityName`). If the deploy identity still holds `User Access Administrator` from an earlier setup, remove it: `az role assignment delete --assignee "$deploy" --role "User Access Administrator" --scope "$scope"`. No person gets a standing Key Vault data role; see [Key Vault and token incident response](#key-vault-and-token-incident-response) for the rare case someone must read a secret.
 3. Create the [Google OAuth client](#google-oauth-client) and the [Meta app](#meta-app) without redirect URIs yet; note their ids and secrets.
-4. In GitHub *Settings → Environments* create the environment `production`. Set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs. `deploy-infra` writes `META_APP_SECRET` and `SESSION_KEY` into Key Vault; the CMS's app settings hold only Key Vault references to them. Leave `CMS_BASE_URL` unset for now: the CMS then uses its default `*.azurewebsites.net` address.
-5. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`). Azure Monitor emails `SUPER_ADMIN_EMAIL` that it was added to an action group: that address receives the Key Vault alert.
+4. In GitHub *Settings → Environments* create the environment `production` and protect it, because its secrets and its Azure sign-in are what an attacker with push access would want: under *Deployment branches and tags* allow only `main`, and under *Required reviewers* add the maintainer. Protect `main` too (*Settings → Rules*: require a pull request, block force pushes). Only the deploy jobs name the environment, and they run only Azure CLI on what the build jobs packaged; builds and tests run in jobs with no environment and no Azure sign-in. Set variables `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `GOOGLE_CLIENT_ID`, `META_APP_ID`, and secrets `SUPER_ADMIN_EMAIL`, `GOOGLE_CLIENT_SECRET`, `META_APP_SECRET`, `SESSION_KEY` (`openssl rand -base64 32`). `SUPER_ADMIN_EMAIL` is a secret because variables are not masked in logs. `deploy-infra` writes `META_APP_SECRET` and `SESSION_KEY` into Key Vault; the CMS's app settings hold only Key Vault references to them. Leave `CMS_BASE_URL` unset for now: the CMS then uses its default `*.azurewebsites.net` address.
+5. Run `deploy-infra`. It prints no outputs; read them in the Azure portal (resource group → *Deployments* → `main` → *Outputs*) or with `az deployment group show -g <resource group> -n main --query properties.outputs`. Set the variables `CMS_FUNCTION_APP` (output `functionApp`), `CMS_BASE_URL` (output `cmsUrl`) and `STORAGE_PUBLIC_URL` (output `blobEndpoint` followed by `pub`, i.e. `https://<account>.blob.core.windows.net/pub`). Azure Monitor emails `SUPER_ADMIN_EMAIL` that it was added to an action group: that address receives the alerts. The budget (parameter `monthlyBudget`, default 10 in the billing currency) emails the same address at 50% and 100%.
 6. Add the redirect URIs and the other `<CMS_BASE_URL>` addresses to the Google OAuth client and the Meta app as described in their sections below.
 7. Run `deploy-cms` (its smoke test calls `CMS_BASE_URL`), then `deploy-site`. New role assignments can take a few minutes to apply; if the CMS reports that it cannot read `META_APP_SECRET` or `SESSION_KEY`, restart the Function app.
 8. The Sites now work at their `*.azurestaticapps.net` addresses (output `staticSites`): CORS allows each Static Web App's default address without any configuration. Once a Site has a custom domain, add it to its Static Web App and its origin to `config/sites.json` (`origins` and `baseUrl`), then rerun `deploy-infra` so CORS allows it.
@@ -147,28 +147,40 @@ How Sync and Autosync work: [Sync](docs/sync/README.md) and [Social posting](doc
 
 ### Key Vault and token incident response
 
-The Key Vault (output `keyVault`) holds the Meta app secret, `SESSION_KEY` and the Facebook page token of every Organization with Autosync on ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)). Only the CMS's identity `folkms-cms-id` can read it. Its audit log goes to the Log Analytics workspace `folkms-logs-<hash>`, and an alert emails the Super Admin when a secret is read by any other identity, or page tokens are read more than 100 times in an hour.
+There are two Key Vaults ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)): the platform vault (output `keyVault`) holds the Meta app secret and `SESSION_KEY`, which the CMS identity `folkms-cms-id` can only read (`Key Vault Secrets User`); the token vault (output `tokenVault`) holds the Facebook page token of every Organization with Autosync on, which the CMS identity reads, writes, deletes and purges (`Key Vault Secrets Officer`). No person has a standing role on either. Both audit logs, and every write and delete in the storage account, go to the Log Analytics workspace `folkms-logs-<hash>`. Alerts email the Super Admin when:
 
-On an alert, see who read what in the workspace (*Logs*):
+- either vault is used in any way by an identity other than the CMS, or the `cms` container is written by one;
+- page tokens are read more than 100 times in an hour;
+- a role assignment, a diagnostic setting, an alert rule or a vault in the resource group changes (also after each `deploy-infra` run, which is expected);
+- costs pass half or all of the monthly budget.
+
+On an alert, see who did what in the workspace (*Logs*):
 
 ```kusto
 AzureDiagnostics
-| where ResourceProvider == "MICROSOFT.KEYVAULT" and OperationName startswith "Secret"
-| project TimeGenerated, OperationName, id_s, httpStatusCode_d, CallerIPAddress,
+| where ResourceProvider == "MICROSOFT.KEYVAULT"
+| project TimeGenerated, Resource, OperationName, id_s, httpStatusCode_d, CallerIPAddress,
     caller = tostring(column_ifexists("identity_claim_oid_g", "")),
     user = tostring(column_ifexists("identity_claim_upn_s", ""))
 | order by TimeGenerated desc
 ```
 
-An object id resolves with `az ad sp show --id <id>` or `az ad user show --id <id>`. Remove any role assignment on the vault that is not the CMS identity's `Key Vault Secrets Officer`.
+```kusto
+StorageBlobLogs
+| where ObjectKey has "/cms/"
+| project TimeGenerated, OperationName, ObjectKey, RequesterObjectId, CallerIpAddress
+| order by TimeGenerated desc
+```
+
+An object id resolves with `az ad sp show --id <id>` or `az ad user show --id <id>`. Remove any role assignment on a vault that is not the CMS identity's. A changed or deleted `cms` document can be restored from its previous blob version (kept 90 days) or from soft delete (30 days), the Audit Log included.
 
 **One Organization's token may have leaked:**
 
-1. A Moderator of the Organization or the Super Admin turns Autosync off in the CMS. That deletes the secret.
+1. A Moderator of the Organization or the Super Admin turns Autosync off in the CMS. That deletes and purges the secret.
 2. The person who turned Autosync on (the connection screen names them) removes the app on Facebook under *Settings → Business integrations*. Only that kills the token at Meta: a page token cannot revoke itself.
 3. Turn Autosync on again when it is safe; it stores a new token under a new secret name.
 
-**A secret was not deleted:** the Audit Log has `autosync.secret_delete_failed` with the secret's name (the CMS log says `autosync secret not deleted` or `orphaned autosync secret`). An `Owner` grants themselves `Key Vault Secrets Officer` on the vault, runs `az keyvault secret delete --vault-name <keyVault> -n <name>`, and removes the assignment at once.
+**A secret was not deleted:** the Audit Log has `autosync.secret_delete_failed` with the secret's name (the CMS log says `autosync secret not deleted` or `orphaned autosync secret`). The daily purge deletes any token secret no connection names once it is an hour old (`autosync.orphan_deleted`) and purges deleted ones. To do it at once, an `Owner` grants themselves `Key Vault Secrets Officer` on the token vault, runs `az keyvault secret delete --vault-name <tokenVault> -n <name>` and `az keyvault secret purge --vault-name <tokenVault> -n <name>`, and removes the assignment at once.
 
 **Code execution in the CMS or the deploy pipeline is suspected:** do the above for every Organization with Autosync on, then rotate the Meta app secret (Meta app dashboard → *App settings → Basic → App secret → Reset*), put the new one into the `META_APP_SECRET` GitHub secret and run `deploy-infra`. With "Require App Secret" on, a token copied out is useless without the current app secret. Rotate `SESSION_KEY` the same way; that signs everyone out.
 

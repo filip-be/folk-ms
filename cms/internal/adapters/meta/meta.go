@@ -86,7 +86,7 @@ func (c *Client) proof(token string) string {
 
 // call sends one Graph request. A user or page token travels in the
 // Authorization header, never in the URL, so a URL that reaches a log, an
-// error or a proxy carries no token (T9); the appsecret_proof stays a
+// error or a proxy carries no token (T16); the appsecret_proof stays a
 // parameter, as Graph requires. Errors never quote the URL, and Graph's
 // message is scrubbed of the token and the app secret.
 func (c *Client) call(ctx context.Context, method, path string, params url.Values, token string, out any) error {

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"sync"
@@ -100,12 +101,12 @@ func (s *Server) Handler() http.Handler {
 
 	// The Functions host invokes the timer function "purge" as POST /purge.
 	// Purging only removes what is overdue, so this is safe to expose.
-	mux.Handle("POST /purge", s.rateLimit(http.HandlerFunc(s.timerPurge)))
+	mux.Handle("POST /purge", s.timerLimit(http.HandlerFunc(s.timerPurge)))
 	// The timer function "sync" (hourly) is POST /sync: Autosync for the
 	// Organizations that turned it on. Public like /purge; it takes no input,
 	// and the per-Organization lease and interval in storage bound how often
 	// Graph is called (T10).
-	mux.Handle("POST /sync", s.rateLimit(http.HandlerFunc(s.timerSync)))
+	mux.Handle("POST /sync", s.timerLimit(http.HandlerFunc(s.timerSync)))
 
 	if s.PublicDir != "" {
 		mux.Handle("GET /pub/", s.publicFiles())
@@ -270,7 +271,19 @@ func (s *Server) clientIP(r *http.Request) string {
 			if host, _, err := net.SplitHostPort(ip); err == nil {
 				ip = host
 			}
-			return ip
+			// One bucket per address: a malformed hop or an IPv6 address
+			// written without brackets must not give each source port its own.
+			if a, err := netip.ParseAddr(strings.Trim(ip, "[]")); err == nil {
+				a = a.Unmap()
+				if a.Is6() {
+					// A /64 is one subscriber, and an unbracketed
+					// "address:port" differs only in its last bits.
+					p, _ := a.Prefix(64)
+					return p.String()
+				}
+				return a.String()
+			}
+			return "unparsed-forwarded-for"
 		}
 	}
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
@@ -278,6 +291,25 @@ func (s *Server) clientIP(r *http.Request) string {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// timerLimit rate-limits the public timer endpoints per client, except the
+// Functions host's own timer call, which comes from loopback with no
+// X-Forwarded-For: public callers cannot use up its budget. Their own
+// intervals bound the work either way.
+func (s *Server) timerLimit(next http.Handler) http.Handler {
+	limited := s.rateLimit(next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if s.TrustProxy && r.Header.Get("X-Forwarded-For") == "" {
+			if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+				if a, err := netip.ParseAddr(host); err == nil && a.IsLoopback() {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+		}
+		limited.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) rateLimit(next http.Handler) http.Handler {

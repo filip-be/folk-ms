@@ -23,7 +23,7 @@ func bearer(r *http.Request) string {
 }
 
 // A token or the app secret never reaches an error: not through a URL that
-// cannot be built, a transport failure, or Graph echoing it back (T9).
+// cannot be built, a transport failure, or Graph echoing it back (T16).
 func TestErrorsCarryNoSecrets(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)

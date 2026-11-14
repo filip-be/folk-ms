@@ -838,3 +838,21 @@ func TestFacebookIdentityIsLinkedFromASession(t *testing.T) {
 		t.Fatalf("linked identity: %s", resp.Request.URL)
 	}
 }
+
+func TestClientIPBuckets(t *testing.T) {
+	s := &Server{TrustProxy: true}
+	ip := func(xff string) string {
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set("X-Forwarded-For", xff)
+		return s.clientIP(r)
+	}
+	if a, b := ip("1.2.3.4:1000"), ip("1.2.3.4:2000"); a != b || a != "1.2.3.4" {
+		t.Fatalf("ipv4 ports: %s %s", a, b)
+	}
+	if a, b := ip("spoofed, 2001:db8:1:2::5:1000"), ip("[2001:db8:1:2::5]:2000"); a != b {
+		t.Fatalf("ipv6: %s %s", a, b)
+	}
+	if a, b := ip("garbage-1"), ip("garbage-2"); a != b {
+		t.Fatalf("unparsed: %s %s", a, b)
+	}
+}

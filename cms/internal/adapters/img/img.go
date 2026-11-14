@@ -49,6 +49,9 @@ var CoverWidths = []int{480, 960, 1600}
 // InstagramWidth is the width of the Instagram rendition.
 const InstagramWidth = 1080
 
+// decoding holds one slot per decode in progress.
+var decoding = make(chan struct{}, 1)
+
 // Processor implements ports.ImageProcessor.
 type Processor struct{}
 
@@ -89,6 +92,11 @@ func (Processor) Process(data []byte, kind ports.ImageKind) ([]ports.ImageRendit
 	if cfg.Width < MinWidth {
 		return nil, ErrTooSmall
 	}
+	// One large decode at a time per instance: a 50 Mpx image takes about
+	// 200 MB decoded, and a 512 MB instance must not run out of memory when
+	// several uploads (or a crafted flood of them) arrive together (T15).
+	decoding <- struct{}{}
+	defer func() { <-decoding }()
 	src, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, ErrUnsupported
