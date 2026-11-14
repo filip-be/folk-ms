@@ -1,5 +1,7 @@
-// A minimal, unstyled renderer every Site skeleton starts from. Designers
-// replace the markup and styles; the data access stays in contract/client.
+// The events() page module and its plain renderers, built on contract/client:
+// the home page and the lists of upcoming and past Events, and each Event's
+// Permalink page. Designers replace the markup and styles; the data access
+// stays in contract/client.
 
 import {
   featuredOccurrence,
@@ -17,13 +19,10 @@ import {
   type Occurrence,
   type Snapshot,
 } from "../../contract/client/src/index.ts";
-import { href, match, type Route } from "./router.ts";
+import { href, match } from "./router.ts";
+import { esc, LoadError, type Module, type Page } from "./site.ts";
 
-// Everything in a snapshot is untrusted (much of it is Facebook text): every
-// value goes through esc(), and an address becomes a link only through
-// httpsUrl() (images: http or https, since the local CMS serves them over http).
-const ESC: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
-export const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ESC[c]!);
+export { esc };
 
 const L = {
   pl: { upcoming: "Nadchodzące wydarzenia", past: "Minione wydarzenia", none: "Brak wydarzeń.", more: "Szczegóły", dates: "Terminy", cancelled: "odwołane", online: "online", tickets: "Bilety / zapisy", map: "Mapa", facebook: "Wydarzenie na Facebooku", notFound: "Nie znaleziono strony.", switchLang: "English", showPast: "Minione", showUpcoming: "Nadchodzące" },
@@ -102,60 +101,49 @@ export function renderEvent(s: Snapshot, e: Event, lang: Lang, now: Date): strin
   </article>`;
 }
 
-/** Renders the current location into root. */
-export async function start(root: HTMLElement, snapshotUrl: string): Promise<void> {
+/**
+ * The Events pages: home, /<lang>/events, /<lang>/events/past and the
+ * Permalink pages, from the snapshot at snapshotUrl (read once).
+ */
+export function events(snapshotUrl: string): Module {
   let snapshot: Snapshot | undefined;
-  const render = async () => {
-    const route: Route = match(location.pathname);
-    const lang = route.lang;
-    document.documentElement.lang = lang;
+  const load = async (lang: Lang): Promise<Snapshot> => {
     try {
-      snapshot ??= await fetchSnapshot(snapshotUrl);
+      return (snapshot ??= await fetchSnapshot(snapshotUrl));
     } catch {
-      root.innerHTML = `<p>${lang === "pl" ? "Nie udało się wczytać wydarzeń." : "Could not load events."}</p>`;
-      return;
+      throw new LoadError(lang === "pl" ? "Nie udało się wczytać wydarzeń." : "Could not load events.");
     }
-    const s = snapshot;
-    const now = new Date();
-    const other: Lang = lang === "pl" ? "en" : "pl";
-    let body: string;
-    let canonical: string | undefined;
-    switch (route.name) {
-      case "home":
-      case "events":
-        body = renderList(s, lang, route.name === "events" && route.past, now);
-        canonical = href(route.name === "home" ? { name: "home", lang: other } : { ...route, lang: other });
-        break;
-      case "event": {
-        const e = s.events.find((x) => x.shortId === route.shortId);
-        if (!e) {
-          body = `<p>${esc(L[lang].notFound)}</p>`;
-          break;
-        }
-        // The slug is cosmetic: fix the address bar if it changed.
-        const want = href({ name: "event", lang, shortId: e.shortId, slug: e.slug });
-        if (location.pathname !== want) history.replaceState(null, "", want);
-        document.title = `${t(e.title, lang)} – ${t(s.organization.name, lang)}`;
-        body = renderEvent(s, e, lang, now);
-        canonical = href({ name: "event", lang: other, shortId: e.shortId, slug: e.slug });
-        break;
-      }
-      default:
-        body = `<p>${esc(L[lang].notFound)}</p>`;
-    }
-    root.innerHTML = `<header><h1><a href="/${lang}/">${esc(t(s.organization.name, lang))}</a></h1>
-      ${canonical ? `<a class="lang" href="${esc(canonical)}" hreflang="${other}">${esc(L[lang].switchLang)}</a>` : ""}</header>
-      <main>${body}</main>`;
   };
-  document.addEventListener("click", (e) => {
-    const a = (e.target as HTMLElement).closest("a");
-    const url = a && new URL(a.href, location.href);
-    if (!a || !url || url.origin !== location.origin || a.target || e.ctrlKey || e.metaKey) return;
-    e.preventDefault();
-    history.pushState(null, "", url.pathname);
-    void render();
-    scrollTo(0, 0);
-  });
-  addEventListener("popstate", () => void render());
-  await render();
+  return {
+    async render(url: URL, lang: Lang): Promise<Page | undefined> {
+      const route = match(url.pathname);
+      if (route.name === "notFound") return undefined;
+      const s = await load(lang);
+      const siteName = t(s.organization.name, lang);
+      const now = new Date();
+      const other: Lang = lang === "pl" ? "en" : "pl";
+      if (route.name === "home" || route.name === "events") {
+        return {
+          siteName,
+          body: renderList(s, lang, route.name === "events" && route.past, now),
+          alternate: href(route.name === "home" ? { name: "home", lang: other } : { ...route, lang: other }),
+        };
+      }
+      const e = s.events.find((x) => x.shortId === route.shortId);
+      if (!e) return { siteName, body: `<p>${esc(L[lang].notFound)}</p>` };
+      // The slug is cosmetic: fix the address bar if it changed.
+      const want = href({ name: "event", lang, shortId: e.shortId, slug: e.slug });
+      if (url.pathname !== want) history.replaceState(null, "", want);
+      return {
+        siteName,
+        title: `${t(e.title, lang)} – ${siteName}`,
+        body: renderEvent(s, e, lang, now),
+        alternate: href({ name: "event", lang: other, shortId: e.shortId, slug: e.slug }),
+      };
+    },
+    async notFound(lang: Lang): Promise<Page> {
+      const s = await load(lang);
+      return { siteName: t(s.organization.name, lang), body: `<p>${esc(L[lang].notFound)}</p>` };
+    },
+  };
 }

@@ -2,7 +2,7 @@
   "navigationFallback": { "rewrite": "/index.html", "exclude": ["/*.js", "/*.css", "/*.png", "/*.jpg", "/*.svg", "/*.ico"] },
   "routes": [{ "route": "/", "redirect": "/pl/", "statusCode": 302 }],
   "globalHeaders": {
-    "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; connect-src 'self' https:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+    "Content-Security-Policy": "default-src 'self'; img-src 'self' https: data:; connect-src 'self' https:; script-src 'self'; style-src 'self'; frame-src https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "strict-origin-when-cross-origin"
   },
