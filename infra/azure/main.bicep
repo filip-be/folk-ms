@@ -39,8 +39,11 @@ param metaGraphVersion string = 'v24.0'
 @secure()
 param sessionKey string
 
-@description('Name of the CMS user-assigned managed identity in this resource group, created once in the first-deployment runbook (ADR 0010, T4).')
+@description('Name of the CMS user-assigned managed identity, created once in the first-deployment runbook (ADR 0010, T4).')
 param cmsIdentityName string = '${prefix}-cms-id'
+
+@description('Resource group of the CMS identity: a separate one, where the deploy identity has only Managed Identity Operator on the identity, so it cannot add a federated credential to it and sign in as the CMS (ADR 0010, T4).')
+param cmsIdentityResourceGroup string
 
 var suffix = uniqueString(resourceGroup().id)
 var storageName = take('${prefix}${suffix}', 24)
@@ -48,11 +51,14 @@ var appName = '${prefix}-cms-${suffix}'
 var vaultName = take('${prefix}-kv-${suffix}', 24)
 var tokenVaultName = take('${prefix}-tok-${suffix}', 24)
 
-// Created by the runbook, not here: the deploy identity's role-assignment
-// condition names its principal id before the first deployment (T4), and it
-// survives the Function app being recreated.
+// Created by the runbook in its own resource group, not here: the deploy
+// identity's role-assignment condition names its principal id before the first
+// deployment, and the deploy identity, Contributor only on this resource group,
+// can assign the identity but not change it (T4). It also survives the
+// Function app being recreated.
 resource cmsIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
   name: cmsIdentityName
+  scope: resourceGroup(cmsIdentityResourceGroup)
 }
 
 resource storage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
