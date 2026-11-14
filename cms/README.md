@@ -37,6 +37,7 @@ The `dev` tag adds the local sign-in stub; production builds leave it out. Build
 | `META_APP_ID`, `META_APP_SECRET`, `META_GRAPH_VERSION` | Meta app, for Facebook sign-in, Sync and Social Posts. Without `META_APP_ID` only a `dev` build runs, with the Meta recorder: posts are recorded instead of sent, and Sync reads canned Facebook Events |
 | `SESSION_KEY` | Base64 key of 32+ bytes for cookies (azure only, a Key Vault reference there; local: generated in `DATA_DIR`) |
 | `KEYVAULT_URL` | Key Vault for Autosync's Facebook page tokens, read with the managed identity. Required in `azure` mode; when unset locally, the file store in `SECRETS_DIR` is used |
+| `VIMEO_OEMBED` | `1` asks Vimeo oEmbed for the thumbnails of Vimeo Videos in `local` mode (always on in `azure` mode); unset locally, a fake gives a placeholder |
 | `SECRETS_DIR` | Directory of the file secret store (default `DATA_DIR/secrets`; created `0700`, files `0600`). Keep it out of backups that leave the machine |
 | `AZURE_CLIENT_ID` | Client id of the CMS's user-assigned managed identity, for blob and Key Vault tokens (replaces `STORAGE_IDENTITY_CLIENT_ID`) |
 | `STORAGE_BLOB_URL` | Blob endpoint; with it, local runs use blob storage too |

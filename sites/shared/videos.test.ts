@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseSnapshot } from "../../contract/client/src/index.ts";
-import { parseVideos, type VideoSnapshot } from "../../contract/client/src/videos.ts";
+import { EMBED_HOSTS, parseVideos, type VideoSnapshot } from "../../contract/client/src/videos.ts";
 import { events, renderList } from "./render.ts";
 import { esc, header, type Page } from "./site.ts";
 import { readState, renderControls, renderResults, renderVideo, renderVideosPage, videos, writeState, type VideoState } from "./videos.ts";
@@ -154,4 +154,12 @@ describe("Sites compose modules", () => {
       expect((await m.notFound!("pl")).body).toBe("<p>Nie znaleziono strony.</p>");
     });
   });
+});
+
+// A Site that plays Videos allows exactly the embed hosts as frames
+// (docs/video-collection, Change together).
+test("Bal Folk Poznań's CSP frame-src is the embed hosts", () => {
+  const cfg = JSON.parse(readFileSync(join(import.meta.dir, "..", "balfolk-poznan", "staticwebapp.config.json"), "utf8")) as { globalHeaders: Record<string, string> };
+  const frame = cfg.globalHeaders["Content-Security-Policy"]!.split(";").map((d) => d.trim()).find((d) => d.startsWith("frame-src "));
+  expect(frame).toBe(`frame-src ${EMBED_HOSTS.map((h) => `https://${h}`).join(" ")}`);
 });

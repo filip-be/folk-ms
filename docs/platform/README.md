@@ -15,6 +15,7 @@ flowchart LR
   C -->|platform secrets, page tokens, managed identity| K[(Key Vaults)]
   C -->|auth code to ID token| G[Google]
   C -->|Sync, Post| F[Meta Graph API]
+  C -->|Vimeo thumbnail on save| V[Vimeo oEmbed]
   F -->|fetches image by public URL| S
 ```
 
@@ -39,6 +40,7 @@ The domain and the use cases depend only on ports ([`cms/internal/ports`](../../
 | `SocialPublisher` | Meta Graph API (`meta`) | Meta Graph API, or the recorder when `META_APP_ID` is unset | recorder |
 | `FacebookEvents` (list and read Facebook Events, covers, Autosync's long-lived page token) | Meta Graph API (`meta`) | Meta Graph API, or the recorder with canned Facebook Events when `META_APP_ID` is unset | recorder |
 | `SecretStore` (Get, Set, Delete by name) | Key Vault REST, managed identity (`keyvault`, `KEYVAULT_URL`) | `0600` file per secret (`secretfile`, `SECRETS_DIR`) | `memory` |
+| `VideoInfo` (a Vimeo video's thumbnail) | Vimeo oEmbed (`vimeo`; outbound to `vimeo.com`, no key, Functions egress is unrestricted) | Vimeo oEmbed with `VIMEO_OEMBED=1`, else a fake with a placeholder | `memory` fake |
 | `ImageProcessor` | `img` (JPEG, PNG, WebP in; JPEG out) | same | same |
 
 All store adapters run one shared contract suite ([`storetest`](../../cms/internal/adapters/storetest/storetest.go)), the secret stores theirs ([`storetest/secrets.go`](../../cms/internal/adapters/storetest/secrets.go)); the blob adapter runs it against Azurite. The Key Vault adapter is stdlib only, like the blob adapter: REST with a token from the managed identity endpoint, the access token cached, secret values never.

@@ -4,9 +4,10 @@ The Site snapshot contract; why it exists and how it is used is in [Site deliver
 
 | Path | What |
 | --- | --- |
-| `events.schema.json` | Canonical JSON Schema (draft 2020-12, restricted keyword set) |
-| `fixtures/valid/`, `fixtures/invalid/` | Shared fixtures for the Go and TypeScript sides |
-| `client/` | Zero-dependency TypeScript reader for Sites |
+| `events.schema.json` | Canonical JSON Schema of `events.json` (draft 2020-12, restricted keyword set) |
+| `videos.schema.json` | Canonical JSON Schema of `videos.json`, the Video Collection ([Video Collection](../docs/video-collection/README.md)) |
+| `fixtures/valid/`, `fixtures/invalid/` | Shared fixtures for the Go and TypeScript sides (`fixtures/videos/` for `videos.json`) |
+| `client/` | Zero-dependency TypeScript readers for Sites (`src/index.ts`, `src/videos.ts`) |
 
 Tests: `bun test contract` (reader) and `go test ./internal/schema/ ./internal/domain/` in `cms/` (schema, fixtures, builder output).
 
