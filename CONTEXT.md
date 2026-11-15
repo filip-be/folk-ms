@@ -18,10 +18,10 @@ An event page on Facebook; the source of an Event. Created and edited only on Fa
 _Avoid_: "event" alone (that is an Event), "post" (that is a Social Post).
 
 **Sync**
-Pulling an Organization's Facebook Events, those its Facebook page created, into the CMS: new ones become Events, changed ones update theirs, cancelled ones are shown as cancelled, and one Facebook confirms is gone moves to the Bin. Runs when a Moderator presses "Sync now", and hourly while Autosync is on. Never undoes a Moderator's Override, Hide or CMS text, and never touches a Manual Event.
+Pulling an Organization's Facebook Events, those its Facebook page created, into the CMS: new ones become Events, changed ones update theirs, cancelled ones are shown as cancelled, and one Facebook confirms is gone moves to the Bin. Runs when a Moderator presses "Sync now", once when Autosync is turned on, and hourly while it is on. Never undoes a Moderator's Override, Hide or CMS text, and never touches a Manual Event.
 
 **Autosync**
-An Organization's opt-in to hourly Sync. While it is on, the CMS keeps a Facebook page token for the Organization; Meta lets that token read data for 90 days after the sign-in that issued it, so someone signs in with Meta again at least that often. Off by default.
+An Organization's opt-in to hourly Sync. Turning it on also runs one Sync right away; Autosync stays on if that Sync fails. While it is on, the CMS keeps a Facebook page token for the Organization; Meta lets that token read data for 90 days after the sign-in that issued it, so someone signs in with Meta again at least that often. Off by default.
 
 **Occurrence**
 One date of an Event, with its own Facebook Event link. A repeating Facebook Event yields one Event with several Occurrences.
@@ -84,7 +84,7 @@ A Moderator's request to post an Event on Facebook, Instagram or both, with its 
 The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization. Signs in only with the Google identity it was bound to.
 
 **Moderator**
-A person allowed to manage the Events and the Social Account Connection of the Organizations they were granted. Access is scoped per Organization. Signs in with Google or Facebook; any identity that returns the Moderator's email is the same Moderator.
+A person allowed to manage the Events and the Social Account Connection of the Organizations they were granted. Access is scoped per Organization. Signs in with Google, or with Facebook while its Feature Flag is on; any identity that returns the Moderator's email is the same Moderator.
 
 **Recent sign-in**
 A sign-in to the CMS with Google or Facebook in the last 15 minutes. Needed, while Autosync is on, to post a Social Post, to turn Autosync on or off, and to change or remove the Social Account Connection.
@@ -93,7 +93,11 @@ A sign-in to the CMS with Google or Facebook in the last 15 minutes. Needed, whi
 A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
 
 **Audit Log**
-An append-only record of who did what and when: Event changes, Syncs, Hide, Social Posts, Autosync and connection changes, access grants. Readable by the Super Admin.
+An append-only record of who did what and when: Event changes, Syncs, Hide, Social Posts, Autosync and connection changes, access grants, Feature Flag changes. Readable by the Super Admin.
+
+**Feature Flag**
+A switch with which the Super Admin turns a part of the CMS on or off for everyone, without a new release. Only a fixed, known set exists; each has a default. Facebook sign-in is one, off by default.
+_Avoid_: "flag" alone (an Event's flags are something else), "setting".
 
 ## Video Collection
 
@@ -105,7 +109,7 @@ One instructional dance video in a Video Collection: a bilingual title and optio
 _Avoid_: "item", "clip"; "Event" or "post" (those are other things).
 
 **Form**
-How a dance is danced (solo, pair, chain, circle, …), from the Organization's open, bilingual list. A Video has any number of Forms. A Form cannot be removed while a Video has it.
+How a dance is danced (solo, pair, chain, circle, …), from the Organization's open, bilingual list. A Form may have an optional bilingual description, which a Site may show. A Video has any number of Forms. A Form cannot be removed while a Video has it.
 _Avoid_: "type", "category".
 
 **Origin**

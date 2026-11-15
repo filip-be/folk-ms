@@ -63,7 +63,7 @@ The Permalink is `/<lang>/events/<shortId>-<slug>`. The `shortId` is drawn at fi
 
 ### The Event list
 
-Views: upcoming, past, Hidden and the Bin. Flags: Hidden, cancelled, manual, Override changed on Facebook, CMS text possibly out of date, from a former Facebook page, Facebook Event held by a Manual Event, in the Bin. The list also shows the sync status with "Sync now", "Add co-hosted event", and the reconnect and "reconnect before" banners of the Social Account Connection ([Social posting](../social-posting/README.md#autosync)).
+Views: upcoming, past, Hidden and the Bin. Flags: Hidden, cancelled, manual, Override changed on Facebook, CMS text possibly out of date, from a former Facebook page, Facebook Event held by a Manual Event, in the Bin. The list also shows the sync status with "Sync now", "Import event manually", and the reconnect and "reconnect before" banners of the Social Account Connection ([Social posting](../social-posting/README.md#autosync)).
 
 ### Images
 

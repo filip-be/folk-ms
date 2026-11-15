@@ -30,11 +30,17 @@ type VideoView struct {
 	ThumbnailURL string `json:"thumbnailUrl"`
 }
 
-// LabeledView is a Form or a region with the number of Videos that use it.
+// LabeledView is a country or a region with the number of Videos that use it.
 type LabeledView struct {
 	ID    string      `json:"id"`
 	Label domain.Text `json:"label"`
 	Uses  int         `json:"uses"`
+}
+
+// FormView is a Form with its description and the number of Videos that use it.
+type FormView struct {
+	LabeledView
+	Description domain.Text `json:"description,omitzero"`
 }
 
 // CountryView is a country with its regions and use counts.
@@ -47,7 +53,7 @@ type CountryView struct {
 // change sends the version back (If-Match).
 type VideoCollectionView struct {
 	ETag    string        `json:"etag"`
-	Forms   []LabeledView `json:"forms"`
+	Forms   []FormView    `json:"forms"`
 	Origins []CountryView `json:"origins"`
 	Videos  []VideoView   `json:"videos"`
 }
@@ -57,9 +63,9 @@ func videoView(v domain.Video) VideoView {
 }
 
 func collectionView(c *domain.VideoCollection, etag string) VideoCollectionView {
-	out := VideoCollectionView{ETag: etag, Forms: []LabeledView{}, Origins: []CountryView{}, Videos: []VideoView{}}
+	out := VideoCollectionView{ETag: etag, Forms: []FormView{}, Origins: []CountryView{}, Videos: []VideoView{}}
 	for _, f := range c.Forms {
-		out.Forms = append(out.Forms, LabeledView{ID: f.ID, Label: f.Label, Uses: c.FormUse(f.ID)})
+		out.Forms = append(out.Forms, FormView{LabeledView: LabeledView{ID: f.ID, Label: f.Label, Uses: c.FormUse(f.ID)}, Description: f.Description})
 	}
 	for _, co := range c.Origins {
 		cv := CountryView{LabeledView: LabeledView{ID: co.ID, Label: co.Label, Uses: c.OriginUse(co.ID)}, Regions: []LabeledView{}}
@@ -282,27 +288,32 @@ func (a *App) MoveVideo(ctx context.Context, p domain.Principal, org, id, etag s
 	})
 }
 
-// AddForm appends a Form to the list.
-func (a *App) AddForm(ctx context.Context, p domain.Principal, org, etag string, label domain.Text) (VideoCollectionView, error) {
+// AddForm appends a Form, with an optional description, to the list.
+func (a *App) AddForm(ctx context.Context, p domain.Principal, org, etag string, label, description domain.Text) (VideoCollectionView, error) {
 	return a.changeVideos(ctx, p, org, etag, "form.add", func(c *domain.VideoCollection) (string, map[string]any, error) {
 		id, err := c.NewItemID(a.Rand)
 		if err != nil {
 			return "", nil, err
 		}
-		if err := c.AddForm(id, label, p.ID(), a.now()); err != nil {
+		if err := c.AddForm(id, label, description, p.ID(), a.now()); err != nil {
 			return "", nil, err
 		}
 		return id, map[string]any{"label": c.Forms[len(c.Forms)-1].Label.PL}, nil
 	})
 }
 
-// RenameForm changes a Form's label.
-func (a *App) RenameForm(ctx context.Context, p domain.Principal, org, id, etag string, label domain.Text) (VideoCollectionView, error) {
-	return a.changeVideos(ctx, p, org, etag, "form.rename", func(c *domain.VideoCollection) (string, map[string]any, error) {
-		if err := c.RenameForm(id, label, p.ID(), a.now()); err != nil {
+// UpdateForm replaces a Form's label and description.
+func (a *App) UpdateForm(ctx context.Context, p domain.Principal, org, id, etag string, label, description domain.Text) (VideoCollectionView, error) {
+	return a.changeVideos(ctx, p, org, etag, "form.update", func(c *domain.VideoCollection) (string, map[string]any, error) {
+		if err := c.UpdateForm(id, label, description, p.ID(), a.now()); err != nil {
 			return "", nil, err
 		}
-		return id, map[string]any{"label": label.PL}, nil
+		for _, f := range c.Forms {
+			if f.ID == id {
+				return id, map[string]any{"label": f.Label.PL}, nil
+			}
+		}
+		return id, nil, nil
 	})
 }
 

@@ -25,6 +25,7 @@ const (
 	MaxRegionsPerCountry = 50
 	MaxVideoTitleLen     = 200
 	MaxVideoDescLen      = 2000
+	MaxFormDescLen       = 2000
 	MaxCreditLen         = 200
 	MaxLabelLen          = 60
 	// MaxStartSeconds is the latest start time accepted (24 hours).
@@ -240,10 +241,11 @@ func ParseVideoLink(raw string) (VideoLink, error) {
 }
 
 // Form is a kind of dance (solo, pair, chain, circle, …), from the
-// Organization's list.
+// Organization's list, with an optional description Sites may show.
 type Form struct {
-	ID    string `json:"id"`
-	Label Text   `json:"label"`
+	ID          string `json:"id"`
+	Label       Text   `json:"label"`
+	Description Text   `json:"description,omitzero"`
 }
 
 // Region is a region of a country.
@@ -573,15 +575,42 @@ func cleanLabel(t Text) (Text, error) {
 	return l, p.err()
 }
 
+// cleanFormDescription trims a Form's description: Polish first, English
+// optional, line breaks kept.
+func cleanFormDescription(t Text) (Text, error) {
+	var p problems
+	d := cleanBi(t, MaxFormDescLen+1)
+	checkLen(&p, "description", d, MaxFormDescLen)
+	if d.PL == "" && d.EN != "" {
+		p.add("description.pl", "tekst angielski wymaga polskiego", "English text requires Polish text")
+	}
+	return d, p.err()
+}
+
+// cleanForm validates a Form's label and description together, so every
+// problem shows at once.
+func cleanForm(label, description Text) (Text, Text, error) {
+	var p problems
+	l, err := cleanLabel(label)
+	if ve, ok := err.(*ValidationError); ok {
+		p = append(p, ve.Problems...)
+	}
+	d, err := cleanFormDescription(description)
+	if ve, ok := err.(*ValidationError); ok {
+		p = append(p, ve.Problems...)
+	}
+	return l, d, p.err()
+}
+
 func duplicateLabel() error {
 	return Problem("label.pl", "taka nazwa już jest na liście", "this name is already on the list")
 }
 
 func sameLabel(a, b Text) bool { return strings.EqualFold(a.PL, b.PL) }
 
-// AddForm appends a Form.
-func (c *VideoCollection) AddForm(id string, label Text, by string, now time.Time) error {
-	l, err := cleanLabel(label)
+// AddForm appends a Form with its label and optional description.
+func (c *VideoCollection) AddForm(id string, label, description Text, by string, now time.Time) error {
+	l, d, err := cleanForm(label, description)
 	if err != nil {
 		return err
 	}
@@ -594,18 +623,19 @@ func (c *VideoCollection) AddForm(id string, label Text, by string, now time.Tim
 	if c.taken(id) {
 		return fmt.Errorf("%w: id %s is taken", ErrConflict, id)
 	}
-	c.Forms = append(c.Forms, Form{ID: id, Label: l})
+	c.Forms = append(c.Forms, Form{ID: id, Label: l, Description: d})
 	c.touch(by, now)
 	return nil
 }
 
-// RenameForm changes a Form's label.
-func (c *VideoCollection) RenameForm(id string, label Text, by string, now time.Time) error {
+// UpdateForm replaces a Form's label and description (an empty
+// description clears it).
+func (c *VideoCollection) UpdateForm(id string, label, description Text, by string, now time.Time) error {
 	i := c.formIndex(id)
 	if i < 0 {
 		return notFound("form")
 	}
-	l, err := cleanLabel(label)
+	l, d, err := cleanForm(label, description)
 	if err != nil {
 		return err
 	}
@@ -614,7 +644,7 @@ func (c *VideoCollection) RenameForm(id string, label Text, by string, now time.
 			return duplicateLabel()
 		}
 	}
-	c.Forms[i].Label = l
+	c.Forms[i].Label, c.Forms[i].Description = l, d
 	c.touch(by, now)
 	return nil
 }
@@ -769,7 +799,7 @@ type (
 	VideoSnapshot struct {
 		SchemaVersion int             `json:"schemaVersion"`
 		Organization  SnapshotOrg     `json:"organization"`
-		Forms         []SnapLabeled   `json:"forms"`
+		Forms         []SnapForm      `json:"forms"`
 		Origins       []SnapCountry   `json:"origins"`
 		Videos        []SnapshotVideo `json:"videos"`
 		UpdatedAt     string          `json:"updatedAt,omitempty"`
@@ -777,6 +807,11 @@ type (
 	SnapLabeled struct {
 		ID    string `json:"id"`
 		Label Text   `json:"label"`
+	}
+	SnapForm struct {
+		ID          string `json:"id"`
+		Label       Text   `json:"label"`
+		Description *Text  `json:"description,omitempty"`
 	}
 	SnapCountry struct {
 		ID      string        `json:"id"`
@@ -807,7 +842,7 @@ func BuildVideoSnapshot(org *Organization, coll *VideoCollection) VideoSnapshot 
 	s := VideoSnapshot{
 		SchemaVersion: VideoSnapshotSchemaVersion,
 		Organization:  SnapshotOrg{ID: org.ID, Name: org.Name, SiteID: org.Site.ID, BaseURL: org.Site.BaseURL, Timezone: org.Timezone},
-		Forms:         []SnapLabeled{}, Origins: []SnapCountry{}, Videos: []SnapshotVideo{},
+		Forms:         []SnapForm{}, Origins: []SnapCountry{}, Videos: []SnapshotVideo{},
 	}
 	if coll == nil {
 		return s
@@ -816,7 +851,7 @@ func BuildVideoSnapshot(org *Organization, coll *VideoCollection) VideoSnapshot 
 		s.UpdatedAt = coll.UpdatedAt.UTC().Format(time.RFC3339)
 	}
 	for _, f := range coll.Forms {
-		s.Forms = append(s.Forms, SnapLabeled{ID: f.ID, Label: f.Label})
+		s.Forms = append(s.Forms, SnapForm{ID: f.ID, Label: f.Label, Description: optText(f.Description)})
 	}
 	for _, co := range coll.Origins {
 		sc := SnapCountry{ID: co.ID, Label: co.Label, Regions: []SnapLabeled{}}

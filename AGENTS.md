@@ -46,8 +46,6 @@ Rules that no test enforces; change both sides together (details in the
 - The `?sync=` and `?autosync=` callback codes in `cms/internal/http/auth.go` and the
   admin messages for them; `domain.Flags` and `domain.OverrideFields` and the admin
   Event screens.
-- The `sync` timer schedule (`cms/deploy/functions/sync/function.json`) and
-  `domain.AutosyncInterval`.
 - The Key Vault alert threshold (`maxSecretGetsPerHour` in `infra/azure/main.bicep`) and
   how often the CMS reads page tokens (`SyncNowInterval`, `AutosyncInterval`, `DailyPostLimit`).
 

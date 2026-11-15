@@ -36,9 +36,15 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	return nil
 }
 
-// labelInput is the label of a Form or an Origin.
+// labelInput is the label of an Origin.
 type labelInput struct {
 	Label domain.Text `json:"label"`
+}
+
+// formInput is a Form's label and optional description.
+type formInput struct {
+	Label       domain.Text `json:"label"`
+	Description domain.Text `json:"description"`
 }
 
 // decodeMove reads {"to": index}.
@@ -65,7 +71,9 @@ func ok(w http.ResponseWriter, v any, err error) error {
 
 func (s *Server) routes(m *http.ServeMux) {
 	m.Handle("GET /api/me", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		return ok(w, s.App.Me(p), nil)
+		me := s.App.Me(p)
+		me.SignInMethods = s.signInMethods(r.Context())
+		return ok(w, me, nil)
 	}))
 
 	// Events.
@@ -253,19 +261,19 @@ func (s *Server) routes(m *http.ServeMux) {
 		return domain.ErrNotFound
 	}))
 	m.Handle("POST /api/orgs/{org}/videos/forms", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in labelInput
+		var in formInput
 		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.AddForm(r.Context(), p, r.PathValue("org"), r.Header.Get("If-Match"), in.Label)
+		v, err := s.App.AddForm(r.Context(), p, r.PathValue("org"), r.Header.Get("If-Match"), in.Label, in.Description)
 		return ok(w, v, err)
 	}))
 	m.Handle("PUT /api/orgs/{org}/videos/forms/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		var in labelInput
+		var in formInput
 		if err := decode(w, r, &in); err != nil {
 			return err
 		}
-		v, err := s.App.RenameForm(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in.Label)
+		v, err := s.App.UpdateForm(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), in.Label, in.Description)
 		return ok(w, v, err)
 	}))
 	m.Handle("DELETE /api/orgs/{org}/videos/forms/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
@@ -394,8 +402,31 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.AuditDays(r.Context(), p)
 		return ok(w, v, err)
 	}))
+	m.Handle("GET /api/audit/entries", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		q := r.URL.Query()
+		v, err := s.App.ReadAuditPage(r.Context(), p, q.Get("day"), q.Get("cursor"))
+		return ok(w, v, err)
+	}))
 	m.Handle("GET /api/audit/{day}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		v, err := s.App.ReadAudit(r.Context(), p, r.PathValue("day"))
+		return ok(w, v, err)
+	}))
+	// Feature Flags: every known flag, and one flag turned on or off.
+	m.Handle("GET /api/feature-flags", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.FeatureFlags(r.Context(), p)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/feature-flags/{flag}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		if in.Enabled == nil {
+			return &badRequest{msg: msg("nieprawidłowe żądanie: brak wartości", "bad request: missing value")}
+		}
+		v, err := s.App.SetFeatureFlag(r.Context(), p, r.PathValue("flag"), *in.Enabled)
 		return ok(w, v, err)
 	}))
 	m.Handle("POST /api/admin/purge", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {

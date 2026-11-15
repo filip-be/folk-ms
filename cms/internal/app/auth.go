@@ -289,6 +289,9 @@ type Me struct {
 	SuperAdmin bool      `json:"superAdmin"`
 	Orgs       []OrgInfo `json:"orgs"`
 	PublicURL  string    `json:"publicUrl"`
+	// SignInMethods are the providers offered now ("google", "facebook"),
+	// filled in by the HTTP layer.
+	SignInMethods []string `json:"signInMethods"`
 }
 
 // OrgInfo is an Organization as listed in the UI.

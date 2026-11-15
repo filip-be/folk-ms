@@ -139,6 +139,7 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 4. Under *App settings → Advanced → Security*, switch on **Require App Secret**. Graph then refuses any call without `appsecret_proof`, so a stolen Facebook page token is useless without the app secret ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md), T2). The CMS signs every call, so nothing else changes.
 5. Keep the app in Standard Access. For every Moderator who will connect a Facebook page, run "Sync now", turn Autosync on, post Social Posts or sign in with Facebook: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
 6. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
+7. Facebook sign-in to the CMS is off until the Super Admin turns it on at *Administration → Feature flags*, once the Meta app lets Moderators sign in with Facebook ([ADR 0011](docs/architecture/adr/0011-facebook-sign-in-behind-a-feature-flag.md)). Connecting a Facebook page, Sync and Social Posts do not need it.
 
 ### Connecting a Facebook page and Autosync
 
@@ -148,7 +149,7 @@ How Sync and Autosync work: [Sync](docs/sync/README.md) and [Social posting](doc
 2. On the Event list, *Sync now* imports the page's upcoming Facebook Events (not past ones). With Autosync off, every *Sync now* asks for a Meta sign-in; it runs at most once a minute.
 3. Optionally, turn **Autosync** on under *Social media*: hourly Sync, and posting without a Meta sign-in each time. It stores a Facebook page token in Key Vault, so read the warning first. It needs a CMS sign-in in the last 15 minutes (the CMS asks you to sign in again otherwise) and a Meta sign-in by someone with a role on the page. Meta ends the token's data access 90 days later: from 14 days before, a "reconnect before" banner asks someone to turn Autosync on again, which issues a new token.
 4. Turning Autosync off deletes the token at once; so do replacing or disconnecting the page, and the Super Admin removing the person who turned it on from the Organization. In each case the person who turned it on should also remove the app on Facebook under *Settings → Business integrations*, since a page token cannot revoke itself. A "needs reconnect" banner means Graph rejected the token (password changed, page role lost, app removed): turn Autosync on again.
-5. Co-hosted Facebook Events another page created cannot be synced: add each with *Add co-hosted event* (a Manual Event) and keep it up to date by hand.
+5. Co-hosted Facebook Events another page created cannot be synced: add each with *Import event manually* (a Manual Event) and keep it up to date by hand.
 
 ### Key Vault and token incident response
 
@@ -199,27 +200,6 @@ Either way, an Organization can attempt at most 10 Social Posts a day, and Hidde
 - **Autosync on:** any Moderator of the Organization, and the Super Admin, can post with the stored token after a CMS sign-in in the last 15 minutes; their own Meta roles do not matter. To stop someone posting, remove their CMS access to the Organization. To stop all posting with the token, turn Autosync off.
 
 Changing the Organization's Facebook page or disconnecting it is done under *Social media*, by any of its Moderators or the Super Admin.
-
-### Upgrade notes
-
-**To Facebook Events as the source of Events** ([ADR 0009](docs/architecture/adr/0009-facebook-events-are-the-source-of-events.md)), one-off. Existing CMS Events, Venues and their index documents are discarded; Events come back from Facebook through Sync. Social Post records of the discarded Events go with them (the Audit Log keeps their URLs).
-
-1. Before merging, or before re-running the failed deploys: an `Owner` runs [First deployment](#first-deployment) step 2. It creates the resource group `<resource group>-identity` with the CMS identity `folkms-cms-id`, gives the deploy identity `Managed Identity Operator` on it, and replaces the deploy identity's role-assignment condition with the three-role one (delete the old `Role Based Access Control Administrator` assignment first, as step 2 says). Without it `deploy-infra` stops at *Check the CMS identity*. Then run `deploy-infra`, and only after it succeeds `deploy-cms`: the new CMS needs the identity and the token vault that `deploy-infra` creates. Afterwards delete the storage account's role assignment shown as *Identity not found* ([infra README](infra/azure/README.md#cms-identity-and-key-vault)).
-2. Deploy this version. The CMS and both Sites must deploy together (snapshot schema version 2); the change touches `contract/client/`, so the push runs both `deploy-cms` and `deploy-site`.
-3. Delete the old documents. In Azure, an `Owner` grants themselves `Storage Blob Data Contributor` on the storage account for this and removes it afterwards; then:
-
-   ```bash
-   for p in events venues shortids posts; do
-     az storage blob delete-batch --auth-mode login --account-name <account> -s cms --pattern "data/orgs/*/$p/*"
-   done
-   ```
-
-   Locally, stop the CMS and run `rm -rf .data/cms/orgs/*/events .data/cms/orgs/*/venues .data/cms/orgs/*/shortids .data/cms/orgs/*/posts`. Blob versioning and soft delete keep copies for 90 and 30 days.
-4. Restart the Function app (or the local CMS): it rebuilds every snapshot when it starts, now without the old Events.
-5. In each Organization, connect the Facebook page if needed and press *Sync now*; add co-hosted events as Manual Events.
-6. **Moderators: remove Autofill.** The Autofill browser extension and userscript are gone and do nothing any more. Remove the extension (Chrome or Edge: `chrome://extensions` or `edge://extensions`; Firefox: `about:addons`) and the userscript from Violentmonkey, Tampermonkey or the iOS userscript manager. Whoever published the unlisted extension listings removes them from the Chrome Web Store and addons.mozilla.org.
-
-**From a version that stored Facebook page tokens** (before ADR 0005): the next daily purge rewrites each connection without its token, and old blob versions expire within 90 days. Delete the `TOKEN_ENC_KEY` secret from the GitHub `production` environment. The old token stays valid at Meta until the person who connected removes the app under Facebook *Settings → Apps and websites*; they approve it again on their next post.
 
 ### Backup and restore
 

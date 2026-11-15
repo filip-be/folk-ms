@@ -3,6 +3,7 @@
 - Status: accepted
 - Date: 2026-11-11
 - Changes the "bound to the Google `sub`, never matched by email" rule of [Access](../../access/README.md)
+- Amended by [ADR 0011](0011-facebook-sign-in-behind-a-feature-flag.md): Facebook sign-in is offered only while its Feature Flag is on (off by default)
 
 ## Context
 

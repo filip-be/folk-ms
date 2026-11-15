@@ -1,12 +1,12 @@
 # Access
 
-Who can use the CMS and for which Organizations: sign-in with Google or Facebook, the Super Admin, Moderators and their Invitations, sessions, and the Audit Log that records what they did. It uses the CMS, Storage, Google and Meta.
+Who can use the CMS and for which Organizations: sign-in with Google or Facebook, the Super Admin, Moderators and their Invitations, sessions, Feature Flags, and the Audit Log that records what they did. It uses the CMS, Storage, Google and Meta.
 
 ## How it works
 
 ### Sign-in
 
-There are two identity providers, Google and Facebook, and the sign-in screen offers both (`/auth/login?provider=google|facebook`). Apple can follow as one more `IdentityProvider` adapter; it costs $99 a year and needs its client secret rotated at least every six months.
+There are two identity providers, Google and Facebook (`/auth/login?provider=google|facebook`). Facebook sign-in is offered only while its Feature Flag `facebookSignIn` is on, which it is not by default, because it needs a Meta business app ([ADR 0011](../architecture/adr/0011-facebook-sign-in-behind-a-feature-flag.md)). While it is off, the Facebook sign-in start and callback are refused, a remembered last provider of Facebook falls back to Google, and the SPA shows neither the Facebook button nor *Link Facebook*. The sign-in screen learns what to offer from the public `GET /auth/methods` (`{"methods": ["google"]}`, only that); `/api/me` carries the same list as `signInMethods`. The Meta sign-in for the Social Account Connection, Sync and Social Posts does not depend on the flag. Apple can follow as one more `IdentityProvider` adapter; it costs $99 a year and needs its client secret rotated at least every six months.
 
 For Google, the CMS runs the authorization code flow with PKCE, nonce and state, and verifies the ID token by hand: RS256 against the cached JWKS, then `iss`, `aud` (and `azp`), `exp`, `iat`, nonce and `email_verified`. PKCE verifier, nonce and state live in a short-lived signed cookie. Facebook sign-in uses the Meta app that Sync and posting use ([ADR 0008](../architecture/adr/0008-facebook-sign-in-matched-by-email.md)). Its web login is plain OAuth, so there is no ID token. The CMS runs the code flow with state, redeems the code with the app secret, then reads `id`, `name` and `email` from Graph `/me`, signed with `appsecret_proof`, and drops the user token. The app is in Standard Access, so only Testers of the Meta app can sign in with Facebook.
 
@@ -31,6 +31,12 @@ flowchart LR
 - The Super Admin can invite, change a Moderator's Organizations, revoke an Invitation or revoke all access, each with a Recent sign-in (below). Revoking someone in the CMS does not remove them from the Meta app: also remove their *Tester* role (Meta app → *App roles*), or they can still sign in with Facebook if invited again, and connect, sync or post with their own Meta sign-in wherever they keep a page role. When that person is the one who turned Autosync on for an Organization they lose, Autosync turns off at once and its Facebook page token is deleted (decision 19); see [Social posting](../social-posting/README.md#autosync).
 - Every use case checks the user's access to the Organization it touches.
 
+### Feature Flags
+
+A Feature Flag turns a part of the CMS on or off for everyone, without a release. The known flags, each with a name, a description and a default, are a fixed list in [`cms/internal/domain/feature.go`](../../cms/internal/domain/feature.go); a name not in it is refused. The values set so far are one document, `system/feature-flags.json`, written with If-Match ([ADR 0002](../architecture/adr/0002-blob-json-documents-with-etag.md)); a flag never set has its default, and when the document cannot be read every flag counts as off.
+
+Only the Super Admin sees them, at *Administration → Feature flags* (`GET /api/feature-flags`). Changing one (`PUT /api/feature-flags/{flag}` with `{"enabled": true|false}`) needs a Recent sign-in, like other access changes, and is written to the Audit Log (`feature_flag.changed`). To add a flag, add its constant and entry in `feature.go` and gate the feature with `App.FeatureEnabled`; the API and the screen list it from there.
+
 ### Sessions and request security
 
 - The session cookie (`__Host-folkms`) is HMAC-signed, `HttpOnly; Secure; SameSite=Lax; Path=/`, valid for 8 hours. It carries a random nonce drawn at sign-in, whose SHA-256 hash is on the user document with the sign-in time (the last 16 are kept, one per device or browser). The user document is re-read on every request, and a session counts only if its nonce is there: so a cookie forged with a leaked `SESSION_KEY` is refused outright (T5), signing out deletes the record and ends that session for good, also for a copied cookie, and a revocation takes effect immediately.
@@ -47,7 +53,7 @@ While an Organization has Autosync on, the CMS keeps a Facebook page token that 
 - posting a Social Post with the stored token,
 - turning Autosync on or off,
 - replacing or disconnecting the Social Account Connection while Autosync is on,
-- inviting, changing a Moderator's Organizations, revoking an Invitation or a Moderator (the Super Admin).
+- inviting, changing a Moderator's Organizations, revoking an Invitation or a Moderator, changing a Feature Flag (the Super Admin).
 
 The time comes from the sign-in record the session's nonce points to (above), checked on the server. When the sign-in is older, the API answers so and the SPA sends the Moderator to sign in again. While Autosync is off, the Meta sign-in each action needs is the guard instead, as under [ADR 0005](../architecture/adr/0005-meta-sign-in-for-every-post.md). `SESSION_KEY` is itself a Key Vault reference ([Platform](../platform/README.md#infrastructure-and-cicd)).
 
@@ -59,7 +65,7 @@ The API does not depend on the language: every message it returns (errors, valid
 
 ### Audit Log
 
-An append-only record of Event changes (Overrides, CMS-only fields, Hide, Manual Events, the Bin), every Sync run, Social Posts and refusals, Autosync and connection changes, and access grants, in one append blob per day; when a day's blob is full (50,000 lines), it goes on in `<day>.2.log` and so on. Every use of a stored Facebook page token is in it, with the acting Moderator or `autosync`: the line `autosync.token_used` is written before the token is read, and the token is not used when it cannot be written (T8). Other lines are best effort. Only the Super Admin can read it. It outlives Events purged from the Bin. The CMS identity could rewrite it; every write to the `cms` container by any other identity raises an alert, and earlier versions of a rewritten blob are kept 90 days ([Platform](../platform/README.md#hosting)).
+An append-only record of Event changes (Overrides, CMS-only fields, Hide, Manual Events, the Bin), every Sync run, Social Posts and refusals, Autosync and connection changes, access grants and Feature Flag changes, in one append blob per day; when a day's blob is full (50,000 lines), it goes on in `<day>.2.log` and so on. Every use of a stored Facebook page token is in it, with the acting Moderator or `autosync`: the line `autosync.token_used` is written before the token is read, and the token is not used when it cannot be written (T8). Other lines are best effort. Only the Super Admin can read it: the Audit Log screen shows every day, newest first, 50 lines at a time with Load more, and can be filtered to one day (UTC). It outlives Events purged from the Bin. The CMS identity could rewrite it; every write to the `cms` container by any other identity raises an alert, and earlier versions of a rewritten blob are kept 90 days ([Platform](../platform/README.md#hosting)).
 
 ## Where it lives
 
@@ -70,17 +76,21 @@ An append-only record of Event changes (Overrides, CMS-only fields, Hide, Manual
 | Session cookie, CSRF, headers, rate limit | [`cms/internal/http/`](../../cms/internal/http/) |
 | Admin UI language: choice, switch and server pages | [`cms/admin/src/i18n.ts`](../../cms/admin/src/i18n.ts), [`cms/internal/http/lang.go`](../../cms/internal/http/lang.go) |
 | Moderators, Invitations and Audit Log screens | [`cms/admin/src/views/access.ts`](../../cms/admin/src/views/access.ts), [`cms/admin/src/views/audit.ts`](../../cms/admin/src/views/audit.ts) |
+| Feature Flags: the known flags, the use cases, the screen | [`cms/internal/domain/feature.go`](../../cms/internal/domain/feature.go), [`cms/internal/app/features.go`](../../cms/internal/app/features.go), [`cms/admin/src/views/features.ts`](../../cms/admin/src/views/features.ts) |
+| Which sign-in methods are offered (`/auth/methods`, the Facebook gate) | [`cms/internal/http/auth.go`](../../cms/internal/http/auth.go), [`cms/admin/src/main.ts`](../../cms/admin/src/main.ts) (sign-in screen), [`cms/admin/src/shell.ts`](../../cms/admin/src/shell.ts) (*Link Facebook*) |
 
 ## Change together
 
 | Rule | Files | What breaks |
 | --- | --- | --- |
 | The SPA and the server use the same language cookie | `cms/admin/src/i18n.ts`, `cms/internal/http/lang.go` | Server pages ignore the language chosen in the SPA. Enforced by `TestLangCookieMatchesAdmin` in `cms/internal/http`. |
+| The SPA names the sign-in methods the server answers | `cms/internal/http/auth.go` (`providerGoogle`, `providerFacebook`), `cms/admin/src/api.ts` (`SignInMethod`) | The sign-in screen never offers a provider, or offers one the server refuses. Enforced by `TestSignInMethodsMatchAdmin` in `cms/internal/http`. |
 
 ## Read next
 
 - [Platform](../platform/README.md): hosting and secrets
 - [ADR 0008](../architecture/adr/0008-facebook-sign-in-matched-by-email.md): Facebook sign-in, users matched by email
+- [ADR 0011](../architecture/adr/0011-facebook-sign-in-behind-a-feature-flag.md): Feature Flags, and Facebook sign-in behind one
 - [ADR 0010](../architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md): why a Recent sign-in guards the stored token
 - [Root README](../../README.md#operations): Google OAuth client, Meta app and Super Admin bootstrap
 - [CONTEXT.md](../../CONTEXT.md#access): the terms this capability uses

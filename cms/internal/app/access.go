@@ -6,7 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/filip-be/folk-ms/cms/internal/domain"
@@ -189,6 +192,13 @@ func (a *App) ReadAudit(ctx context.Context, p domain.Principal, day string) ([]
 	if _, err := time.Parse(time.DateOnly, day); err != nil {
 		return nil, problem("day", "nieprawidłowa data", "invalid date")
 	}
+	out, err := a.readAuditDay(ctx, day)
+	slices.Reverse(out)
+	return out, err
+}
+
+// readAuditDay returns one day of the Audit Log, oldest first.
+func (a *App) readAuditDay(ctx context.Context, day string) ([]AuditEntry, error) {
 	data, err := a.Audit.Read(ctx, day)
 	if err != nil {
 		return nil, err
@@ -202,8 +212,78 @@ func (a *App) ReadAudit(ctx context.Context, p domain.Principal, day string) ([]
 			out = append(out, e)
 		}
 	}
-	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
-		out[i], out[j] = out[j], out[i]
-	}
 	return out, sc.Err()
+}
+
+// AuditPageSize is how many Audit Log lines one AuditPage returns.
+const AuditPageSize = 50
+
+// AuditPage is a page of the Audit Log, newest first. Next continues it;
+// empty when there is nothing older.
+type AuditPage struct {
+	Entries []AuditEntry `json:"entries"`
+	Next    string       `json:"next,omitempty"`
+}
+
+// ReadAuditPage returns up to AuditPageSize lines of the Audit Log, newest
+// first, across days, or of one day when day is set. cursor is a previous
+// page's Next: "<day>:<n>" continues before the n-th line (from the oldest)
+// of that day, which stays stable while new lines are appended; "<day>"
+// starts from that day's newest line.
+func (a *App) ReadAuditPage(ctx context.Context, p domain.Principal, day, cursor string) (AuditPage, error) {
+	if err := requireSuperAdmin(p); err != nil {
+		return AuditPage{}, err
+	}
+	invalid := func(field string) (AuditPage, error) {
+		return AuditPage{}, problem(field, "nieprawidłowa wartość", "invalid value")
+	}
+	if day != "" {
+		if _, err := time.Parse(time.DateOnly, day); err != nil {
+			return invalid("day")
+		}
+	}
+	days, err := a.Audit.Segments(ctx)
+	if err != nil {
+		return AuditPage{}, err
+	}
+	if day != "" {
+		days = slices.DeleteFunc(days, func(d string) bool { return d != day })
+	}
+	i, before := len(days)-1, -1 // before < 0: from the newest line of days[i]
+	if cursor != "" {
+		cd, cn, hasN := strings.Cut(cursor, ":")
+		if i = slices.Index(days, cd); i < 0 {
+			return invalid("cursor")
+		}
+		if hasN {
+			if before, err = strconv.Atoi(cn); err != nil || before < 0 {
+				return invalid("cursor")
+			}
+		}
+	}
+	page := AuditPage{Entries: []AuditEntry{}}
+	for ; i >= 0; i, before = i-1, -1 {
+		entries, err := a.readAuditDay(ctx, days[i])
+		if err != nil {
+			return AuditPage{}, err
+		}
+		if before < 0 || before > len(entries) {
+			before = len(entries)
+		}
+		for before > 0 && len(page.Entries) < AuditPageSize {
+			before--
+			page.Entries = append(page.Entries, entries[before])
+		}
+		if len(page.Entries) < AuditPageSize {
+			continue
+		}
+		switch {
+		case before > 0:
+			page.Next = fmt.Sprintf("%s:%d", days[i], before)
+		case i > 0:
+			page.Next = days[i-1]
+		}
+		break
+	}
+	return page, nil
 }

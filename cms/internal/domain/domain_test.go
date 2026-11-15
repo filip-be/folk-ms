@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -229,6 +230,65 @@ func TestSyncLease(t *testing.T) {
 	}
 }
 
+// The next timer Sync: the first :07 tick (UTC) after now that is at least
+// AutosyncInterval after the last run.
+func TestNextAutosync(t *testing.T) {
+	utc := func(s string) time.Time {
+		v, err := time.Parse("2006-01-02 15:04:05", s)
+		if err != nil {
+			panic(err)
+		}
+		return v
+	}
+	ptr := func(s string) *time.Time { v := utc(s); return &v }
+	for _, c := range []struct {
+		last *time.Time
+		now  string
+		want string
+	}{
+		{ptr("2026-11-02 10:30:00"), "2026-11-02 10:30:05", "2026-11-02 12:07:00"}, // turned on at 10:30: 11:07 is 37 minutes later
+		{ptr("2026-11-02 10:17:00"), "2026-11-02 10:20:00", "2026-11-02 11:07:00"}, // exactly 50 minutes before the tick: it runs
+		{ptr("2026-11-02 10:17:01"), "2026-11-02 10:20:00", "2026-11-02 12:07:00"}, // a second less than 50 minutes: skipped
+		{ptr("2026-11-02 10:07:00"), "2026-11-02 10:07:30", "2026-11-02 11:07:00"}, // the timer's own run: the next tick
+		{ptr("2026-11-02 10:06:00"), "2026-11-02 10:06:30", "2026-11-02 11:07:00"}, // just before a tick: that one is too soon
+		{ptr("2026-11-02 08:00:00"), "2026-11-02 10:06:59", "2026-11-02 10:07:00"}, // long ago: the next tick
+		{ptr("2026-11-02 08:00:00"), "2026-11-02 10:07:00", "2026-11-02 11:07:00"}, // at a tick: the one after
+		{nil, "2026-11-02 23:30:00", "2026-11-03 00:07:00"},                        // never synced; across midnight
+		{ptr("2026-11-02 12:00:00"), "2026-11-02 10:00:00", "2026-11-02 13:07:00"}, // last run ahead of the clock
+	} {
+		if got := NextAutosync(c.last, utc(c.now)); !got.Equal(utc(c.want)) {
+			t.Errorf("last %v, now %s: %s, want %s", c.last, c.now, got, c.want)
+		}
+	}
+	// In any zone the answer is the same instant.
+	if got := NextAutosync(ptr("2026-11-02 10:30:00"), utc("2026-11-02 10:31:00").In(warsaw)); !got.Equal(utc("2026-11-02 12:07:00")) {
+		t.Errorf("warsaw: %s", got)
+	}
+}
+
+// The timer's schedule and the constants NextAutosync uses change together;
+// an interval of an hour or more would make Autosync run every other hour.
+func TestTimerScheduleMatchesTheDomain(t *testing.T) {
+	data, err := os.ReadFile("../../deploy/functions/sync/function.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Bindings []struct {
+			Type, Schedule string
+		}
+	}
+	if err := json.Unmarshal(data, &f); err != nil || len(f.Bindings) != 1 || f.Bindings[0].Type != "timerTrigger" {
+		t.Fatalf("function.json: %v %s", err, data)
+	}
+	if want := "0 " + strconv.Itoa(AutosyncTimerMinute) + " * * * *"; f.Bindings[0].Schedule != want {
+		t.Fatalf("schedule %q, want %q (AutosyncTimerMinute)", f.Bindings[0].Schedule, want)
+	}
+	if AutosyncInterval >= time.Hour {
+		t.Fatalf("AutosyncInterval %s must stay under the timer's hour", AutosyncInterval)
+	}
+}
+
 func TestRecentSignIn(t *testing.T) {
 	now := at("2026-11-02 10:00")
 	u := &User{ID: "u"}
@@ -415,5 +475,32 @@ func TestCheckImage(t *testing.T) {
 	}
 	if img, err := CheckImage("org-a", nil, "cover"); img != nil || err != nil {
 		t.Fatal("nil is no image")
+	}
+}
+
+func TestFeatureFlagsDefaultsAndUnknown(t *testing.T) {
+	var none *FeatureFlags
+	if none.Enabled(FeatureFacebookSignIn) {
+		t.Fatal("nothing stored: the default, off")
+	}
+	f := &FeatureFlags{Values: map[FeatureFlag]FeatureFlagValue{"retired": {Enabled: true}}}
+	if f.Enabled("retired") {
+		t.Fatal("a stored value of an unknown flag is ignored")
+	}
+	if _, err := f.Set("retired", true, "u", "", time.Now()); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown flag: %v", err)
+	}
+	if changed, err := f.Set(FeatureFacebookSignIn, false, "u", "", time.Now()); changed || err != nil {
+		t.Fatalf("off to off: %v %v", changed, err)
+	}
+	if changed, err := f.Set(FeatureFacebookSignIn, true, "u", "a@b.c", time.Now()); !changed || err != nil || !f.Enabled(FeatureFacebookSignIn) {
+		t.Fatalf("on: %v %v", changed, err)
+	}
+	seen := map[FeatureFlag]bool{}
+	for _, d := range FeatureFlagDefs() {
+		if seen[d.Key] || d.Key == "" || d.Name.PL == "" || d.Name.EN == "" || d.Description.PL == "" || d.Description.EN == "" {
+			t.Fatalf("flag definition: %+v", d)
+		}
+		seen[d.Key] = true
 	}
 }

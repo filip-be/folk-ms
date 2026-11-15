@@ -39,24 +39,52 @@ const (
 	providerFacebook = "facebook"
 )
 
-// idp returns the identity provider for a name, or nil.
-func (s *Server) idp(name string) ports.IdentityProvider {
+// idp returns the identity provider for a name, or nil when it is unknown
+// or not offered now.
+func (s *Server) idp(ctx context.Context, name string) ports.IdentityProvider {
 	switch name {
 	case providerGoogle:
 		return s.IdP
 	case providerFacebook:
-		return s.Facebook
+		if s.facebookOn(ctx) {
+			return s.Facebook
+		}
 	}
 	return nil
 }
 
-// loginProvider is the provider asked for, else the one used last, else
-// Google.
+// facebookOn reports whether Facebook sign-in is offered: configured, and
+// its Feature Flag on. The Meta sign-in of /auth/meta/callback (Social
+// Account Connection, Sync, Social Posts) does not depend on it.
+func (s *Server) facebookOn(ctx context.Context) bool {
+	return s.Facebook != nil && s.App.FeatureEnabled(ctx, domain.FeatureFacebookSignIn)
+}
+
+// signInMethods lists the providers the sign-in screen offers.
+func (s *Server) signInMethods(ctx context.Context) []string {
+	m := []string{}
+	if s.IdP != nil {
+		m = append(m, providerGoogle)
+	}
+	if s.facebookOn(ctx) {
+		m = append(m, providerFacebook)
+	}
+	return m
+}
+
+// methods answers the sign-in methods for the sign-in screen, which is
+// shown before sign-in; it says nothing else.
+func (s *Server) methods(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string][]string{"methods": s.signInMethods(r.Context())})
+}
+
+// loginProvider is the provider asked for, else the one used last (while
+// still offered), else Google.
 func (s *Server) loginProvider(r *http.Request) string {
 	if p := r.URL.Query().Get("provider"); p != "" {
 		return p
 	}
-	if c, err := r.Cookie(s.cookieName(idpCookie)); err == nil && s.idp(c.Value) != nil {
+	if c, err := r.Cookie(s.cookieName(idpCookie)); err == nil && s.idp(r.Context(), c.Value) != nil {
 		return c.Value
 	}
 	return providerGoogle
@@ -74,7 +102,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	provider := s.loginProvider(r)
-	idp := s.idp(provider)
+	idp := s.idp(r.Context(), provider)
 	if idp == nil {
 		s.authError(w, r, msg("Ten sposób logowania jest niedostępny.", "This sign-in method is not available."))
 		return
@@ -105,7 +133,12 @@ func (s *Server) callback(w http.ResponseWriter, r *http.Request) {
 	err := s.readCookie(r, oidcCookie, "oidc", &st)
 	s.setCookie(w, oidcCookie, "", -1)
 	q := r.URL.Query()
-	idp := s.idp(st.Provider)
+	if err == nil && st.Provider == providerFacebook && !s.facebookOn(r.Context()) {
+		// Turned off while the sign-in was under way.
+		s.authError(w, r, msg("Ten sposób logowania jest niedostępny.", "This sign-in method is not available."))
+		return
+	}
+	idp := s.idp(r.Context(), st.Provider)
 	if err != nil || idp == nil || time.Now().Unix() > st.Expires || q.Get("state") == "" || q.Get("state") != st.State {
 		s.authError(w, r, msg("Sesja logowania wygasła. Spróbuj ponownie.", "The sign-in session expired. Try again."))
 		return
@@ -252,41 +285,49 @@ func (s *Server) completeSync(w http.ResponseWriter, r *http.Request, p domain.P
 		return
 	}
 	_, err := s.App.CompleteSyncLogin(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
-	reason := "ok"
+	http.Redirect(w, r, back+"?sync="+s.syncReason(err, "sync now"), http.StatusSeeOther)
+}
+
+// syncReason is a Sync run's outcome as the callbacks report it in sync=.
+func (s *Server) syncReason(err error, what string) string {
 	switch {
 	case err == nil:
+		return "ok"
 	case errors.Is(err, ports.ErrNoPageAccess):
-		reason = "page"
+		return "page"
 	case errors.Is(err, domain.ErrTooSoon):
-		reason = "too_soon"
+		return "too_soon"
 	case errors.Is(err, domain.ErrConflict):
-		reason = "running"
+		return "running"
 	default:
-		s.Log.Warn("sync now", "err", err)
-		reason = "error"
+		s.Log.Warn(what, "err", err)
+		return "error"
 	}
-	http.Redirect(w, r, back+"?sync="+reason, http.StatusSeeOther)
 }
 
 // completeAutosync turns Autosync on with the Meta sign-in and sends the
-// Moderator back to the connection screen: autosync=on, or autosync=<reason>.
+// Moderator back to the connection screen: autosync=on with the outcome of
+// the Sync it ran at once in sync=<reason> (as completeSync reports it), or
+// autosync=<reason>.
 func (s *Server) completeAutosync(w http.ResponseWriter, r *http.Request, p domain.Principal, st metaState) {
 	back := "/app/orgs/" + url.PathEscape(st.Org) + "/social"
 	if r.URL.Query().Get("error") != "" {
 		http.Redirect(w, r, back+"?autosync=cancelled", http.StatusSeeOther)
 		return
 	}
-	err := s.App.CompleteAutosync(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
-	reason := "on"
+	on, err := s.App.CompleteAutosync(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
+	if err == nil {
+		http.Redirect(w, r, back+"?autosync=on&sync="+s.syncReason(on.SyncErr, "sync after autosync on"), http.StatusSeeOther)
+		return
+	}
+	reason := "error"
 	switch {
-	case err == nil:
 	case errors.Is(err, ports.ErrNoPageAccess):
 		reason = "page"
 	case errors.Is(err, domain.ErrRecentSignIn):
 		reason = "recent_sign_in"
 	default:
 		s.Log.Warn("autosync", "err", err)
-		reason = "error"
 	}
 	http.Redirect(w, r, back+"?autosync="+reason, http.StatusSeeOther)
 }

@@ -205,6 +205,8 @@ export interface SyncStatus {
   lastResult?: SyncResult;
   autosync: boolean;
   running: boolean;
+  /** When the timer next syncs; only while Autosync is on and the connection needs no reconnect. */
+  nextSyncAt?: string;
 }
 export interface OrgInfo {
   id: string;
@@ -219,7 +221,10 @@ export interface Me {
   orgs: OrgInfo[];
   /** Base URL of the public store (images, snapshots). */
   publicUrl: string;
+  /** The sign-in providers offered now. */
+  signInMethods: SignInMethod[];
 }
+export type SignInMethod = "google" | "facebook";
 export interface PageInfo {
   id: string;
   name: string;
@@ -231,6 +236,8 @@ export interface AutosyncStatus {
   dataAccessExpiresAt?: string;
   reconnectSoon: boolean;
   needsReconnect: boolean;
+  /** When the timer next syncs; absent while the connection needs a reconnect. */
+  nextSyncAt?: string;
 }
 export interface ConnectionStatus {
   connected: boolean;
@@ -303,6 +310,16 @@ export interface Invitation {
   createdAt: string;
   expiresAt: string;
 }
+/** A Feature Flag as the Super Admin sees it. */
+export interface FeatureFlag {
+  key: string;
+  name: Text;
+  description: Text;
+  default: boolean;
+  enabled: boolean;
+  changedAt?: string;
+  changedByEmail?: string;
+}
 export interface AuditEntry {
   time: string;
   actor: string;
@@ -311,6 +328,12 @@ export interface AuditEntry {
   org?: string;
   target?: string;
   details?: Record<string, unknown>;
+}
+
+/** Up to 50 Audit Log lines, newest first; next continues it. */
+export interface AuditPage {
+  entries: AuditEntry[];
+  next?: string;
 }
 
 // ── Video Collection (wideopomoc) ─────────────────────────────────────
@@ -346,13 +369,17 @@ export interface Labeled {
   label: Text;
   uses: number;
 }
+/** A Form with its optional description (absent when there is none). */
+export interface Form extends Labeled {
+  description?: Text;
+}
 export interface Country extends Labeled {
   regions: Labeled[];
 }
 /** The whole collection with its version; every change sends `etag` back. */
 export interface VideoCollection {
   etag: string;
-  forms: Labeled[];
+  forms: Form[];
   origins: Country[];
   videos: Video[];
 }
@@ -409,6 +436,8 @@ const o = (org: string) => `/api/orgs/${encodeURIComponent(org)}`;
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   logout: () => request<void>("POST", "/auth/logout"),
+  /** Public: the sign-in providers offered, for the sign-in screen. */
+  signInMethods: () => request<{ methods: SignInMethod[] }>("GET", "/auth/methods"),
 
   events: (org: string, view: string) => request<EventSummary[]>("GET", `${o(org)}/events?view=${view}`),
   event: (org: string, id: string) => request<EventView>("GET", `${o(org)}/events/${id}`),
@@ -450,11 +479,15 @@ export const api = {
   /** kind: "" for a Video, "forms/" or "origins/" for a list item. */
   moveItem: (org: string, kind: "" | "forms/" | "origins/", id: string, etag: string, to: number) =>
     request<VideoCollection>("POST", `${o(org)}/videos/${kind}${id}/move`, { to }, { "If-Match": etag }),
-  addForm: (org: string, etag: string, label: Text) => request<VideoCollection>("POST", `${o(org)}/videos/forms`, { label }, { "If-Match": etag }),
+  addForm: (org: string, etag: string, label: Text, description: Text) =>
+    request<VideoCollection>("POST", `${o(org)}/videos/forms`, { label, description }, { "If-Match": etag }),
+  /** Replaces a Form's label and description (empty clears it). */
+  updateForm: (org: string, id: string, etag: string, label: Text, description: Text) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/forms/${id}`, { label, description }, { "If-Match": etag }),
   addOrigin: (org: string, etag: string, label: Text, parentId = "") =>
     request<VideoCollection>("POST", `${o(org)}/videos/origins`, { label, parentId }, { "If-Match": etag }),
-  renameItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string, label: Text) =>
-    request<VideoCollection>("PUT", `${o(org)}/videos/${kind}${id}`, { label }, { "If-Match": etag }),
+  renameOrigin: (org: string, id: string, etag: string, label: Text) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/origins/${id}`, { label }, { "If-Match": etag }),
   removeItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string) =>
     request<VideoCollection>("DELETE", `${o(org)}/videos/${kind}${id}`, undefined, { "If-Match": etag }),
 
@@ -465,5 +498,9 @@ export const api = {
   invite: (email: string, orgs: string[]) => request<Invitation>("POST", "/api/invitations", { email, orgs }),
   revokeInvitation: (id: string) => request<Invitation>("POST", `/api/invitations/${id}/revoke`),
   auditDays: () => request<string[]>("GET", "/api/audit"),
-  audit: (day: string) => request<AuditEntry[]>("GET", `/api/audit/${day}`),
+  auditPage: (day = "", cursor = "") =>
+    request<AuditPage>("GET", `/api/audit/entries?${new URLSearchParams({ day, cursor })}`),
+  featureFlags: () => request<FeatureFlag[]>("GET", "/api/feature-flags"),
+  setFeatureFlag: (key: string, enabled: boolean) =>
+    request<FeatureFlag[]>("PUT", `/api/feature-flags/${encodeURIComponent(key)}`, { enabled }),
 };

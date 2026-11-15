@@ -83,7 +83,10 @@ export function renderShell(me: Me, org: string): void {
   const collapsed = stored(NAV_KEY) === "collapsed";
   const item = (href: string, name: IconName, label: string, key: string) =>
     html`<li><a class="nav-item" href="${href}" title="${label}" ${section === key ? raw('aria-current="page"') : ""}>${icon(name)}<span class="label">${label}</span></a></li>`;
-  const adminOpen = stored(ADMIN_KEY) !== "closed" || ["access", "audit", "design"].includes(section);
+  const adminOpen = stored(ADMIN_KEY) !== "closed" || ["access", "audit", "features", "design"].includes(section);
+  // The top bar names the selected site (organization), not the CMS.
+  const siteName = t((me.orgs.find((o) => o.id === org) ?? me.orgs[0])?.name) || "folk-ms";
+  const siteMark = html`<span class="brand-mark" aria-hidden="true">${[...siteName][0]?.toUpperCase() ?? "f"}</span>`;
   const app = document.getElementById("app")!;
   app.className = "app";
   app.dataset.nav = collapsed ? "collapsed" : "expanded";
@@ -92,11 +95,11 @@ export function renderShell(me: Me, org: string): void {
     <header class="topbar">
       <button type="button" class="icon-button" id="drawer-open" aria-controls="sidebar" aria-expanded="false"
         aria-label="${L("Otwórz menu", "Open menu")}">${icon("menu")}</button>
-      <a class="brand" href="/app/"><span class="brand-mark" aria-hidden="true">f</span>folk-ms</a>
+      <a class="brand" href="/app/" title="${siteName}">${siteMark}<span class="brand-name">${siteName}</span></a>
     </header>
     <aside class="sidebar" id="sidebar" aria-label="${L("Menu główne", "Main menu")}">
       <div class="sidebar-head">
-        <a class="brand" href="/app/" title="folk-ms"><span class="brand-mark" aria-hidden="true">f</span><span class="label">folk-ms</span></a>
+        <a class="brand" href="/app/" title="${siteName}">${siteMark}<span class="label brand-name">${siteName}</span></a>
         <button type="button" class="icon-button collapse-toggle" id="nav-collapse" aria-controls="sidebar"
           aria-expanded="${collapsed ? "false" : "true"}" aria-label="${collapseLabel(collapsed)}"
           title="${collapseLabel(collapsed)}">${icon("sidebar")}</button>
@@ -106,7 +109,7 @@ export function renderShell(me: Me, org: string): void {
       ${me.orgs.length > 1
         ? html`<label class="org-switch"><span class="sr-only">${L("Organizacja", "Organization")}</span>
             <select id="org-select">${me.orgs.map((o) => html`<option value="${o.id}" ${o.id === org ? "selected" : ""}>${t(o.name)}</option>`)}</select></label>`
-        : html`<p class="org-name" title="${t(me.orgs[0]?.name)}">${t(me.orgs[0]?.name)}</p>`}
+        : ""}
       <nav class="side-nav" aria-label="${L("Sekcje", "Sections")}">
         <ul>
           ${item(`/app/orgs/${org}/events`, "calendar", L("Wydarzenia", "Events"), "events")}
@@ -118,6 +121,7 @@ export function renderShell(me: Me, org: string): void {
                 <ul class="nav-tree">
                   ${item("/app/access", "users", L("Moderatorzy", "Moderators"), "access")}
                   ${item("/app/audit", "log", L("Audyt", "Audit log"), "audit")}
+                  ${item("/app/features", "toggle", L("Flagi funkcji", "Feature flags"), "features")}
                   ${item("/app/design", "palette", L("Design system", "Design system"), "design")}
                 </ul>
               </details></li>`
@@ -131,7 +135,7 @@ export function renderShell(me: Me, org: string): void {
         </div>
         ${themeButton()}
         ${langSwitch(true)}
-        ${me.superAdmin
+        ${me.superAdmin || !me.signInMethods.includes("facebook")
           ? ""
           : html`<a class="nav-item" href="/auth/login?provider=facebook&return=${encodeURIComponent(location.pathname)}" title="${L("Połącz logowanie przez Facebooka z tym kontem", "Link Facebook sign-in to this account")}">${icon("link")}<span class="label">${L("Połącz z Facebookiem", "Link Facebook")}</span></a>`}
         <button type="button" class="nav-item" id="logout" title="${L("Wyloguj", "Sign out")}">${icon("logout")}<span class="label">${L("Wyloguj", "Sign out")}</span></button>

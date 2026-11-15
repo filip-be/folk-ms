@@ -105,7 +105,7 @@ export class ManualView extends View {
       <form id="manual" class="editor">
         <a href="/app/orgs/${this.org}/events" class="muted small">← ${L("Wydarzenia", "Events")}</a>
         <div class="toolbar sticky">
-          <div><h1>${v ? t(v.effective.name) || L("(bez nazwy)", "(no name)") : L("Współorganizowane wydarzenie", "Co-hosted event")}</h1>
+          <div><h1>${v ? t(v.effective.name) || L("(bez nazwy)", "(no name)") : L("Importuj wydarzenie ręcznie", "Import event manually")}</h1>
             ${v ? flagBadges(v.flags, v.event.binReason) : ""}</div>
           <div class="actions">
             ${binned ? "" : html`<button type="submit" class="primary" id="save">${v ? L("Zapisz", "Save") : L("Dodaj wydarzenie", "Add event")}</button>`}

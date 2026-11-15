@@ -53,6 +53,8 @@ code {
   display: inline-flex; align-items: center; gap: var(--space-10); min-width: 0;
   font-size: var(--text-l); line-height: var(--leading-l); font-weight: var(--weight-bold); letter-spacing: var(--tracking-headline);
   color: var(--text); text-decoration: none;
+
+  & .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 .brand-mark {
   display: inline-grid; place-items: center; flex: none; width: var(--mark-size); height: var(--mark-size);
@@ -71,11 +73,6 @@ code {
   & .drawer-close { display: none; }
 }
 .org-switch select { margin: 0; }
-.org-name {
-  margin: 0; padding: 0 var(--space-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--muted);
-}
 .side-nav {
   flex: 1;
 
@@ -138,7 +135,7 @@ main#view {
 
     & .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     & .sidebar-head { flex-direction: column; padding: 0; }
-    & .org-switch, & .org-name, & .nav-group summary .icon:last-child { display: none; }
+    & .org-switch, & .nav-group summary .icon:last-child { display: none; }
     & .side-nav, & .sidebar-foot { align-self: stretch; }
     & .nav-item { justify-content: center; padding: 0; }
     & .nav-tree { margin: var(--space-2) 0 0; padding: 0; border: none; }
@@ -271,7 +268,12 @@ details.more {
 }
 
 /* ── Forms ───────────────────────────────────────────────────────────── */
-.field { margin-bottom: var(--space-16); }
+.field {
+  margin-bottom: var(--space-16);
+
+  /* A hint below the control keeps the label-to-control gap from it. */
+  & > :is(input, select, textarea) ~ p:not(.field-error) { margin-top: var(--space-6); }
+}
 .field label, label { display: block; font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
 input, select, textarea {
   width: 100%; min-height: var(--control-height); margin-top: var(--space-6); padding: var(--space-8) var(--space-12);
@@ -348,9 +350,15 @@ input[type=checkbox], input[type=radio] {
   width: auto; min-height: 0; margin: 0 var(--space-8) 0 0; box-shadow: none; accent-color: var(--action);
 }
 textarea { resize: vertical; }
-fieldset { margin: 0 0 var(--space-16); padding: 0; border: none; }
+/* min-width: 0 undoes the browser's min-content, so wide content wraps instead of overflowing. */
+fieldset {
+  min-width: 0; margin: 0 0 var(--space-16); padding: 0; border: none;
+
+  /* Fields already end with their own bottom margin; don't add a second one. */
+  &:has(> :is(.field, .grid, .pair):last-child) { margin-bottom: 0; }
+}
 legend { margin-bottom: var(--space-6); padding: 0; font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
-.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0 var(--space-24); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(14rem, 100%), 1fr)); gap: 0 var(--space-24); }
 /* A Polish and an English field side by side; stacked on narrow screens. */
 .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(16rem, 100%), 1fr)); gap: 0 var(--space-24); }
 .chip {
@@ -361,7 +369,8 @@ legend { margin-bottom: var(--space-6); padding: 0; font-size: var(--text-s); fo
   &:has(input:disabled) { border-style: dashed; border-color: var(--disabled-line); background: var(--disabled-bg); color: var(--disabled-text); cursor: not-allowed; }
 }
 label.inline {
-  display: inline-flex; align-items: center; gap: var(--space-6); margin-right: var(--space-16); font-weight: var(--weight-regular); color: var(--text);
+  /* The bottom margin spaces a checkbox from the next field as .field does. */
+  display: inline-flex; align-items: center; gap: var(--space-6); margin: 0 var(--space-16) var(--space-16) 0; font-weight: var(--weight-regular); color: var(--text);
 
   & input:not([type=checkbox]) { width: auto; margin: 0; }
 }
@@ -402,13 +411,14 @@ table.list {
   & tbody tr:hover { background: var(--surface-sunken); }
 }
 table.audit td.small { max-width: 30rem; word-break: break-word; }
+.audit-more { justify-content: center; margin-top: var(--space-16); }
 .badge {
   display: inline-block; padding: var(--space-2) var(--space-8); border-radius: var(--radius-sm);
   font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: var(--weight-medium); white-space: nowrap;
   background: var(--surface-sunken); color: var(--text-secondary); text-decoration: none;
 
   &.info { background: var(--info-soft); color: var(--info); }
-  &.published, &.posted, &.bound { background: var(--ok-soft); color: var(--ok); }
+  &.published, &.posted, &.bound, &.on { background: var(--ok-soft); color: var(--ok); }
   &.draft, &.pending, &.warn { background: var(--warn-soft); color: var(--warn); }
   &.binned, &.failed, &.revoked, &.expired { background: var(--danger-soft); color: var(--danger); }
 }
@@ -520,10 +530,11 @@ ol.occurrence-list {
   margin: 0 0 var(--space-8); padding: 0; list-style: none;
 
   & li {
-    display: grid; grid-template-columns: repeat(4, minmax(8rem, 1fr)) auto auto; align-items: end; gap: 0 var(--space-12);
+    /* Wraps whatever does not fit; each field keeps room for a date. */
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 var(--space-12);
     padding: var(--space-8) 0; border-bottom: 1px solid var(--line-subtle);
 
-    & .field { margin-bottom: var(--space-4); }
+    & .field { flex: 1 1 10rem; min-width: 0; margin-bottom: var(--space-4); }
     & label.inline, & button { margin-bottom: var(--space-12); }
   }
 }
@@ -534,6 +545,10 @@ ol.occurrence-list {
   margin-top: var(--space-16); padding-top: var(--space-16); border-top: 1px solid var(--line);
 
   &:first-of-type { margin-top: 0; padding-top: 0; border-top: none; }
+  /* The divider already separates blocks; h3's own top margin would double it. */
+  & h3 { margin-top: 0; }
+  /* The file hint keeps the same gap from its button as a field hint from its control. */
+  & .button + p { margin-top: var(--space-6); }
   &.uploading { opacity: .5; pointer-events: none; }
 }
 .previews {
@@ -615,7 +630,13 @@ ol.sortable.countries > li {
   & .add-region summary { list-style: none; margin-bottom: var(--space-8); }
   & .add-region summary::-webkit-details-marker { display: none; }
 }
-.label-form .field { flex: 1 1 12rem; margin-bottom: 0; }
+.label-form .field {
+  flex: 1 1 12rem; margin-bottom: 0;
+
+  /* A Form's description takes the whole row. */
+  &:has(textarea) { flex-basis: 100%; }
+}
+.form-description { margin: var(--space-4) 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 form.label-form.add { align-items: end; }
 .video-preview {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); margin: 0;
@@ -700,7 +721,6 @@ table.type-scale {
     & th, & td { padding: var(--space-10) var(--space-12); }
     & th:nth-child(3), & td:nth-child(3) { display: none; }
   }
-  ol.occurrence-list li { grid-template-columns: 1fr 1fr; }
   .toolbar.sticky { position: static; }
   .toast { left: calc(var(--space-16) + var(--safe-left)); max-width: none; }
 }
