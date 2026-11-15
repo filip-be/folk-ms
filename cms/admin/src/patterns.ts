@@ -84,7 +84,7 @@ export function autosyncWarning(id = "autosync-warning"): Raw {
   return html`<div class="banner warn" id="${id}">
     <p><strong>${L("Co oznacza włączenie Autosync", "What turning Autosync on means")}</strong></p>
     <ul>
-      <li>${L("CMS zapisuje token strony na Facebooku w Azure Key Vault. Nikt nie może go odczytać przez CMS.", "The CMS stores a Facebook page token in Azure Key Vault. Nobody can read it through the CMS.")}</li>
+      <li>${L("CMS zapisuje token strony na Facebooku na serwerze. Nikt nie może go odczytać przez CMS.", "The CMS stores a Facebook page token in the backend. Nobody can read it through the CMS.")}</li>
       <li>${L("Z tym tokenem CMS co godzinę odczytuje wydarzenia strony i publikuje posty bez logowania do Meta (po niedawnym logowaniu do CMS). Kto mógłby uruchomić kod jako CMS, mógłby publikować na stronie.", "With it the CMS reads the page's events every hour and posts Social Posts without a Meta sign-in (after a recent CMS sign-in). Whoever could run code as the CMS could post to the page.")}</li>
       <li>${L("Meta kończy dostęp tokenu do danych po 90 dniach: ktoś musi zalogować się do Meta ponownie co najmniej tak często.", "Meta ends the token's data access after 90 days: someone must sign in with Meta again at least that often.")}</li>
       <li>${L("Wyłączenie Autosync, zmiana lub odłączenie strony usuwa token.", "Turning Autosync off, or changing or disconnecting the page, deletes the token.")}</li>
