@@ -18,7 +18,7 @@ An event page on Facebook; the source of an Event. Created and edited only on Fa
 _Avoid_: "event" alone (that is an Event), "post" (that is a Social Post).
 
 **Sync**
-Pulling an Organization's Facebook Events, those its Facebook page created, into the CMS: new ones become Events, changed ones update theirs, cancelled ones are shown as cancelled, and one Facebook confirms is gone moves to the Bin. Runs when a Moderator presses "Sync now", and hourly while Autosync is on. Never undoes a Moderator's Override, Hide or CMS text, and never touches a Manual Event.
+Pulling an Organization's Facebook Events, those its Facebook page created, into the CMS: new ones become Events, changed ones update theirs, cancelled ones are shown as cancelled, and one Facebook confirms is gone moves to the Bin. Runs when a Moderator presses "Sync now", once when Autosync is turned on, and hourly while it is on. Never undoes a Moderator's Override, Hide or CMS text, and never touches a Manual Event.
 
 **Autosync**
 An Organization's opt-in to hourly Sync. Turning it on also runs one Sync right away; Autosync stays on if that Sync fails. While it is on, the CMS keeps a Facebook page token for the Organization; Meta lets that token read data for 90 days after the sign-in that issued it, so someone signs in with Meta again at least that often. Off by default.

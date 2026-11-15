@@ -127,8 +127,8 @@ class SocialView extends View {
     const on = sw.checked;
     const question = on
       ? L(
-          "Włączyć Autosync? CMS zapisze token strony na Facebooku w Azure Key Vault i będzie co godzinę synchronizować wydarzenia oraz publikować posty bez logowania do Meta. Teraz nastąpi logowanie do Meta.",
-          "Turn Autosync on? The CMS will store a Facebook page token in Azure Key Vault, sync the events every hour and post Social Posts without a Meta sign-in. You will now sign in with Meta.",
+          "Włączyć Autosync? CMS zapisze token strony na Facebooku w Azure Key Vault i będzie synchronizować wydarzenia od razu, a potem co godzinę, oraz publikować posty bez logowania do Meta. Teraz nastąpi logowanie do Meta.",
+          "Turn Autosync on? The CMS will store a Facebook page token in Azure Key Vault, sync the events at once and then every hour, and post Social Posts without a Meta sign-in. You will now sign in with Meta.",
         )
       : L(
           "Wyłączyć Autosync? Zapisany token zostanie usunięty; synchronizacja i posty będą znów wymagać logowania do Meta.",
