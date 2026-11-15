@@ -6,8 +6,8 @@
       "timezone": "Europe/Warsaw",
       "site": {
         "id": "balfolk-poznan",
-        "baseUrl": "https://balfolk-poznan.example",
-        "origins": ["https://balfolk-poznan.example", "http://localhost:5173"],
+        "baseUrl": "https://jolly-ocean-08eae9803.6.azurestaticapps.net",
+        "origins": ["https://jolly-ocean-08eae9803.6.azurestaticapps.net", "http://localhost:5173"],
         "permalinkTemplate": "/{lang}/events/{shortId}-{slug}"
       }
     },
@@ -17,8 +17,8 @@
       "timezone": "Europe/Warsaw",
       "site": {
         "id": "celtycki-wroclaw",
-        "baseUrl": "https://celtycki-wroclaw.example",
-        "origins": ["https://celtycki-wroclaw.example", "http://localhost:5174"],
+        "baseUrl": "https://ambitious-desert-0e234de03.4.azurestaticapps.net",
+        "origins": ["https://ambitious-desert-0e234de03.4.azurestaticapps.net", "http://localhost:5174"],
         "permalinkTemplate": "/{lang}/events/{shortId}-{slug}"
       }
     }
