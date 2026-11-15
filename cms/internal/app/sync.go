@@ -25,6 +25,24 @@ type SyncStatusView struct {
 	Autosync bool `json:"autosync"`
 	// Running: a run holds the lease now.
 	Running bool `json:"running"`
+	// NextSyncAt: when the timer will next sync, while Autosync is on and
+	// the connection does not need reconnecting.
+	NextSyncAt *time.Time `json:"nextSyncAt,omitempty"`
+}
+
+// nextAutosync is when the timer will next sync the Organization, or nil
+// when it will not (Autosync off, or the connection needs reconnecting, which
+// AutosyncAll skips). st is its sync status, nil before the first run.
+func (a *App) nextAutosync(as *domain.Autosync, st *domain.SyncStatus) *time.Time {
+	if as == nil || as.NeedsReconnect {
+		return nil
+	}
+	var last *time.Time
+	if st != nil {
+		last = st.LastRunAt
+	}
+	next := domain.NextAutosync(last, a.now())
+	return &next
 }
 
 // SyncStatus returns an Organization's sync status.
@@ -39,12 +57,15 @@ func (a *App) SyncStatus(ctx context.Context, p domain.Principal, org string) (S
 		v.SyncStatus = *st
 		v.Running = a.now().Before(st.LeaseUntil)
 		v.LeaseHolder = ""
-	case !errors.Is(err, domain.ErrNotFound):
+	case errors.Is(err, domain.ErrNotFound):
+		st = nil
+	default:
 		return v, err
 	}
 	conn, _, err := load[domain.Connection](ctx, a.Docs, connectionKey(org))
 	if err == nil {
 		v.Autosync = conn.Autosync != nil
+		v.NextSyncAt = a.nextAutosync(conn.Autosync, st)
 	} else if !errors.Is(err, domain.ErrNotFound) {
 		return v, err
 	}

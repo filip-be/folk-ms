@@ -4,7 +4,7 @@
 
 import { api, ApiError, type ConnectionStatus, type PageInfo, type SyncResult } from "../api.ts";
 import { L } from "../i18n.ts";
-import { autosyncWarning, connectionBanners, removeAppInstruction, resultText, switchControl, syncOutcome } from "../patterns.ts";
+import { autosyncWarning, connectionBanners, nextSyncText, removeAppInstruction, resultText, switchControl, syncOutcome } from "../patterns.ts";
 import { busy, fmtDate, fmtDateTime, html, recentSignInBanner, showError, showRecentSignIn, toast } from "../ui.ts";
 import { View } from "../view.ts";
 
@@ -233,6 +233,7 @@ class SocialView extends View {
             <dt>${L("Włączył(a)", "Turned on by")}</dt><dd>${as.byEmail} · ${fmtDateTime(as.at)}</dd>
             <dt>${L("Dostęp do danych do", "Data access until")}</dt><dd>${as.dataAccessExpiresAt ? fmtDate(as.dataAccessExpiresAt) : "–"}
               ${as.needsReconnect ? html` <span class="badge failed">${L("token odrzucony", "token refused")}</span>` : as.reconnectSoon ? html` <span class="badge warn">${L("wkrótce", "soon")}</span>` : ""}</dd>
+            ${as.nextSyncAt ? html`<dt>${L("Następna automatyczna synchronizacja", "Next automatic sync")}</dt><dd>${nextSyncText(as.nextSyncAt)}</dd>` : ""}
           </dl>
           <p><button type="button" class="secondary" id="renew" ${guarded ? "disabled" : ""}>${L("Odnów: zaloguj się do Meta", "Renew: sign in with Meta")}</button></p>`
         : html`<p class="small">${L(

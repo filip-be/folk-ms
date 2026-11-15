@@ -6,7 +6,7 @@
 import type { ConnectionStatus, Flags, OverrideField, SyncResult } from "./api.ts";
 import { icon } from "./icons.ts";
 import { L } from "./i18n.ts";
-import { fmtDate, html, raw, type Raw } from "./ui.ts";
+import { fmtDate, fmtDateTime, fmtTime, html, raw, type Raw } from "./ui.ts";
 
 export const FIELD_LABEL: Record<OverrideField, string> = {
   name: L("nazwa", "name"),
@@ -56,6 +56,15 @@ export function syncOutcome(reason: string, pageName: string): [string, "ok" | "
     default:
       return [L("Synchronizacja nie powiodła się. Szczegóły w panelu synchronizacji na liście wydarzeń.", "Sync failed. See the sync panel in the Event list for details."), "error"];
   }
+}
+
+/** When the next automatic Sync runs, as the backend computed it: "today 12:07", "tomorrow 00:07" or the full date. */
+export function nextSyncText(at: string): string {
+  const day = fmtDate(at);
+  const now = Date.now();
+  if (day === fmtDate(new Date(now).toISOString())) return `${L("dziś", "today")} ${fmtTime(at)}`;
+  if (day === fmtDate(new Date(now + 86_400_000).toISOString())) return `${L("jutro", "tomorrow")} ${fmtTime(at)}`;
+  return fmtDateTime(at);
 }
 
 /** The counts of one Sync run. */

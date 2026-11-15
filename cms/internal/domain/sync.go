@@ -93,6 +93,31 @@ const SyncNowInterval = time.Minute
 // AutosyncInterval is the least time between two Syncs the timer starts.
 const AutosyncInterval = 50 * time.Minute
 
+// AutosyncTimerMinute is the minute past each hour (UTC) at which the sync
+// timer fires: the schedule "0 7 * * * *" in
+// cms/deploy/functions/sync/function.json (a test keeps them equal).
+const AutosyncTimerMinute = 7
+
+// NextAutosync is when the timer will next sync an Organization with
+// Autosync on whose last run started at lastRun (nil: never): the first
+// timer tick after now that finds that run at least AutosyncInterval old.
+// Turned on at 10:30 (so last run 10:30), it is 12:07: 11:07 is too soon.
+func NextAutosync(lastRun *time.Time, now time.Time) time.Time {
+	tick := now.UTC().Truncate(time.Hour).Add(AutosyncTimerMinute * time.Minute)
+	if !tick.After(now) {
+		tick = tick.Add(time.Hour)
+	}
+	if lastRun != nil {
+		if due := lastRun.Add(AutosyncInterval); tick.Before(due) {
+			tick = tick.Add(due.Sub(tick).Truncate(time.Hour))
+			if tick.Before(due) {
+				tick = tick.Add(time.Hour)
+			}
+		}
+	}
+	return tick
+}
+
 // SyncResult counts what one Sync run did.
 type SyncResult struct {
 	Listed    int      `json:"listed"`

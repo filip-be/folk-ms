@@ -20,6 +20,8 @@ When Graph rejects the stored token (code 190: revoked, the role lost, the app r
 
 `POST /sync` is public, like `POST /purge`: the Functions host cannot attach a secret to a timer call, and the catch-all HTTP route exposes it. It takes no input. One instance scans the Organizations at most once every 5 minutes, and the app can scale out, so the real bound lives in storage: each run first claims the Organization's sync status document `orgs/{org}/sync/status.json` with its ETag. The document holds a 5-minute lease and the time of the last run; a run that finds the lease held, or the last run too recent (1 minute for "Sync now" and the Sync of turning Autosync on, 50 minutes for Autosync), does nothing. The stored token is read only after the claim succeeds, so calling `/sync` or "Sync now" repeatedly multiplies neither Graph calls nor Key Vault reads. The answer to `/sync` never carries error details; they go to the log. The same document records the first Sync, the last run and who ran it (a user or `autosync`), the last success, the last error and the counts of the last run; the Event list shows them.
 
+While Autosync is on and the connection does not need reconnecting, the sync status (`GET /api/orgs/{org}/sync`) and the connection (`GET /api/orgs/{org}/social`, under `autosync`) also give `nextSyncAt`: the first timer tick (:07 UTC) after now that finds the last run at least 50 minutes old, computed by `domain.NextAutosync` from the same rules the timer applies. The Event list and the connection screen show it ("Next automatic sync: today 12:07"). It is when the timer will try; a lease held at that moment, or a "Sync now" before it, moves it, and a page that refuses the token ends it.
+
 ### One run
 
 ```mermaid
@@ -59,7 +61,7 @@ A spike on 2026-11-13 (Graph v24.0, a test Facebook page, Standard Access, the M
 
 | What | Path |
 | --- | --- |
-| Facebook part, sanitizing, `ApplyFacebook`, lease, intervals | [`cms/internal/domain/sync.go`](../../cms/internal/domain/sync.go) |
+| Facebook part, sanitizing, `ApplyFacebook`, lease, intervals, the next timer Sync | [`cms/internal/domain/sync.go`](../../cms/internal/domain/sync.go) |
 | Followed, Occurrences, effective values | [`cms/internal/domain/event.go`](../../cms/internal/domain/event.go) |
 | Sync runs, "Sync now", Autosync of all Organizations, the gone rule | [`cms/internal/app/sync.go`](../../cms/internal/app/sync.go) |
 | Index documents and storage keys | [`cms/internal/app/events.go`](../../cms/internal/app/events.go), [`cms/internal/app/app.go`](../../cms/internal/app/app.go) |
@@ -75,7 +77,7 @@ A spike on 2026-11-13 (Graph v24.0, a test Facebook page, Standard Access, the M
 
 | Rule | Files | What breaks |
 | --- | --- | --- |
-| The timer runs more often than the Autosync interval, and that interval stays under an hour | `cms/deploy/functions/sync/function.json` (`schedule`), `cms/internal/domain/sync.go` (`AutosyncInterval`) | With an interval of an hour or more, each hourly run finds the last one too recent and Autosync runs every other hour, silently. |
+| The timer runs more often than the Autosync interval, and that interval stays under an hour; the timer's minute is `AutosyncTimerMinute` | `cms/deploy/functions/sync/function.json` (`schedule`), `cms/internal/domain/sync.go` (`AutosyncInterval`, `AutosyncTimerMinute`, `NextAutosync`) | With an interval of an hour or more, each hourly run finds the last one too recent and Autosync runs every other hour, silently. With another schedule, the next automatic sync the Event list and connection screen show is wrong. Enforced by `TestTimerScheduleMatchesTheDomain` in `cms/internal/domain/domain_test.go` (an hourly schedule only). |
 | The "Sync now" and Autosync callback outcomes have a message in the SPA | `cms/internal/http/auth.go` (`syncReason`: `sync=ok,page,too_soon,running,error`, plus `cancelled` from `completeSync`; `completeAutosync`: `autosync=on` with its Sync's `sync=`, or `autosync=page,recent_sign_in,error,cancelled`), `syncOutcome` in `cms/admin/src/patterns.ts`, the Event list and connection screen in `cms/admin/src/views/` | The Moderator sees no message or a generic one after the Meta sign-in. Not enforced by a test yet. |
 
 How often the CMS reads a stored token is bound to the Key Vault alert: see [Platform, Change together](../platform/README.md#change-together).

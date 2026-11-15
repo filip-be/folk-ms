@@ -523,7 +523,7 @@ func TestSyncNowWithMetaSignIn(t *testing.T) {
 		t.Fatalf("again within a minute: %d %s", resp.StatusCode, body)
 	}
 	_, body = h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil)
-	if !strings.Contains(body, `"autosync":false`) || !strings.Contains(body, `"lastSuccessAt"`) || strings.Contains(body, "leaseHolder") {
+	if !strings.Contains(body, `"autosync":false`) || !strings.Contains(body, `"lastSuccessAt"`) || strings.Contains(body, "leaseHolder") || strings.Contains(body, "nextSyncAt") {
 		t.Fatalf("status: %s", body)
 	}
 }
@@ -610,8 +610,11 @@ func TestAutosyncOnReportsItsSync(t *testing.T) {
 	if got.Query().Get("autosync") != "on" || got.Query().Get("sync") != "ok" || len(h.social.Calls) != calls+1 {
 		t.Fatalf("ok landed on %s, calls %v", got, h.social.Calls)
 	}
-	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil); !strings.Contains(body, `"lastResult":{"listed":3`) {
+	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil); !strings.Contains(body, `"lastResult":{"listed":3`) || !strings.Contains(body, `"nextSyncAt":"`) {
 		t.Fatalf("status: %s", body)
+	}
+	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/social", "", nil); !strings.Contains(body, `"nextSyncAt":"`) {
+		t.Fatalf("connection: %s", body)
 	}
 
 	// Cancelled at Meta: Autosync stays as it was and nothing syncs.

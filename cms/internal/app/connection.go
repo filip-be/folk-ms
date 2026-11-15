@@ -39,6 +39,9 @@ type AutosyncStatus struct {
 	DataAccessExpiresAt *time.Time `json:"dataAccessExpiresAt,omitempty"`
 	ReconnectSoon       bool       `json:"reconnectSoon"`
 	NeedsReconnect      bool       `json:"needsReconnect"`
+	// NextSyncAt: when the timer will next sync; absent while the
+	// connection needs reconnecting.
+	NextSyncAt *time.Time `json:"nextSyncAt,omitempty"`
 }
 
 // PageInfo is a Facebook page to choose from.
@@ -89,6 +92,11 @@ func (a *App) SocialStatus(ctx context.Context, p domain.Principal, org string) 
 		if as := c.Autosync; as != nil {
 			st.Autosync = &AutosyncStatus{ByEmail: as.ByEmail, At: as.At, DataAccessExpiresAt: as.DataAccessExpiresAt,
 				ReconnectSoon: as.ReconnectSoon(a.now()), NeedsReconnect: as.NeedsReconnect}
+			syncSt, _, err := load[domain.SyncStatus](ctx, a.Docs, syncStatusKey(org))
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return st, err
+			}
+			st.Autosync.NextSyncAt = a.nextAutosync(as, syncSt)
 		}
 	case !errors.Is(err, domain.ErrNotFound):
 		return st, err

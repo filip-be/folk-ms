@@ -2,7 +2,7 @@
 // the connection banners.
 
 import { api, ApiError, type ConnectionStatus, type EventSummary, type SyncStatus } from "../api.ts";
-import { connectionBanners, flagBadges, resultText, syncOutcome } from "../patterns.ts";
+import { connectionBanners, flagBadges, nextSyncText, resultText, syncOutcome } from "../patterns.ts";
 import { busy, fmtDate, fmtDateTime, html, navigate, raw, showError, t, toast } from "../ui.ts";
 import { View } from "../view.ts";
 import { L } from "../i18n.ts";
@@ -98,6 +98,7 @@ class EventsView extends View {
         <dt>${L("Ostatnia synchronizacja", "Last sync")}</dt><dd>${s.lastRunAt ? html`${fmtDateTime(s.lastRunAt)}${by ? html` <span class="muted">(${by})</span>` : ""}` : L("jeszcze nie było", "none yet")}</dd>
         <dt>${L("Ostatnia udana", "Last success")}</dt><dd>${s.lastSuccessAt ? fmtDateTime(s.lastSuccessAt) : "–"}${s.lastResult && !failed ? html`<div class="muted small">${resultText(s.lastResult)}</div>` : ""}</dd>
         ${s.lastError ? html`<dt>${L("Ostatni błąd", "Last error")}</dt><dd class="${failed ? "error" : "muted"}">${s.lastError}</dd>` : ""}
+        ${s.autosync && s.nextSyncAt ? html`<dt>${L("Następna automatyczna synchronizacja", "Next automatic sync")}</dt><dd>${nextSyncText(s.nextSyncAt)}</dd>` : ""}
       </dl>
       ${s.autosync
         ? html`<p class="muted small">${L("Autosync synchronizuje wydarzenia co godzinę.", "Autosync syncs the events every hour.")}</p>`

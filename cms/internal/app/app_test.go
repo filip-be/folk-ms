@@ -897,8 +897,11 @@ func TestAutosync(t *testing.T) {
 	if _, err := e.a.SyncNow(e.ctx, sa, "org-b"); !errors.Is(err, ports.ErrTokenRejected) {
 		t.Fatalf("rejected token: %v", err)
 	}
-	if st := must[app.ConnectionStatus](t)(e.a.SocialStatus(e.ctx, sa, "org-b")); st.Autosync == nil || !st.Autosync.NeedsReconnect {
+	if st := must[app.ConnectionStatus](t)(e.a.SocialStatus(e.ctx, sa, "org-b")); st.Autosync == nil || !st.Autosync.NeedsReconnect || st.Autosync.NextSyncAt != nil {
 		t.Fatalf("%+v", st.Autosync)
+	}
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-b")); !v.Autosync || v.NextSyncAt != nil {
+		t.Fatalf("the timer skips a connection that needs reconnecting: %+v", v)
 	}
 	e.social.RejectToken = false
 	e.advance(time.Hour)
@@ -956,6 +959,17 @@ func TestAutosyncOnSyncsAtOnce(t *testing.T) {
 	}
 	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-a")); v.LastRunBy != sa.ID() || v.LastSuccessAt == nil || !v.Autosync {
 		t.Fatalf("status: %+v", v)
+	}
+	// Turned on at 12:00 UTC: 12:07 is too soon after this run, so the timer's next Sync is 13:07.
+	next := time.Date(2026, 11, 1, 13, 7, 0, 0, time.UTC)
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-a")); v.NextSyncAt == nil || !v.NextSyncAt.Equal(next) {
+		t.Fatalf("next sync: %v", v.NextSyncAt)
+	}
+	if st := must[app.ConnectionStatus](t)(e.a.SocialStatus(e.ctx, sa, "org-a")); st.Autosync.NextSyncAt == nil || !st.Autosync.NextSyncAt.Equal(next) {
+		t.Fatalf("next sync on the connection: %v", st.Autosync.NextSyncAt)
+	}
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-b")); v.NextSyncAt != nil {
+		t.Fatalf("org-b has Autosync off: %v", v.NextSyncAt)
 	}
 	if len(must[[]app.EventSummary](t)(e.a.ListEvents(e.ctx, sa, "org-a", ""))) != 1 {
 		t.Fatal("the Event is imported")
@@ -1025,6 +1039,9 @@ func TestAutosyncOnSyncsAtOnce(t *testing.T) {
 	}
 	if len(e.social.Calls) != before {
 		t.Fatalf("off synced: %v", e.calls(before))
+	}
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-a")); v.NextSyncAt != nil {
+		t.Fatalf("off: next sync %v", v.NextSyncAt)
 	}
 	e.noTokenStored(t, token)
 }
