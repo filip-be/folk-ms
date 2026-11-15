@@ -14,6 +14,7 @@ import "./views/videos.ts";
 import "./views/video.ts";
 import "./views/access.ts";
 import "./views/audit.ts";
+import "./views/features.ts";
 import "./views/design.ts";
 
 interface Route {
@@ -34,6 +35,7 @@ const routes: Route[] = [
   { re: /^\/app\/orgs\/([^/]+)\/videos\/([a-z2-7]{8})$/, tag: "folk-video", names: ["org", "id"] },
   { re: /^\/app\/access$/, tag: "folk-access", names: [], superAdmin: true },
   { re: /^\/app\/audit$/, tag: "folk-audit", names: [], superAdmin: true },
+  { re: /^\/app\/features$/, tag: "folk-features", names: [], superAdmin: true },
   { re: /^\/app\/design$/, tag: "folk-design", names: [], superAdmin: true },
 ];
 
@@ -101,18 +103,26 @@ function resetApp(): void {
   delete app.dataset.drawer;
 }
 
-function signInScreen(): void {
+/** The sign-in screen offers only the providers the CMS offers now (Facebook is behind a Feature Flag). */
+async function signInScreen(): Promise<void> {
   resetApp();
   const ret = encodeURIComponent(location.pathname + location.search);
+  const methods = await api
+    .signInMethods()
+    .then((r) => r.methods)
+    .catch(() => ["google"]);
+  const facebook = methods.includes("facebook");
   document.getElementById("app")!.innerHTML = html`
     <main class="card narrow signin">
       <h1>folk-ms</h1>
       <p>${L("Zarządzanie dynamiczną treścią stron internetowych.", "Dynamic content management for websites.")}</p>
       <div class="providers">
         <a class="button primary" href="/auth/login?provider=google&return=${ret}">${L("Zaloguj się przez Google", "Sign in with Google")}</a>
-        <a class="button" href="/auth/login?provider=facebook&return=${ret}">${L("Zaloguj się przez Facebooka", "Sign in with Facebook")}</a>
+        ${facebook ? html`<a class="button" href="/auth/login?provider=facebook&return=${ret}">${L("Zaloguj się przez Facebooka", "Sign in with Facebook")}</a>` : ""}
       </div>
-      <p class="muted small">${L("Logowanie przez Facebooka działa dla osób dodanych jako testerzy aplikacji Meta. Administrator loguje się tylko przez Google.", "Facebook sign-in works for people added as Testers of the Meta app. The administrator signs in with Google only.")}</p>
+      ${facebook
+        ? html`<p class="muted small">${L("Logowanie przez Facebooka działa dla osób dodanych jako testerzy aplikacji Meta. Administrator loguje się tylko przez Google.", "Facebook sign-in works for people added as Testers of the Meta app. The administrator signs in with Google only.")}</p>`
+        : ""}
       <p class="muted small">${L("Dostęp mają wyłącznie osoby zaproszone przez administratora.", "Only people invited by the administrator have access.")}</p>
       ${langSwitch()}
     </main>`.value;
@@ -135,7 +145,7 @@ async function start(): Promise<void> {
     me = await api.me();
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
-      signInScreen();
+      await signInScreen();
       return;
     }
     showError(err);

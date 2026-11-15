@@ -219,7 +219,10 @@ export interface Me {
   orgs: OrgInfo[];
   /** Base URL of the public store (images, snapshots). */
   publicUrl: string;
+  /** The sign-in providers offered now. */
+  signInMethods: SignInMethod[];
 }
+export type SignInMethod = "google" | "facebook";
 export interface PageInfo {
   id: string;
   name: string;
@@ -302,6 +305,16 @@ export interface Invitation {
   effectiveStatus: string;
   createdAt: string;
   expiresAt: string;
+}
+/** A Feature Flag as the Super Admin sees it. */
+export interface FeatureFlag {
+  key: string;
+  name: Text;
+  description: Text;
+  default: boolean;
+  enabled: boolean;
+  changedAt?: string;
+  changedByEmail?: string;
 }
 export interface AuditEntry {
   time: string;
@@ -419,6 +432,8 @@ const o = (org: string) => `/api/orgs/${encodeURIComponent(org)}`;
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
   logout: () => request<void>("POST", "/auth/logout"),
+  /** Public: the sign-in providers offered, for the sign-in screen. */
+  signInMethods: () => request<{ methods: SignInMethod[] }>("GET", "/auth/methods"),
 
   events: (org: string, view: string) => request<EventSummary[]>("GET", `${o(org)}/events?view=${view}`),
   event: (org: string, id: string) => request<EventView>("GET", `${o(org)}/events/${id}`),
@@ -481,4 +496,7 @@ export const api = {
   auditDays: () => request<string[]>("GET", "/api/audit"),
   auditPage: (day = "", cursor = "") =>
     request<AuditPage>("GET", `/api/audit/entries?${new URLSearchParams({ day, cursor })}`),
+  featureFlags: () => request<FeatureFlag[]>("GET", "/api/feature-flags"),
+  setFeatureFlag: (key: string, enabled: boolean) =>
+    request<FeatureFlag[]>("PUT", `/api/feature-flags/${encodeURIComponent(key)}`, { enabled }),
 };

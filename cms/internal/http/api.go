@@ -71,7 +71,9 @@ func ok(w http.ResponseWriter, v any, err error) error {
 
 func (s *Server) routes(m *http.ServeMux) {
 	m.Handle("GET /api/me", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
-		return ok(w, s.App.Me(p), nil)
+		me := s.App.Me(p)
+		me.SignInMethods = s.signInMethods(r.Context())
+		return ok(w, me, nil)
 	}))
 
 	// Events.
@@ -407,6 +409,24 @@ func (s *Server) routes(m *http.ServeMux) {
 	}))
 	m.Handle("GET /api/audit/{day}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		v, err := s.App.ReadAudit(r.Context(), p, r.PathValue("day"))
+		return ok(w, v, err)
+	}))
+	// Feature Flags: every known flag, and one flag turned on or off.
+	m.Handle("GET /api/feature-flags", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.FeatureFlags(r.Context(), p)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT /api/feature-flags/{flag}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Enabled *bool `json:"enabled"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		if in.Enabled == nil {
+			return &badRequest{msg: msg("nieprawidłowe żądanie: brak wartości", "bad request: missing value")}
+		}
+		v, err := s.App.SetFeatureFlag(r.Context(), p, r.PathValue("flag"), *in.Enabled)
 		return ok(w, v, err)
 	}))
 	m.Handle("POST /api/admin/purge", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {

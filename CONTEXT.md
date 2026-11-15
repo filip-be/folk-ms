@@ -84,7 +84,7 @@ A Moderator's request to post an Event on Facebook, Instagram or both, with its 
 The single person who administers the CMS and grants or revokes Moderator access. Can act as Moderator of every Organization. Signs in only with the Google identity it was bound to.
 
 **Moderator**
-A person allowed to manage the Events and the Social Account Connection of the Organizations they were granted. Access is scoped per Organization. Signs in with Google or Facebook; any identity that returns the Moderator's email is the same Moderator.
+A person allowed to manage the Events and the Social Account Connection of the Organizations they were granted. Access is scoped per Organization. Signs in with Google, or with Facebook while its Feature Flag is on; any identity that returns the Moderator's email is the same Moderator.
 
 **Recent sign-in**
 A sign-in to the CMS with Google or Facebook in the last 15 minutes. Needed, while Autosync is on, to post a Social Post, to turn Autosync on or off, and to change or remove the Social Account Connection.
@@ -93,7 +93,11 @@ A sign-in to the CMS with Google or Facebook in the last 15 minutes. Needed, whi
 A Super Admin's grant of Moderator access to a person, identified by email, for chosen Organizations. Becomes bound to that person's identity on their first sign-in; expires after 14 days if unused and can be revoked before then.
 
 **Audit Log**
-An append-only record of who did what and when: Event changes, Syncs, Hide, Social Posts, Autosync and connection changes, access grants. Readable by the Super Admin.
+An append-only record of who did what and when: Event changes, Syncs, Hide, Social Posts, Autosync and connection changes, access grants, Feature Flag changes. Readable by the Super Admin.
+
+**Feature Flag**
+A switch with which the Super Admin turns a part of the CMS on or off for everyone, without a new release. Only a fixed, known set exists; each has a default. Facebook sign-in is one, off by default.
+_Avoid_: "flag" alone (an Event's flags are something else), "setting".
 
 ## Video Collection
 
