@@ -13,7 +13,7 @@ stateDiagram-v2
   [*] --> OnSite: Sync imports, or a Moderator adds a Manual Event
   OnSite --> Hidden: Hide
   Hidden --> OnSite: Show
-  OnSite --> Bin: Facebook confirms it is gone, or a Moderator removes a Manual Event
+  OnSite --> Bin: Facebook confirms it is gone, or a Moderator removes a Manual Event or one from a former page
   Hidden --> Bin: same
   Bin --> OnSite: Super Admin restores within 30 days, or Facebook lists it again
   Bin --> [*]: purged after 30 days
@@ -48,7 +48,7 @@ A Facebook Event another Facebook page created, typically one the Organization c
 
 ### The Bin
 
-- **Synced Events** go to the Bin only when Sync confirms their Facebook Event is gone: Graph answers code 100, subcode 33 for it, and the same run listed the page's events successfully with the same token (decision 11, see [Sync](../sync/README.md#one-run)). Anything else changes nothing. A Moderator cannot remove a synced Event: they hide it, or delete the Facebook Event on Facebook.
+- **Synced Events** go to the Bin only when Sync confirms their Facebook Event is gone: Graph answers code 100, subcode 33 for it, and the same run listed the page's events successfully with the same token (decision 11, see [Sync](../sync/README.md#one-run)). Anything else changes nothing. A Moderator cannot remove an Event of the connected page: they hide it, or delete the Facebook Event on Facebook. An Event from a former Facebook page (see [Sync](../sync/README.md#former-page-decision-17)) is no longer read by Sync, so the gone rule never applies to it: a Moderator moves it to the Bin from its Event screen. It stays there even if the old page is connected again.
 - **Manual Events** go to the Bin when a Moderator removes one. While it is there, its Facebook Event cannot be added again; the Super Admin restores it instead.
 - The Super Admin can restore an Event within 30 days. A restored synced Event goes back to the Bin if the next Sync confirms it is still gone; one Facebook lists again comes back by itself.
 - The daily timer `purge` removes Events that have been in the Bin for 30 days, with their Social Post records and index documents. The Audit Log keeps their history, including Facebook and Instagram URLs. Nothing is ever removed from Facebook or Instagram.

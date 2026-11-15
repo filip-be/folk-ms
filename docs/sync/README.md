@@ -43,7 +43,7 @@ flowchart LR
 
 ### Former page (decision 17)
 
-Each Event remembers the Facebook page it was synced from, and Sync follows only Events of the page connected now. When the connection is replaced with another Facebook page (the screen asks for confirmation naming both pages), everything is kept: the old page's Events stay on the Site as they were, flagged "from a former page", and are no longer synced. The Moderator hides what is unwanted. Manual Events are unaffected.
+Each Event remembers the Facebook page it was synced from, and Sync follows only Events of the page connected now. When the connection is replaced with another Facebook page (the screen asks for confirmation naming both pages), everything is kept: the old page's Events stay on the Site as they were, flagged "from a former page", and are no longer synced. The Moderator hides what is unwanted, or moves it to the Bin ([Event management](../event-management/README.md#the-bin)); reconnecting the old page later does not bring a removed Event back. Manual Events are unaffected.
 
 ### What Sync cannot read
 

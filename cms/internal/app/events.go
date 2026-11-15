@@ -407,18 +407,20 @@ func (a *App) SetHidden(ctx context.Context, p domain.Principal, org, id string,
 	})
 }
 
-// RemoveManualEvent moves a Manual Event to the Bin. Synced Events cannot be
-// removed: Hide them, or delete the Facebook Event on Facebook.
-func (a *App) RemoveManualEvent(ctx context.Context, p domain.Principal, org, id string) (EventView, error) {
+// RemoveEvent moves a Manual Event, or a synced Event from a former Facebook
+// page, to the Bin. Events of the connected page cannot be removed: Hide
+// them, or delete the Facebook Event on Facebook.
+func (a *App) RemoveEvent(ctx context.Context, p domain.Principal, org, id string) (EventView, error) {
 	o, err := a.authorize(p, org)
 	if err != nil {
 		return EventView{}, err
 	}
+	page, err := a.connectedPage(ctx, o.ID)
+	if err != nil {
+		return EventView{}, err
+	}
 	return a.edit(ctx, p, o, id, "", "event.deleted", func(e *domain.Event) error {
-		if e.Source != domain.SourceManual {
-			return fmt.Errorf("%w: only manual events can be removed", domain.ErrInvalidState)
-		}
-		return e.Bin(domain.BinRemoved, p.ID(), a.now())
+		return e.Remove(page, p.ID(), a.now())
 	})
 }
 

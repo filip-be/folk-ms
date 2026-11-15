@@ -37,7 +37,7 @@ const (
 // Bin reasons.
 const (
 	BinGone    = "gone"    // Facebook confirmed the Facebook Event is gone
-	BinRemoved = "removed" // a Moderator removed a Manual Event
+	BinRemoved = "removed" // a Moderator removed a Manual Event or one from a former page
 )
 
 // ImageVariant is one rendition of an image in the public store.
@@ -695,6 +695,17 @@ func (e *Event) Bin(reason, by string, now time.Time) error {
 	e.DeletedAt, e.DeletedBy, e.BinReason = &now, by, reason
 	e.touch(by, now)
 	return nil
+}
+
+// Remove moves the Event to the Bin for a Moderator. Only a Manual Event or
+// one synced from a former Facebook page can be removed: Sync no longer
+// reads the latter, so the gone rule would never bin it. pageID is the
+// connected Facebook page ("" if none).
+func (e *Event) Remove(pageID, by string, now time.Time) error {
+	if e.Source != SourceManual && !e.Flags(pageID).FormerPage {
+		return fmt.Errorf("%w: only manual events and events from a former Facebook page can be removed", ErrInvalidState)
+	}
+	return e.Bin(BinRemoved, by, now)
 }
 
 // Restore takes the Event out of the Bin. A synced Event goes back to the

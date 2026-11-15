@@ -508,8 +508,32 @@ func TestFormerPage(t *testing.T) {
 	if onSite(e.snapshot(t, "org-a"), v.Event.ID) == nil {
 		t.Fatal("the old page's events stay on the site")
 	}
-	if nv := e.event(t, sa, "org-a", "500"); nv.Flags.FormerPage {
+	nv := e.event(t, sa, "org-a", "500")
+	if nv.Flags.FormerPage {
 		t.Fatal("the new page's event is not from a former page")
+	}
+
+	// A Moderator removes the old page's event; the connected page's cannot be.
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "a@example.org", []string{"org-a"}))
+	mod := must[domain.Principal](t)(e.signIn(t, "a", "a@example.org"))
+	if _, err := e.a.RemoveEvent(e.ctx, mod, "org-a", nv.Event.ID); !errors.Is(err, domain.ErrInvalidState) {
+		t.Fatalf("remove the connected page's event: %v", err)
+	}
+	v = must[app.EventView](t)(e.a.RemoveEvent(e.ctx, mod, "org-a", v.Event.ID))
+	if v.Event.DeletedAt == nil || v.Event.BinReason != domain.BinRemoved {
+		t.Fatalf("%+v", v.Event)
+	}
+	if onSite(e.snapshot(t, "org-a"), v.Event.ID) != nil {
+		t.Fatal("removed event on site")
+	}
+
+	// Reconnecting the old page does not bring it back.
+	must[[]app.PageInfo](t)(e.a.CompleteSocialLogin(e.ctx, sa, "org-a", "code", cb))
+	must[app.ConnectionStatus](t)(e.a.SelectPage(e.ctx, sa, "org-a", "1001", true))
+	e.fb = []ports.FacebookEvent{e.fbEvent("100", "Bal", 5)}
+	e.syncBySignIn(t, sa, "org-a")
+	if v := e.event(t, sa, "org-a", "100"); v.Event.DeletedAt == nil {
+		t.Fatal("sync restored a removed event")
 	}
 }
 
@@ -607,10 +631,10 @@ func TestManualEvents(t *testing.T) {
 
 	// Remove to the Bin; synced Events cannot be removed; restore is the Super Admin's.
 	synced := e.event(t, modA, "org-a", "100")
-	if _, err := e.a.RemoveManualEvent(e.ctx, modA, "org-a", synced.Event.ID); !errors.Is(err, domain.ErrInvalidState) {
+	if _, err := e.a.RemoveEvent(e.ctx, modA, "org-a", synced.Event.ID); !errors.Is(err, domain.ErrInvalidState) {
 		t.Fatalf("remove synced: %v", err)
 	}
-	mv = must[app.EventView](t)(e.a.RemoveManualEvent(e.ctx, modA, "org-a", mv.Event.ID))
+	mv = must[app.EventView](t)(e.a.RemoveEvent(e.ctx, modA, "org-a", mv.Event.ID))
 	if mv.Event.DeletedAt == nil || mv.Event.BinReason != domain.BinRemoved {
 		t.Fatalf("%+v", mv.Event)
 	}
@@ -621,7 +645,7 @@ func TestManualEvents(t *testing.T) {
 		t.Fatal("restore is super admin only")
 	}
 	must[app.EventView](t)(e.a.RestoreEvent(e.ctx, sa, "org-a", mv.Event.ID))
-	must[app.EventView](t)(e.a.RemoveManualEvent(e.ctx, modA, "org-a", mv.Event.ID))
+	must[app.EventView](t)(e.a.RemoveEvent(e.ctx, modA, "org-a", mv.Event.ID))
 
 	// Purged after 30 days, with its index: the link can be added again.
 	e.advance(31 * 24 * time.Hour)
@@ -1218,7 +1242,7 @@ func TestPostingWithStoredToken(t *testing.T) {
 	in.Cover = cover
 	mv := must[app.EventView](t)(e.a.CreateManualEvent(e.ctx, mod, "org-a", in))
 	must[app.PostResultOrRequest](t)(e.a.Post(e.ctx, mod, "org-a", mv.Event.ID, fbDraft("manual"), false))
-	must[app.EventView](t)(e.a.RemoveManualEvent(e.ctx, mod, "org-a", mv.Event.ID))
+	must[app.EventView](t)(e.a.RemoveEvent(e.ctx, mod, "org-a", mv.Event.ID))
 	if _, err := e.a.Post(e.ctx, mod, "org-a", mv.Event.ID, fbDraft("x"), true); !hasProblem(err, "event") {
 		t.Fatalf("binned: %v", err)
 	}
