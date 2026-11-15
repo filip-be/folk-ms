@@ -93,6 +93,7 @@ The CMS address contains a hash that `main.bicep` derives from the resource grou
 2. Create the CMS's managed identity in its own resource group `<resource group>-identity`, and let the deploy identity assign roles to it, and to nothing else ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md), T4). The deploy identity gets only `Managed Identity Operator` on the identity: it can attach it to the Function app but not change it, for example add a federated credential and sign in as the CMS from outside Azure. It can still attach the identity to an app it creates in the app resource group (the T4 residual in ADR 0010). Someone with `Owner` on both resource groups runs, in Azure Cloud Shell (Bash), with the resource group, its location and the app registration's client id filled in:
 
    ```bash
+   set +H  # the condition below contains "!", which interactive Bash would expand from history
    rg=<resource group>
    az group create -n "$rg-identity" -l <location>
    az identity create -g "$rg-identity" -n folkms-cms-id
