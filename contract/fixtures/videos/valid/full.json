@@ -23,6 +23,10 @@
       "label": {
         "pl": "Para",
         "en": "Pair"
+      },
+      "description": {
+        "pl": "Tańce w parach, np. mazurek, polka, walc.\nPary mogą się zmieniać.",
+        "en": "Couple dances, e.g. mazurka, polka, waltz.\nPartners may change."
       }
     },
     {
@@ -30,6 +34,9 @@
       "label": {
         "pl": "Koło",
         "en": "Circle"
+      },
+      "description": {
+        "pl": "Wszyscy w jednym kole, trzymając się za ręce."
       }
     },
     {

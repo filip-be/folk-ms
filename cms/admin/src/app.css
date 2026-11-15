@@ -615,7 +615,13 @@ ol.sortable.countries > li {
   & .add-region summary { list-style: none; margin-bottom: var(--space-8); }
   & .add-region summary::-webkit-details-marker { display: none; }
 }
-.label-form .field { flex: 1 1 12rem; margin-bottom: 0; }
+.label-form .field {
+  flex: 1 1 12rem; margin-bottom: 0;
+
+  /* A Form's description takes the whole row. */
+  &:has(textarea) { flex-basis: 100%; }
+}
+.form-description { margin: var(--space-4) 0 0; white-space: pre-line; overflow-wrap: anywhere; }
 form.label-form.add { align-items: end; }
 .video-preview {
   display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-12); margin: 0;

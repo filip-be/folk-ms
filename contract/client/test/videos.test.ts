@@ -29,6 +29,14 @@ describe("video fixtures", () => {
       expect(() => parseVideos(raw("valid", f))).not.toThrow();
     });
   }
+  test("a Form's description is optional and localized", () => {
+    const s = load();
+    const pair = s.forms.find((f) => f.id === "formpara")!;
+    const circle = s.forms.find((f) => f.id === "formkolo")!;
+    expect(t(pair.description!, "en")).toBe("Couple dances, e.g. mazurka, polka, waltz.\nPartners may change.");
+    expect(t(circle.description!, "en")).toBe("Wszyscy w jednym kole, trzymając się za ręce."); // falls back to Polish
+    expect(s.forms.find((f) => f.id === "formsolo")!.description).toBeUndefined();
+  });
   test("refuses another schemaVersion", () => {
     expect(() => parseVideos(raw("invalid", "wrong-schema-version.json"))).toThrow("unsupported schemaVersion 2; this reader reads version 1 only");
   });

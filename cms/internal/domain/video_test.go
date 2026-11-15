@@ -114,8 +114,8 @@ func testCollection(t *testing.T) (*VideoCollection, map[string]string) {
 		}
 		m[key] = id
 	}
-	add("pair", func(id string) error { return c.AddForm(id, Text{PL: "Para", EN: "Pair"}, "u", now) })
-	add("chain", func(id string) error { return c.AddForm(id, Text{PL: "Łańcuch"}, "u", now) })
+	add("pair", func(id string) error { return c.AddForm(id, Text{PL: "Para", EN: "Pair"}, Text{}, "u", now) })
+	add("chain", func(id string) error { return c.AddForm(id, Text{PL: "Łańcuch"}, Text{}, "u", now) })
 	add("france", func(id string) error { return c.AddOrigin(id, "", Text{PL: "Francja", EN: "France"}, "u", now) })
 	add("brittany", func(id string) error { return c.AddOrigin(id, m["france"], Text{PL: "Bretania"}, "u", now) })
 	add("sweden", func(id string) error { return c.AddOrigin(id, "", Text{PL: "Szwecja"}, "u", now) })
@@ -163,10 +163,10 @@ func TestVideoValidation(t *testing.T) {
 	if v.Title.PL != "Andro" || v.Credit != "Anna Piotr" || v.Link.StartSeconds != 65 || strings.Join(v.FormIDs, ",") != m["pair"]+","+m["chain"] {
 		t.Fatalf("%+v", v)
 	}
-	if err := c.AddForm("zzzzzzzz", Text{PL: "para"}, "u", at("2026-11-01 12:00")); !hasField(err, "label.pl") {
+	if err := c.AddForm("zzzzzzzz", Text{PL: "para"}, Text{}, "u", at("2026-11-01 12:00")); !hasField(err, "label.pl") {
 		t.Fatalf("duplicate form: %v", err)
 	}
-	if err := c.AddForm("zzzzzzzz", Text{PL: strings.Repeat("x", MaxLabelLen+1)}, "u", at("2026-11-01 12:00")); !hasField(err, "label.pl") {
+	if err := c.AddForm("zzzzzzzz", Text{PL: strings.Repeat("x", MaxLabelLen+1)}, Text{}, "u", at("2026-11-01 12:00")); !hasField(err, "label.pl") {
 		t.Fatalf("long label: %v", err)
 	}
 	if err := c.AddOrigin("zzzzzzzz", m["brittany"], Text{PL: "Region regionu"}, "u", at("2026-11-01 12:00")); !hasField(err, "parentId") {
@@ -236,7 +236,7 @@ func TestVideoCollectionOperations(t *testing.T) {
 			t.Fatalf("%s id can be reused", k)
 		}
 	}
-	if err := c.AddForm(m["andro"], Text{PL: "Nowa"}, "u", now); !errors.Is(err, ErrConflict) {
+	if err := c.AddForm(m["andro"], Text{PL: "Nowa"}, Text{}, "u", now); !errors.Is(err, ErrConflict) {
 		t.Fatalf("reused id: %v", err)
 	}
 	if err := c.SetVideoHidden(m["polska"], true, "u", now); err != nil {
@@ -251,7 +251,7 @@ func TestVideoCollectionOperations(t *testing.T) {
 	if got, _ := c.Video(m["polska"]); !got.Hidden || got.Title.PL != "Polska 2" || got.UpdatedBy != "u2" || got.CreatedBy != "u" || c.Videos[0].ID != m["polska"] {
 		t.Fatalf("update: %+v", got)
 	}
-	for _, err := range []error{c.MoveVideo("nosuchid", 0, "u", now), c.SetVideoHidden("nosuchid", true, "u", now), c.RenameForm("nosuchid", Text{PL: "x"}, "u", now)} {
+	for _, err := range []error{c.MoveVideo("nosuchid", 0, "u", now), c.SetVideoHidden("nosuchid", true, "u", now), c.UpdateForm("nosuchid", Text{PL: "x"}, Text{}, "u", now)} {
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("missing: %v", err)
 		}
@@ -272,11 +272,11 @@ func TestVideoLimits(t *testing.T) {
 	now := at("2026-11-01 12:00")
 	g := &ids{}
 	for i := range MaxForms {
-		if err := c.AddForm(g.next(), Text{PL: "F" + string(rune('A'+i%26)) + string(rune('A'+i/26))}, "u", now); err != nil {
+		if err := c.AddForm(g.next(), Text{PL: "F" + string(rune('A'+i%26)) + string(rune('A'+i/26))}, Text{}, "u", now); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if err := c.AddForm(g.next(), Text{PL: "one more"}, "u", now); !IsValidation(err) {
+	if err := c.AddForm(g.next(), Text{PL: "one more"}, Text{}, "u", now); !IsValidation(err) {
 		t.Fatalf("form limit: %v", err)
 	}
 	c.Videos = make([]Video, MaxVideos)
@@ -297,7 +297,13 @@ func TestVideoSnapshot(t *testing.T) {
 	if err := c.AddVideo(v, vid, "u", now); err != nil {
 		t.Fatal(err)
 	}
+	if err := c.UpdateForm(m["pair"], Text{PL: "Para", EN: "Pair"}, Text{PL: "Tańce w parach.\nPary się zmieniają."}, "u", now); err != nil {
+		t.Fatal(err)
+	}
 	s := BuildVideoSnapshot(testOrg(), c)
+	if d := s.Forms[0].Description; d == nil || d.PL != "Tańce w parach.\nPary się zmieniają." || d.EN != "" || s.Forms[1].Description != nil {
+		t.Fatalf("form descriptions: %+v", s.Forms)
+	}
 	if len(s.Videos) != 3 || s.Videos[0].ID != m["andro"] || s.Videos[1].ID != m["mazurka"] || s.Videos[2].ID != vid {
 		t.Fatalf("hidden left out, order kept: %+v", s.Videos)
 	}
@@ -324,5 +330,52 @@ func TestVideoSnapshot(t *testing.T) {
 		if err := sch.Validate(data); err != nil {
 			t.Fatalf("video snapshot does not match contract: %v\n%s", err, data)
 		}
+	}
+}
+
+func TestFormDescription(t *testing.T) {
+	c, m := testCollection(t)
+	now := at("2026-11-03 12:00")
+	// Optional: Forms added without one have none.
+	if !c.Forms[0].Description.IsZero() {
+		t.Fatalf("no description: %+v", c.Forms[0])
+	}
+	// Trimmed and cleaned, line breaks kept; English optional.
+	if err := c.AddForm("zzzzzzzz", Text{PL: "Koło"}, Text{PL: "  W kole,\nza ręce.\x00 "}, "u", now); err != nil {
+		t.Fatal(err)
+	}
+	if d := c.Forms[2].Description; d.PL != "W kole,\nza ręce." || d.EN != "" {
+		t.Fatalf("cleaned: %q", d)
+	}
+	// Every problem at once, on the label's and the description's paths.
+	err := c.AddForm("yyyyyyyy", Text{}, Text{EN: "Only English"}, "u", now)
+	if !hasField(err, "label.pl") || !hasField(err, "description.pl") {
+		t.Fatalf("label and description: %v", err)
+	}
+	if err := c.UpdateForm(m["pair"], Text{PL: "Para"}, Text{PL: strings.Repeat("x", MaxFormDescLen+1)}, "u", now); !hasField(err, "description") {
+		t.Fatalf("long description: %v", err)
+	}
+	if err := c.UpdateForm(m["pair"], Text{PL: "Para"}, Text{PL: strings.Repeat("ł", MaxFormDescLen)}, "u", now); err != nil {
+		t.Fatalf("max length counts characters: %v", err)
+	}
+	// Update replaces the label and the description; blank clears it.
+	if err := c.UpdateForm(m["pair"], Text{PL: "Para", EN: "Pair"}, Text{PL: "Opis", EN: "About"}, "u", now); err != nil {
+		t.Fatal(err)
+	}
+	if f := c.Forms[0]; f.Description != (Text{PL: "Opis", EN: "About"}) || f.Label.EN != "Pair" {
+		t.Fatalf("updated: %+v", f)
+	}
+	if err := c.UpdateForm(m["pair"], Text{PL: "Para"}, Text{PL: "  ", EN: " "}, "u", now); err != nil || !c.Forms[0].Description.IsZero() {
+		t.Fatalf("cleared: %v %+v", err, c.Forms[0])
+	}
+	// A Form without a description is stored without the key, and a
+	// document from before descriptions loads.
+	data, _ := json.Marshal(c.Forms[0])
+	if strings.Contains(string(data), "description") {
+		t.Fatalf("empty description is stored: %s", data)
+	}
+	var old VideoCollection
+	if err := json.Unmarshal([]byte(`{"orgId":"x","forms":[{"id":"aaaaaaaa","label":{"pl":"Solo"}}],"origins":[],"videos":[]}`), &old); err != nil || !old.Forms[0].Description.IsZero() {
+		t.Fatalf("old document: %v %+v", err, old.Forms)
 	}
 }

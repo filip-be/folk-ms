@@ -11,6 +11,12 @@ export interface Labeled {
   label: LocalizedText;
 }
 
+/** A Form of dance (solo, pair, chain, circle, …). */
+export interface Form extends Labeled {
+  /** Written by the Moderators; plain text, may contain line breaks. Absent when there is none. */
+  description?: LocalizedText;
+}
+
 /** A country with its regions, in list order. */
 export interface Country extends Labeled {
   regions: Labeled[];
@@ -45,7 +51,7 @@ export interface Video {
 export interface VideoSnapshot {
   schemaVersion: 1;
   organization: Organization;
-  forms: Labeled[];
+  forms: Form[];
   origins: Country[];
   /** Not Hidden, in the Moderators' order. */
   videos: Video[];
@@ -198,7 +204,7 @@ export function groupVideos(s: VideoSnapshot, videos: Video[], by: GroupBy): Vid
 }
 
 /** The Forms that at least one of the Videos has, in list order. */
-export function usedForms(s: VideoSnapshot, videos: Video[] = s.videos): Labeled[] {
+export function usedForms(s: VideoSnapshot, videos: Video[] = s.videos): Form[] {
   return s.forms.filter((f) => videos.some((v) => v.formIds.includes(f.id)));
 }
 

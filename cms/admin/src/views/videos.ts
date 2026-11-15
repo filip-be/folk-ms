@@ -2,12 +2,16 @@
 // and the Forms and Origins lists they are described with. Every change sends
 // the version the screen holds (If-Match) and gets the whole collection back.
 
-import { api, ApiError, type Country, type Labeled, type Text, type Video, type VideoCollection } from "../api.ts";
+import { api, ApiError, type Country, type Form, type Labeled, type Text, type Video, type VideoCollection } from "../api.ts";
 import { icon } from "../icons.ts";
 import { inLang, L } from "../i18n.ts";
 import { bindSortable, grip, moveButtons } from "../patterns.ts";
 import { busy, html, raw, showError, t, toast, type Raw } from "../ui.ts";
 import { View } from "../view.ts";
+import { enLabel, plLabel, textField } from "./eventParts.ts";
+
+/** The longest Form description, as the CMS accepts it. */
+const MAX_FORM_DESCRIPTION = 2000;
 
 const TABS = [
   ["videos", L("Filmy", "Videos")],
@@ -46,7 +50,7 @@ const labelText = (l: Text) => (l.en ? `${l.pl} / ${l.en}` : l.pl);
 class VideosView extends View {
   private tab: Tab = "videos";
   private c!: VideoCollection;
-  /** The row being renamed ("" when none). */
+  /** The row being renamed, or for a Form edited ("" when none). */
   private renaming = "";
 
   async load(): Promise<void> {
@@ -125,16 +129,25 @@ class VideosView extends View {
         : html`<div class="card empty"><p>${L("Nie ma jeszcze filmów.", "There are no videos yet.")}</p></div>`}`;
   }
 
-  /** A label shown in a row, or the inline form renaming it. */
-  private labelCell(kind: "forms/" | "origins/", item: Labeled): Raw {
+  /** A Form's optional description, Polish and English (not required). */
+  private descriptionFields(id: string, d?: Text): Raw {
+    return html`${textField({ id: `${id}-desc-pl`, label: plLabel(L("Opis", "Description")), value: d?.pl ?? "", path: "description.pl", kind: "short", max: MAX_FORM_DESCRIPTION })}
+      ${textField({ id: `${id}-desc-en`, label: enLabel(L("Opis", "Description")), value: d?.en ?? "", path: "description.en", kind: "short", max: MAX_FORM_DESCRIPTION })}`;
+  }
+
+  /** A label (and a Form's description) shown in a row, or the inline form editing it. */
+  private labelCell(kind: "forms/" | "origins/", item: Labeled | Form): Raw {
+    const description = kind === "forms/" ? (item as Form).description : undefined;
     if (this.renaming !== item.id) {
-      return html`<div class="row-main"><strong>${labelText(item.label)}</strong> <span class="muted small">${usesText(item.uses)}</span></div>`;
+      return html`<div class="row-main"><strong>${labelText(item.label)}</strong> <span class="muted small">${usesText(item.uses)}</span>
+        ${description ? html`<p class="muted small form-description">${t(description)}</p>` : ""}</div>`;
     }
     const id = `rename-${item.id}`;
     return html`<form class="inline-form label-form row-main" data-rename="${item.id}" data-kind="${kind}">
       <div class="problems-slot"></div>
       <div class="field"><label for="${id}-pl">${L("Nazwa (PL)", "Name (PL)")}</label><input id="${id}-pl" name="label.pl" value="${item.label.pl}" required maxlength="60"></div>
       <div class="field"><label for="${id}-en">${L("Nazwa (EN, opcjonalnie)", "Name (EN, optional)")}</label><input id="${id}-en" name="label.en" value="${item.label.en ?? ""}" maxlength="60"></div>
+      ${kind === "forms/" ? this.descriptionFields(id, description) : ""}
       <button type="submit" class="primary">${L("Zapisz", "Save")}</button>
       <button type="button" data-cancel-rename>${L("Anuluj", "Cancel")}</button>
     </form>`;
@@ -142,18 +155,19 @@ class VideosView extends View {
 
   private itemActions(kind: "forms/" | "origins/", list: string, item: Labeled, i: number, n: number, blocked: string): Raw {
     return html`<span class="row-actions">
-      ${this.renaming === item.id ? "" : html`<button type="button" data-rename-start="${item.id}">${L("Zmień nazwę", "Rename")}</button>`}
+      ${this.renaming === item.id ? "" : html`<button type="button" data-rename-start="${item.id}">${kind === "forms/" ? L("Edytuj", "Edit") : L("Zmień nazwę", "Rename")}</button>`}
       <button type="button" class="link danger" data-remove="${item.id}" data-kind="${kind}" ${blocked ? html`disabled title="${blocked}"` : ""}
         aria-label="${L(`Usuń: ${item.label.pl}`, `Remove: ${item.label.pl}`)}">${L("Usuń", "Remove")}</button>
       ${moveButtons(list, item.id, i, n, item.label.pl)}
     </span>`;
   }
 
-  private addForm(id: string, legend: string, parent = ""): Raw {
+  private addForm(id: string, legend: string, parent = "", withDescription = false): Raw {
     return html`<form class="inline-form label-form add" data-add="${id}" data-parent="${parent}">
       <div class="problems-slot"></div>
       <div class="field"><label for="${id}-pl">${legend} (PL)</label><input id="${id}-pl" name="label.pl" required maxlength="60"></div>
       <div class="field"><label for="${id}-en">${legend} ${L("(EN, opcjonalnie)", "(EN, optional)")}</label><input id="${id}-en" name="label.en" maxlength="60"></div>
+      ${withDescription ? this.descriptionFields(id) : ""}
       <button type="submit" class="primary">${icon("plus")}${L("Dodaj", "Add")}</button>
     </form>`;
   }
@@ -162,10 +176,10 @@ class VideosView extends View {
     const fs = this.c.forms;
     return html`
       <p class="muted small">${L(
-        "Formy tańca (np. solo, para, łańcuch, koło). Film może mieć kilka form. Formy używanej przez filmy nie można usunąć.",
-        "Dance forms (e.g. solo, pair, chain, circle). A video can have several. A form that videos use cannot be removed.",
+        "Formy tańca (np. solo, para, łańcuch, koło). Film może mieć kilka form. Formy używanej przez filmy nie można usunąć. Opis jest opcjonalny; strona może go pokazać.",
+        "Dance forms (e.g. solo, pair, chain, circle). A video can have several. A form that videos use cannot be removed. The description is optional; the Site may show it.",
       )}</p>
-      <section class="card" aria-labelledby="add-form-title"><h2 id="add-form-title">${L("Nowa forma", "New form")}</h2>${this.addForm("new-form", L("Nazwa", "Name"))}</section>
+      <section class="card" aria-labelledby="add-form-title"><h2 id="add-form-title">${L("Nowa forma", "New form")}</h2>${this.addForm("new-form", L("Nazwa", "Name"), "", true)}</section>
       ${fs.length
         ? html`<ol class="sortable labels" data-list="forms" aria-label="${L("Formy", "Forms")}">${fs.map(
             (f, i) => html`<li data-id="${f.id}" draggable="${this.renaming ? "false" : "true"}">${grip()}${this.labelCell("forms/", f)}
@@ -255,16 +269,21 @@ class VideosView extends View {
     this.addEventListener("submit", (e) => {
       const form = e.target as HTMLFormElement;
       e.preventDefault();
-      const label = { pl: form.querySelector<HTMLInputElement>("[name='label.pl']")!.value.trim(), en: form.querySelector<HTMLInputElement>("[name='label.en']")!.value.trim() };
+      const val = (name: string) => form.querySelector<HTMLInputElement | HTMLTextAreaElement>(`[name='${name}']`)?.value.trim() ?? "";
+      const label = { pl: val("label.pl"), en: val("label.en") };
+      const description = { pl: val("description.pl"), en: val("description.en") };
       const btn = form.querySelector<HTMLButtonElement>("button[type=submit]");
       if (form.dataset.rename) {
         const id = form.dataset.rename;
-        void this.change(btn, (etag) => api.renameItem(this.org, form.dataset.kind as "forms/" | "origins/", id, etag, label), L("Zapisano", "Saved"), form,
-          () => this.focusFirst(`button[data-rename-start="${id}"]`));
+        const save =
+          form.dataset.kind === "forms/"
+            ? (etag: string) => api.updateForm(this.org, id, etag, label, description)
+            : (etag: string) => api.renameOrigin(this.org, id, etag, label);
+        void this.change(btn, save, L("Zapisano", "Saved"), form, () => this.focusFirst(`button[data-rename-start="${id}"]`));
         return;
       }
       const parent = form.dataset.parent ?? "";
-      const add = this.tab === "forms" ? (etag: string) => api.addForm(this.org, etag, label) : (etag: string) => api.addOrigin(this.org, etag, label, parent);
+      const add = this.tab === "forms" ? (etag: string) => api.addForm(this.org, etag, label, description) : (etag: string) => api.addOrigin(this.org, etag, label, parent);
       void this.change(btn, add, L("Dodano", "Added"), form).then((ok) => {
         if (ok) this.querySelector<HTMLInputElement>(`#${CSS.escape(form.dataset.add!)}-pl`)?.focus();
       });

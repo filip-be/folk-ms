@@ -105,7 +105,7 @@ One instructional dance video in a Video Collection: a bilingual title and optio
 _Avoid_: "item", "clip"; "Event" or "post" (those are other things).
 
 **Form**
-How a dance is danced (solo, pair, chain, circle, …), from the Organization's open, bilingual list. A Video has any number of Forms. A Form cannot be removed while a Video has it.
+How a dance is danced (solo, pair, chain, circle, …), from the Organization's open, bilingual list. A Form may have an optional bilingual description, which a Site may show. A Video has any number of Forms. A Form cannot be removed while a Video has it.
 _Avoid_: "type", "category".
 
 **Origin**

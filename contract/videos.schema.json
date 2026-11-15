@@ -26,7 +26,7 @@
       "type": "array",
       "description": "Forms of dance (solo, pair, chain, circle, …), in list order.",
       "items": {
-        "$ref": "#/$defs/labeled"
+        "$ref": "#/$defs/form"
       }
     },
     "origins": {
@@ -122,6 +122,26 @@
         },
         "label": {
           "$ref": "#/$defs/localizedText"
+        }
+      }
+    },
+    "form": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "description": {
+          "$ref": "#/$defs/localizedText",
+          "description": "What the Form is, written by the Moderators; plain text, may contain line breaks. Absent when there is none; Sites decide whether and how to show it."
         }
       }
     },
