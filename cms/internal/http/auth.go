@@ -285,41 +285,49 @@ func (s *Server) completeSync(w http.ResponseWriter, r *http.Request, p domain.P
 		return
 	}
 	_, err := s.App.CompleteSyncLogin(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
-	reason := "ok"
+	http.Redirect(w, r, back+"?sync="+s.syncReason(err, "sync now"), http.StatusSeeOther)
+}
+
+// syncReason is a Sync run's outcome as the callbacks report it in sync=.
+func (s *Server) syncReason(err error, what string) string {
 	switch {
 	case err == nil:
+		return "ok"
 	case errors.Is(err, ports.ErrNoPageAccess):
-		reason = "page"
+		return "page"
 	case errors.Is(err, domain.ErrTooSoon):
-		reason = "too_soon"
+		return "too_soon"
 	case errors.Is(err, domain.ErrConflict):
-		reason = "running"
+		return "running"
 	default:
-		s.Log.Warn("sync now", "err", err)
-		reason = "error"
+		s.Log.Warn(what, "err", err)
+		return "error"
 	}
-	http.Redirect(w, r, back+"?sync="+reason, http.StatusSeeOther)
 }
 
 // completeAutosync turns Autosync on with the Meta sign-in and sends the
-// Moderator back to the connection screen: autosync=on, or autosync=<reason>.
+// Moderator back to the connection screen: autosync=on with the outcome of
+// the Sync it ran at once in sync=<reason> (as completeSync reports it), or
+// autosync=<reason>.
 func (s *Server) completeAutosync(w http.ResponseWriter, r *http.Request, p domain.Principal, st metaState) {
 	back := "/app/orgs/" + url.PathEscape(st.Org) + "/social"
 	if r.URL.Query().Get("error") != "" {
 		http.Redirect(w, r, back+"?autosync=cancelled", http.StatusSeeOther)
 		return
 	}
-	err := s.App.CompleteAutosync(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
-	reason := "on"
+	on, err := s.App.CompleteAutosync(r.Context(), p, st.Org, r.URL.Query().Get("code"), s.BaseURL+"/auth/meta/callback")
+	if err == nil {
+		http.Redirect(w, r, back+"?autosync=on&sync="+s.syncReason(on.SyncErr, "sync after autosync on"), http.StatusSeeOther)
+		return
+	}
+	reason := "error"
 	switch {
-	case err == nil:
 	case errors.Is(err, ports.ErrNoPageAccess):
 		reason = "page"
 	case errors.Is(err, domain.ErrRecentSignIn):
 		reason = "recent_sign_in"
 	default:
 		s.Log.Warn("autosync", "err", err)
-		reason = "error"
 	}
 	http.Redirect(w, r, back+"?autosync="+reason, http.StatusSeeOther)
 }

@@ -205,6 +205,8 @@ export interface SyncStatus {
   lastResult?: SyncResult;
   autosync: boolean;
   running: boolean;
+  /** When the timer next syncs; only while Autosync is on and the connection needs no reconnect. */
+  nextSyncAt?: string;
 }
 export interface OrgInfo {
   id: string;
@@ -234,6 +236,8 @@ export interface AutosyncStatus {
   dataAccessExpiresAt?: string;
   reconnectSoon: boolean;
   needsReconnect: boolean;
+  /** When the timer next syncs; absent while the connection needs a reconnect. */
+  nextSyncAt?: string;
 }
 export interface ConnectionStatus {
   connected: boolean;

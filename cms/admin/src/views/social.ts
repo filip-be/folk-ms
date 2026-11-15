@@ -2,17 +2,25 @@
 // it), the Autosync switch with its warning (ADR 0010), replacing the page
 // (decision 17) and disconnecting (T11).
 
-import { api, ApiError, type ConnectionStatus, type PageInfo } from "../api.ts";
+import { api, ApiError, type ConnectionStatus, type PageInfo, type SyncResult } from "../api.ts";
 import { L } from "../i18n.ts";
-import { autosyncWarning, connectionBanners, removeAppInstruction, switchControl } from "../patterns.ts";
+import { autosyncWarning, connectionBanners, nextSyncText, removeAppInstruction, resultText, switchControl, syncOutcome } from "../patterns.ts";
 import { busy, fmtDate, fmtDateTime, html, recentSignInBanner, showError, showRecentSignIn, toast } from "../ui.ts";
 import { View } from "../view.ts";
 
-/** What the Meta callback of turning Autosync on reported (`?autosync=`). */
-function autosyncOutcome(reason: string, pageName: string): [string, "ok" | "error"] {
+/**
+ * What the Meta callback of turning Autosync on reported (`?autosync=`), with
+ * the outcome of the Sync it ran at once (`?sync=`, as after "Sync now") and,
+ * when that Sync finished, its counts.
+ */
+function autosyncOutcome(reason: string, pageName: string, sync: string | null, result?: SyncResult): [string, "ok" | "error"] {
   switch (reason) {
-    case "on":
-      return [L("Autosync włączony. CMS będzie synchronizować wydarzenia co godzinę.", "Autosync is on. The CMS will sync the events every hour."), "ok"];
+    case "on": {
+      const on = L("Autosync włączony. CMS będzie synchronizować wydarzenia co godzinę.", "Autosync is on. The CMS will sync the events every hour.");
+      if (!sync) return [on, "ok"];
+      const [msg, kind] = syncOutcome(sync, pageName);
+      return [`${on} ${L("Pierwsza synchronizacja:", "First sync:")} ${msg}${kind === "ok" && result ? ` ${resultText(result)}` : ""}`, kind];
+    }
     case "cancelled":
       return [L("Anulowano logowanie do Meta. Autosync nie został włączony.", "The Meta sign-in was cancelled. Autosync was not turned on."), "error"];
     case "page":
@@ -36,7 +44,10 @@ class SocialView extends View {
     if (err) toast(err === "cancelled" ? L("Anulowano logowanie do Meta.", "The Meta sign-in was cancelled.") : L("Nie udało się połączyć ze stroną.", "Connecting the Facebook page failed."), "error");
     const as = q.get("autosync");
     if (as) {
-      const [msg, kind] = autosyncOutcome(as, this.st.pageName ?? "");
+      const sync = as === "on" ? q.get("sync") : null;
+      // The counts of the Sync that turning Autosync on ran; the message stands without them.
+      const result = sync === "ok" ? await api.syncStatus(this.org).then((s) => s.lastResult, () => undefined) : undefined;
+      const [msg, kind] = autosyncOutcome(as, this.st.pageName ?? "", sync, result);
       toast(msg, kind);
     }
     if (err || as) history.replaceState(null, "", location.pathname);
@@ -116,8 +127,8 @@ class SocialView extends View {
     const on = sw.checked;
     const question = on
       ? L(
-          "Włączyć Autosync? CMS zapisze token strony na Facebooku na serwerze i będzie co godzinę synchronizować wydarzenia. Teraz nastąpi logowanie do Meta.",
-          "Turn Autosync on? The CMS will store a Facebook page token in the backend and sync the events every hour. You will now sign in with Meta.",
+          "Włączyć Autosync? CMS zapisze token strony na Facebooku na serwerze i będzie synchronizować wydarzenia od razu, a potem co godzinę, oraz publikować posty bez logowania do Meta. Teraz nastąpi logowanie do Meta.",
+          "Turn Autosync on? The CMS will store a Facebook page token in the backend, sync the events at once and then every hour, and post Social Posts without a Meta sign-in. You will now sign in with Meta.",
         )
       : L(
           "Wyłączyć Autosync? Zapisany token zostanie usunięty; synchronizacja i posty będą znów wymagać logowania do Meta.",
@@ -222,6 +233,7 @@ class SocialView extends View {
             <dt>${L("Włączył(a)", "Turned on by")}</dt><dd>${as.byEmail} · ${fmtDateTime(as.at)}</dd>
             <dt>${L("Dostęp do danych do", "Data access until")}</dt><dd>${as.dataAccessExpiresAt ? fmtDate(as.dataAccessExpiresAt) : "–"}
               ${as.needsReconnect ? html` <span class="badge failed">${L("token odrzucony", "token refused")}</span>` : as.reconnectSoon ? html` <span class="badge warn">${L("wkrótce", "soon")}</span>` : ""}</dd>
+            ${as.nextSyncAt ? html`<dt>${L("Następna automatyczna synchronizacja", "Next automatic sync")}</dt><dd>${nextSyncText(as.nextSyncAt)}</dd>` : ""}
           </dl>
           <p><button type="button" class="secondary" id="renew" ${guarded ? "disabled" : ""}>${L("Odnów: zaloguj się do Meta", "Renew: sign in with Meta")}</button></p>`
         : html`<p class="small">${L(
