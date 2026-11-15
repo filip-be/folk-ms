@@ -37,6 +37,8 @@ type env struct {
 	nonces int
 	// linkAs is the user of the browser's current session at sign-in.
 	linkAs string
+	// on is what the last autosyncOn's immediate Sync did.
+	on app.AutosyncOn
 }
 
 const cb = "https://cms/auth/meta/callback"
@@ -129,14 +131,18 @@ func (e *env) syncBySignIn(t *testing.T, p domain.Principal, org string) domain.
 	return must[domain.SyncResult](t)(e.a.CompleteSyncLogin(e.ctx, p, org, "code", cb))
 }
 
+// autosyncOn turns Autosync on and returns the secret's name; the Sync it
+// ran at once is in e.on.
 func (e *env) autosyncOn(t *testing.T, p domain.Principal, org string) string {
 	t.Helper()
 	if err := e.a.StartAutosync(e.ctx, p, org); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.a.CompleteAutosync(e.ctx, p, org, "code", cb); err != nil {
+	on, err := e.a.CompleteAutosync(e.ctx, p, org, "code", cb)
+	if err != nil {
 		t.Fatal(err)
 	}
+	e.on = on
 	return e.conn(t, org).Autosync.SecretName
 }
 
@@ -653,12 +659,25 @@ func TestSyncLeaseAndIntervals(t *testing.T) {
 	e.fb = []ports.FacebookEvent{e.fbEvent("100", "Bal", 5)}
 	e.connect(t, sa, "org-a", "1001", false)
 	e.connect(t, sa, "org-b", "1001", false)
+	before := len(e.social.Calls)
 	secret := e.autosyncOn(t, sa, "org-a")
 	token := must[string](t)(e.secrets.Get(e.ctx, secret))
 
+	// Turning Autosync on runs one Sync at once, with the token just issued.
+	if e.on.SyncErr != nil || e.on.Sync.Added != 1 {
+		t.Fatalf("sync on autosync on: %+v", e.on)
+	}
+	if got := e.calls(before); !slices.Equal(got, []string{"list 1001 " + token}) {
+		t.Fatalf("calls: %v", got)
+	}
+	if _, err := e.a.SyncNow(e.ctx, sa, "org-a"); !errors.Is(err, domain.ErrTooSoon) {
+		t.Fatalf("sync now right after turning autosync on: %v", err)
+	}
+
 	// Autosync on: "Sync now" runs at once with the stored token.
-	before := len(e.social.Calls)
-	if r := must[domain.SyncResult](t)(e.a.SyncNow(e.ctx, sa, "org-a")); r.Added != 1 {
+	e.advance(2 * time.Minute)
+	before = len(e.social.Calls)
+	if r := must[domain.SyncResult](t)(e.a.SyncNow(e.ctx, sa, "org-a")); r.Listed != 1 || r.Added != 0 {
 		t.Fatalf("%+v", r)
 	}
 	if got := e.calls(before); !slices.Equal(got, []string{"list 1001 " + token}) {
@@ -751,7 +770,7 @@ func TestAutosync(t *testing.T) {
 	if err := e.a.StartAutosync(e.ctx, stale(m), "org-a"); !errors.Is(err, domain.ErrRecentSignIn) {
 		t.Fatalf("start without a recent sign-in: %v", err)
 	}
-	if err := e.a.CompleteAutosync(e.ctx, stale(m), "org-a", "code", cb); !errors.Is(err, domain.ErrRecentSignIn) {
+	if _, err := e.a.CompleteAutosync(e.ctx, stale(m), "org-a", "code", cb); !errors.Is(err, domain.ErrRecentSignIn) {
 		t.Fatalf("complete without a recent sign-in: %v", err)
 	}
 	e.advance(16 * time.Minute)
@@ -792,6 +811,7 @@ func TestAutosync(t *testing.T) {
 	if c := e.conn(t, "org-a"); c.Autosync != nil || c.AutosyncLost != nil {
 		t.Fatalf("%+v", c)
 	}
+	e.advance(2 * time.Minute) // past the Sync that turning Autosync on ran
 	if _, err := e.a.SyncNow(e.ctx, m, "org-a"); !errors.Is(err, app.ErrNeedsMetaLogin) {
 		t.Fatalf("off: sync needs a Meta sign-in: %v", err)
 	}
@@ -886,13 +906,127 @@ func TestAutosync(t *testing.T) {
 	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 0 || len(e.social.Calls) != before {
 		t.Fatal("the timer skips a connection that needs reconnecting")
 	}
-	// Turning Autosync on again fixes it.
+	// Turning Autosync on again fixes it, and syncs at once; the timer then
+	// keeps its interval from that run.
 	sa = must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
 	e.autosyncOn(t, sa, "org-b")
+	if e.on.SyncErr != nil || e.on.Sync.Listed != 1 {
+		t.Fatalf("after reconnect: %+v", e.on)
+	}
+	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 0 {
+		t.Fatalf("timer right after reconnect: %d", n)
+	}
+	e.advance(domain.AutosyncInterval)
 	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 1 {
-		t.Fatalf("after reconnect: %d", n)
+		t.Fatalf("timer an interval after reconnect: %d", n)
 	}
 	e.noTokenStored(t, token1)
+}
+
+// Turning Autosync on runs one Sync at once, bound by the lease and the
+// "Sync now" interval; a failed Sync leaves Autosync on; turning it off
+// runs none; the timer keeps its interval (T10).
+func TestAutosyncOnSyncsAtOnce(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	e.fb = []ports.FacebookEvent{e.fbEvent("100", "Bal", 5)}
+	e.connect(t, sa, "org-a", "1001", false)
+	syncLines := func() (ran, failed int) {
+		log := string(must[[]byte](t)(e.a.Audit.Read(e.ctx, e.clock.t.Format(time.DateOnly))))
+		return strings.Count(log, `"action":"sync.ran"`), strings.Count(log, `"action":"sync.failed"`)
+	}
+
+	// Exactly one Sync, by the Moderator, with the stored token's use audited.
+	before := len(e.social.Calls)
+	name := e.autosyncOn(t, sa, "org-a")
+	token := must[string](t)(e.secrets.Get(e.ctx, name))
+	if e.on.SyncErr != nil || e.on.Sync.Listed != 1 || e.on.Sync.Added != 1 {
+		t.Fatalf("%+v", e.on)
+	}
+	if got := e.calls(before); !slices.Equal(got, []string{"list 1001 " + token}) {
+		t.Fatalf("calls: %v", got)
+	}
+	if ran, failed := syncLines(); ran != 1 || failed != 0 {
+		t.Fatalf("audit: %d ran, %d failed", ran, failed)
+	}
+	log := string(must[[]byte](t)(e.a.Audit.Read(e.ctx, e.clock.t.Format(time.DateOnly))))
+	if !strings.Contains(log, `"token":"stored"`) || strings.Index(log, `"action":"autosync.on"`) > strings.Index(log, `"action":"autosync.token_used"`) ||
+		strings.Index(log, `"action":"autosync.token_used"`) > strings.Index(log, `"action":"sync.ran"`) {
+		t.Fatalf("audit order: %s", log)
+	}
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-a")); v.LastRunBy != sa.ID() || v.LastSuccessAt == nil || !v.Autosync {
+		t.Fatalf("status: %+v", v)
+	}
+	if len(must[[]app.EventSummary](t)(e.a.ListEvents(e.ctx, sa, "org-a", ""))) != 1 {
+		t.Fatal("the Event is imported")
+	}
+
+	// The timer keeps its schedule: nothing right after, a run an interval later.
+	before = len(e.social.Calls)
+	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 0 || len(e.social.Calls) != before {
+		t.Fatalf("timer right after: %d %v", n, e.calls(before))
+	}
+
+	// Turned on again within a minute: Autosync is on, the Sync is too soon and reads nothing.
+	e.advance(30 * time.Second)
+	e.autosyncOn(t, sa, "org-a")
+	if !errors.Is(e.on.SyncErr, domain.ErrTooSoon) || len(e.social.Calls) != before || e.conn(t, "org-a").Autosync == nil {
+		t.Fatalf("too soon: %v %v", e.on.SyncErr, e.calls(before))
+	}
+
+	// While another run holds the lease: Autosync is on, no second run.
+	e.advance(2 * time.Minute)
+	key := "orgs/org-a/sync/status.json"
+	d := must[ports.Document](t)(e.a.Docs.Get(e.ctx, key))
+	var st domain.SyncStatus
+	_ = json.Unmarshal(d.Data, &st)
+	st.LeaseUntil, st.LeaseHolder = e.clock.t.Add(time.Minute), "timer"
+	must[string](t)(e.a.Docs.Put(e.ctx, key, must[[]byte](t)(json.Marshal(st)), d.ETag))
+	e.autosyncOn(t, sa, "org-a")
+	if !errors.Is(e.on.SyncErr, domain.ErrConflict) || len(e.social.Calls) != before || e.conn(t, "org-a").Autosync == nil {
+		t.Fatalf("lease held: %v %v", e.on.SyncErr, e.calls(before))
+	}
+
+	// A failed Sync leaves Autosync on and is recorded like any failed run.
+	e.advance(2 * time.Minute)
+	e.social.FailList = errors.New("meta: HTTP 500")
+	e.autosyncOn(t, sa, "org-a")
+	e.social.FailList = nil
+	if e.on.SyncErr == nil {
+		t.Fatal("the failure is reported")
+	}
+	if c := e.conn(t, "org-a"); c.Autosync == nil || c.Autosync.NeedsReconnect {
+		t.Fatalf("autosync stays on: %+v", c.Autosync)
+	}
+	if ran, failed := syncLines(); ran != 1 || failed != 1 {
+		t.Fatalf("audit: %d ran, %d failed", ran, failed)
+	}
+	if v := must[app.SyncStatusView](t)(e.a.SyncStatus(e.ctx, sa, "org-a")); v.LastError == "" || !v.Autosync {
+		t.Fatalf("status: %+v", v)
+	}
+
+	// The timer's next run is an interval after the last run.
+	before = len(e.social.Calls)
+	e.advance(domain.AutosyncInterval - time.Minute)
+	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 0 {
+		t.Fatalf("timer within the interval: %d", n)
+	}
+	e.advance(time.Minute)
+	if n := must[int](t)(e.a.AutosyncAll(e.ctx)); n != 1 {
+		t.Fatalf("timer after the interval: %d", n)
+	}
+
+	// Turning Autosync off runs no Sync.
+	e.advance(2 * time.Minute)
+	sa = must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	before = len(e.social.Calls)
+	if err := e.a.DisableAutosync(e.ctx, sa, "org-a"); err != nil {
+		t.Fatal(err)
+	}
+	if len(e.social.Calls) != before {
+		t.Fatalf("off synced: %v", e.calls(before))
+	}
+	e.noTokenStored(t, token)
 }
 
 // setupPostable connects org-a and syncs one Event with a cover.
@@ -1296,8 +1430,13 @@ func TestStoredTokenIsGuarded(t *testing.T) {
 	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
 	e.connect(t, sa, "org-a", "1001", false)
 	e.autosyncOn(t, sa, "org-a")
+	// The Sync of turning Autosync on uses the token just issued: no read.
+	if e.on.SyncErr != nil || e.secrets.Gets != 0 {
+		t.Fatalf("autosync on: %v, %d reads", e.on.SyncErr, e.secrets.Gets)
+	}
 
 	// Repeated "Sync now" and timer calls inside the interval read no secret.
+	e.advance(2 * time.Minute)
 	must[domain.SyncResult](t)(e.a.SyncNow(e.ctx, sa, "org-a"))
 	if e.secrets.Gets != 1 {
 		t.Fatalf("first run: %d reads", e.secrets.Gets)

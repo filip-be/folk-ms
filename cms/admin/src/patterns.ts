@@ -1,8 +1,9 @@
 // Patterns shared by the Event and connection screens and shown on
 // /app/design: flag badges, the connection banners, the switch and the
-// Autosync warning. Styled in app.css ("Badges", "Messages", "Switch").
+// Autosync warning, and the messages for a Sync's outcome. Styled in app.css
+// ("Badges", "Messages", "Switch").
 
-import type { ConnectionStatus, Flags, OverrideField } from "./api.ts";
+import type { ConnectionStatus, Flags, OverrideField, SyncResult } from "./api.ts";
 import { icon } from "./icons.ts";
 import { L } from "./i18n.ts";
 import { fmtDate, html, raw, type Raw } from "./ui.ts";
@@ -31,6 +32,38 @@ export function flagBadges(f: Flags, binReason?: string): Raw {
   if (f.formerPage) b.push(html`<span class="badge">${L("z poprzedniej strony", "from a former page")}</span>`);
   if (f.syncConflict) b.push(html`<span class="badge warn">${L("jest też na połączonej stronie", "also on the connected page")}</span>`);
   return b.length ? html`<span class="badges">${b}</span>` : raw("");
+}
+
+/**
+ * A Sync's outcome as the Meta callback reports it in `?sync=`: after "Sync
+ * now" on the Event list, and after turning Autosync on on the connection screen.
+ */
+export function syncOutcome(reason: string, pageName: string): [string, "ok" | "error"] {
+  switch (reason) {
+    case "ok":
+      return [L("Synchronizacja zakończona.", "Sync finished."), "ok"];
+    case "cancelled":
+      return [L("Anulowano logowanie do Meta. Synchronizacja nie została uruchomiona.", "The Meta sign-in was cancelled. Sync did not run."), "error"];
+    case "page":
+      return [
+        L(`Twoje konto Meta nie ma roli na stronie „${pageName}”. Synchronizacja nie została uruchomiona.`, `Your Meta account has no role on the Facebook page “${pageName}”. Sync did not run.`),
+        "error",
+      ];
+    case "too_soon":
+      return [L("Synchronizacja była przed chwilą – spróbuj ponownie za minutę.", "A sync ran moments ago – try again in a minute."), "error"];
+    case "running":
+      return [L("Synchronizacja już trwa – odśwież za chwilę.", "A sync is already running – refresh in a moment."), "error"];
+    default:
+      return [L("Synchronizacja nie powiodła się. Szczegóły w panelu synchronizacji na liście wydarzeń.", "Sync failed. See the sync panel in the Event list for details."), "error"];
+  }
+}
+
+/** The counts of one Sync run. */
+export function resultText(r: SyncResult): string {
+  return L(
+    `Na Facebooku: ${r.listed}; nowe: ${r.added}, zmienione: ${r.updated}, do kosza: ${r.binned}${r.conflicts ? `, zajęte przez wydarzenia dodane ręcznie: ${r.conflicts}` : ""}.`,
+    `On Facebook: ${r.listed}; new: ${r.added}, changed: ${r.updated}, to the Bin: ${r.binned}${r.conflicts ? `, held by manual events: ${r.conflicts}` : ""}.`,
+  );
 }
 
 /** Banners about the Social Account Connection and Autosync, for the Event list and the connection screen. */
@@ -85,7 +118,7 @@ export function autosyncWarning(id = "autosync-warning"): Raw {
     <p><strong>${L("Co oznacza włączenie Autosync", "What turning Autosync on means")}</strong></p>
     <ul>
       <li>${L("CMS zapisuje token strony na Facebooku w Azure Key Vault. Nikt nie może go odczytać przez CMS.", "The CMS stores a Facebook page token in Azure Key Vault. Nobody can read it through the CMS.")}</li>
-      <li>${L("Z tym tokenem CMS co godzinę odczytuje wydarzenia strony i publikuje posty bez logowania do Meta (po niedawnym logowaniu do CMS). Kto mógłby uruchomić kod jako CMS, mógłby publikować na stronie.", "With it the CMS reads the page's events every hour and posts Social Posts without a Meta sign-in (after a recent CMS sign-in). Whoever could run code as the CMS could post to the page.")}</li>
+      <li>${L("Z tym tokenem CMS odczytuje wydarzenia strony od razu, a potem co godzinę, i publikuje posty bez logowania do Meta (po niedawnym logowaniu do CMS). Kto mógłby uruchomić kod jako CMS, mógłby publikować na stronie.", "With it the CMS reads the page's events at once and then every hour, and posts Social Posts without a Meta sign-in (after a recent CMS sign-in). Whoever could run code as the CMS could post to the page.")}</li>
       <li>${L("Meta kończy dostęp tokenu do danych po 90 dniach: ktoś musi zalogować się do Meta ponownie co najmniej tak często.", "Meta ends the token's data access after 90 days: someone must sign in with Meta again at least that often.")}</li>
       <li>${L("Wyłączenie Autosync, zmiana lub odłączenie strony usuwa token.", "Turning Autosync off, or changing or disconnecting the page, deletes the token.")}</li>
     </ul>

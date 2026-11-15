@@ -10,6 +10,7 @@ Sync reads with the Facebook page token of the connected Facebook page (see the 
 
 - **Autosync off** (the default): the CMS stores nothing from Meta. "Sync now" sends the Moderator to a Meta sign-in; the callback `/auth/meta/callback` redeems the code for a user token, asks Graph for the token of the connected Facebook page (Graph gives it only to someone with a role on the page), runs the Sync with it in memory and drops both. This Sync Request lives only in the signed Meta state cookie, bound to the CMS user and the Organization, and is used once; unlike a Post Request, nothing is stored. The Event list shows when the last Sync ran, since nothing updates unattended.
 - **Autosync on**: "Sync now" (`POST /api/orgs/{org}/sync`) runs at once with the stored token, read from the secret store for that run only ([ADR 0010](../architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md)). The hourly timer function `sync` (`0 7 * * * *`) calls `POST /sync`, which syncs every Organization with Autosync on whose last run started at least 50 minutes ago and whose connection does not need reconnecting. The Super Admin can start the same with `POST /api/admin/autosync`.
+- **Turning Autosync on** runs one Sync at once, in the same Meta callback that stores the token, with the token just issued and still in memory: no secret is read for it, but its use is in the Audit Log first (`autosync.token_used`) like any use of the stored token. It is an ordinary run (`sync.ran` or `sync.failed`, by the Moderator, token `stored`) and claims the lease with the "Sync now" interval, so within a minute of another run, or while one holds the lease, it does not run. Autosync stays on whatever the Sync's outcome; the callback reports it in `sync=` beside `autosync=on`, and the connection screen shows it with the counts. The hourly schedule is unchanged: its next run is 50 minutes or more after this one.
 
 "Sync now" is open to any Moderator of the Organization and the Super Admin, at most once a minute per Organization. With Autosync off the interval is checked before the Moderator is sent to Meta, so nobody signs in for nothing.
 
@@ -17,7 +18,7 @@ When Graph rejects the stored token (code 190: revoked, the role lost, the app r
 
 ### The lease (T10)
 
-`POST /sync` is public, like `POST /purge`: the Functions host cannot attach a secret to a timer call, and the catch-all HTTP route exposes it. It takes no input. One instance scans the Organizations at most once every 5 minutes, and the app can scale out, so the real bound lives in storage: each run first claims the Organization's sync status document `orgs/{org}/sync/status.json` with its ETag. The document holds a 5-minute lease and the time of the last run; a run that finds the lease held, or the last run too recent (1 minute for "Sync now", 50 minutes for Autosync), does nothing. The stored token is read only after the claim succeeds, so calling `/sync` or "Sync now" repeatedly multiplies neither Graph calls nor Key Vault reads. The answer to `/sync` never carries error details; they go to the log. The same document records the first Sync, the last run and who ran it (a user or `autosync`), the last success, the last error and the counts of the last run; the Event list shows them.
+`POST /sync` is public, like `POST /purge`: the Functions host cannot attach a secret to a timer call, and the catch-all HTTP route exposes it. It takes no input. One instance scans the Organizations at most once every 5 minutes, and the app can scale out, so the real bound lives in storage: each run first claims the Organization's sync status document `orgs/{org}/sync/status.json` with its ETag. The document holds a 5-minute lease and the time of the last run; a run that finds the lease held, or the last run too recent (1 minute for "Sync now" and the Sync of turning Autosync on, 50 minutes for Autosync), does nothing. The stored token is read only after the claim succeeds, so calling `/sync` or "Sync now" repeatedly multiplies neither Graph calls nor Key Vault reads. The answer to `/sync` never carries error details; they go to the log. The same document records the first Sync, the last run and who ran it (a user or `autosync`), the last success, the last error and the counts of the last run; the Event list shows them.
 
 ### One run
 
@@ -66,14 +67,16 @@ A spike on 2026-11-13 (Graph v24.0, a test Facebook page, Standard Access, the M
 | Graph calls, covers, error mapping; the recorder and its canned events | [`cms/internal/adapters/meta/events.go`](../../cms/internal/adapters/meta/events.go), [`cms/internal/adapters/meta/meta.go`](../../cms/internal/adapters/meta/meta.go) |
 | Routes: `POST /api/orgs/{org}/sync`, `POST /sync`, the Meta callback | [`cms/internal/http/api.go`](../../cms/internal/http/api.go), [`cms/internal/http/server.go`](../../cms/internal/http/server.go), [`cms/internal/http/auth.go`](../../cms/internal/http/auth.go) |
 | Hourly timer | [`cms/deploy/functions/sync/function.json`](../../cms/deploy/functions/sync/function.json) |
-| Sync status and "Sync now" in the Event list | [`cms/admin/src/views/events.ts`](../../cms/admin/src/views/events.ts) |
+| Turning Autosync on and its immediate Sync | [`cms/internal/app/connection.go`](../../cms/internal/app/connection.go) (`CompleteAutosync`) |
+| Sync status and "Sync now" in the Event list; the Sync outcome messages | [`cms/admin/src/views/events.ts`](../../cms/admin/src/views/events.ts), [`cms/admin/src/patterns.ts`](../../cms/admin/src/patterns.ts) |
+| The outcome of turning Autosync on, with its Sync | [`cms/admin/src/views/social.ts`](../../cms/admin/src/views/social.ts) |
 
 ## Change together
 
 | Rule | Files | What breaks |
 | --- | --- | --- |
 | The timer runs more often than the Autosync interval, and that interval stays under an hour | `cms/deploy/functions/sync/function.json` (`schedule`), `cms/internal/domain/sync.go` (`AutosyncInterval`) | With an interval of an hour or more, each hourly run finds the last one too recent and Autosync runs every other hour, silently. |
-| The "Sync now" and Autosync callback outcomes have a message in the SPA | `cms/internal/http/auth.go` (`completeSync`: `sync=ok,page,too_soon,running,error,cancelled`; `completeAutosync`: `autosync=on,page,recent_sign_in,error,cancelled`), the Event list and connection screen in `cms/admin/src/views/` | The Moderator sees no message or a generic one after the Meta sign-in. Not enforced by a test yet. |
+| The "Sync now" and Autosync callback outcomes have a message in the SPA | `cms/internal/http/auth.go` (`syncReason`: `sync=ok,page,too_soon,running,error`, plus `cancelled` from `completeSync`; `completeAutosync`: `autosync=on` with its Sync's `sync=`, or `autosync=page,recent_sign_in,error,cancelled`), `syncOutcome` in `cms/admin/src/patterns.ts`, the Event list and connection screen in `cms/admin/src/views/` | The Moderator sees no message or a generic one after the Meta sign-in. Not enforced by a test yet. |
 
 How often the CMS reads a stored token is bound to the Key Vault alert: see [Platform, Change together](../platform/README.md#change-together).
 

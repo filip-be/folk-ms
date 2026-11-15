@@ -453,8 +453,12 @@ func TestRecentSignInGuardsTheStoredToken(t *testing.T) {
 	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/social", "", nil); !strings.Contains(body, `"recentSignIn":true`) {
 		t.Fatalf("real session: %s", body)
 	}
-	if got := h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`); got.Path != "/app/orgs/org-a/social" || got.Query().Get("autosync") != "on" {
+	if got := h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`); got.Path != "/app/orgs/org-a/social" || got.Query().Get("autosync") != "on" || got.Query().Get("sync") != "ok" {
 		t.Fatalf("autosync landed on %s", got)
+	}
+	// Turning it on synced at once, with the token just issued.
+	if len(h.social.Calls) != 1 || !strings.HasPrefix(h.social.Calls[0], "list 1001 long-page-token-1001-") {
+		t.Fatalf("calls: %v", h.social.Calls)
 	}
 	h.app.Clock = laterClock{16 * time.Minute}
 	for _, call := range [][2]string{{"/api/orgs/org-a/social/autosync", `{"on":false}`}, {"/api/orgs/org-a/social/disconnect", ""}} {
@@ -462,7 +466,7 @@ func TestRecentSignInGuardsTheStoredToken(t *testing.T) {
 			t.Fatalf("not recent %s: %d %s", call[0], resp.StatusCode, body)
 		}
 	}
-	h.app.Clock = ports.SystemClock{}
+	h.app.Clock = laterClock{2 * time.Minute} // past the Sync of turning Autosync on
 
 	// With Autosync on, "Sync now" runs at once; the API never returns the token.
 	resp, body := h.do(t, c, "POST", "/api/orgs/org-a/sync", "", h.same())
@@ -532,15 +536,20 @@ func TestTimerSync(t *testing.T) {
 	h.signIn(t, c)
 	h.connect(t, c)
 	h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	// Turning Autosync on synced at once; the timer syncs an interval later.
+	if len(h.social.Calls) != 1 {
+		t.Fatalf("calls after autosync on: %v", h.social.Calls)
+	}
+	h.app.Clock = laterClock{domain.AutosyncInterval}
 	anon := h.client(t)
 	resp, body := h.do(t, anon, "POST", "/sync", `{"org":"org-a","token":"x"}`, nil)
 	if resp.StatusCode != 200 || !strings.Contains(body, `"Outputs"`) {
 		t.Fatalf("timer: %d %s", resp.StatusCode, body)
 	}
-	if len(h.social.Calls) != 1 || !strings.HasPrefix(h.social.Calls[0], "list 1001 long-page-token-") {
+	if len(h.social.Calls) != 2 || !strings.HasPrefix(h.social.Calls[1], "list 1001 long-page-token-") {
 		t.Fatalf("calls: %v", h.social.Calls)
 	}
-	if _, body = h.do(t, anon, "POST", "/sync", "", nil); !strings.Contains(body, "skipped") || len(h.social.Calls) != 1 {
+	if _, body = h.do(t, anon, "POST", "/sync", "", nil); !strings.Contains(body, "skipped") || len(h.social.Calls) != 2 {
 		t.Fatalf("a second sync right away must be skipped: %s", body)
 	}
 	limited := false
@@ -550,7 +559,7 @@ func TestTimerSync(t *testing.T) {
 			break
 		}
 	}
-	if !limited || len(h.social.Calls) != 1 {
+	if !limited || len(h.social.Calls) != 2 {
 		t.Fatalf("rate limit: %v, calls %v", limited, h.social.Calls)
 	}
 
@@ -561,9 +570,61 @@ func TestTimerSync(t *testing.T) {
 	h.connect(t, c)
 	h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
 	h.social.FailList = errors.New("meta: HTTP 400 code 2500/0: detail about org-a")
+	h.app.Clock = laterClock{domain.AutosyncInterval}
 	resp, body = h.do(t, h.client(t), "POST", "/sync", "", nil)
 	if resp.StatusCode != 200 || !strings.Contains(body, "autosync failed") || strings.Contains(body, "org-a") || strings.Contains(body, "2500") {
 		t.Fatalf("failed timer: %d %s", resp.StatusCode, body)
+	}
+}
+
+// Turning Autosync on lands on the connection screen with the outcome of
+// the Sync it ran at once in sync=, as "Sync now" reports it; a failed Sync
+// leaves Autosync on.
+func TestAutosyncOnReportsItsSync(t *testing.T) {
+	h := newHarness(t)
+	c := h.client(t)
+	h.signIn(t, c)
+	h.connect(t, c)
+
+	// A failed Sync: Autosync on, sync=error, the failure in the sync status.
+	h.social.FailList = errors.New("meta: HTTP 500")
+	got := h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	h.social.FailList = nil
+	if got.Path != "/app/orgs/org-a/social" || got.Query().Get("autosync") != "on" || got.Query().Get("sync") != "error" {
+		t.Fatalf("failed sync landed on %s", got)
+	}
+	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil); !strings.Contains(body, `"autosync":true`) || !strings.Contains(body, `"lastError"`) {
+		t.Fatalf("status: %s", body)
+	}
+
+	// Again within a minute: Autosync on, sync=too_soon, nothing read.
+	calls := len(h.social.Calls)
+	got = h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	if got.Query().Get("autosync") != "on" || got.Query().Get("sync") != "too_soon" || len(h.social.Calls) != calls {
+		t.Fatalf("too soon landed on %s, calls %v", got, h.social.Calls)
+	}
+
+	// A minute later: sync=ok, and the counts are in the sync status.
+	h.app.Clock = laterClock{2 * time.Minute}
+	got = h.metaLogin(t, c, "/api/orgs/org-a/social/autosync", `{"on":true}`)
+	if got.Query().Get("autosync") != "on" || got.Query().Get("sync") != "ok" || len(h.social.Calls) != calls+1 {
+		t.Fatalf("ok landed on %s, calls %v", got, h.social.Calls)
+	}
+	if _, body := h.do(t, c, "GET", "/api/orgs/org-a/sync", "", nil); !strings.Contains(body, `"lastResult":{"listed":3`) {
+		t.Fatalf("status: %s", body)
+	}
+
+	// Cancelled at Meta: Autosync stays as it was and nothing syncs.
+	calls = len(h.social.Calls)
+	resp, b := h.do(t, c, "POST", "/api/orgs/org-a/social/autosync", `{"on":true}`, h.same())
+	var out struct{ URL string }
+	if resp.StatusCode != 200 || json.Unmarshal([]byte(b), &out) != nil {
+		t.Fatalf("start: %d %s", resp.StatusCode, b)
+	}
+	u, _ := url.Parse(out.URL)
+	resp, _ = h.do(t, c, "GET", "/auth/meta/callback?error=access_denied&state="+url.QueryEscape(u.Query().Get("state")), "", nil)
+	if got = resp.Request.URL; got.Query().Get("autosync") != "cancelled" || got.Query().Has("sync") || len(h.social.Calls) != calls {
+		t.Fatalf("cancelled landed on %s, calls %v", got, h.social.Calls)
 	}
 }
 

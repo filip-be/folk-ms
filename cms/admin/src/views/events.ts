@@ -1,8 +1,8 @@
 // The Event list: views, flags, the sync status panel with "Sync now", and
 // the connection banners.
 
-import { api, ApiError, type ConnectionStatus, type EventSummary, type SyncResult, type SyncStatus } from "../api.ts";
-import { connectionBanners, flagBadges } from "../patterns.ts";
+import { api, ApiError, type ConnectionStatus, type EventSummary, type SyncStatus } from "../api.ts";
+import { connectionBanners, flagBadges, resultText, syncOutcome } from "../patterns.ts";
 import { busy, fmtDate, fmtDateTime, html, navigate, raw, showError, t, toast } from "../ui.ts";
 import { View } from "../view.ts";
 import { L } from "../i18n.ts";
@@ -16,33 +16,6 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
-/** What the Meta callback of "Sync now" reported (`?sync=`). */
-function syncOutcome(reason: string, pageName: string): [string, "ok" | "error"] {
-  switch (reason) {
-    case "ok":
-      return [L("Synchronizacja zakończona.", "Sync finished."), "ok"];
-    case "cancelled":
-      return [L("Anulowano logowanie do Meta. Synchronizacja nie została uruchomiona.", "The Meta sign-in was cancelled. Sync did not run."), "error"];
-    case "page":
-      return [
-        L(`Twoje konto Meta nie ma roli na stronie „${pageName}”. Synchronizacja nie została uruchomiona.`, `Your Meta account has no role on the Facebook page “${pageName}”. Sync did not run.`),
-        "error",
-      ];
-    case "too_soon":
-      return [L("Synchronizacja była przed chwilą – spróbuj ponownie za minutę.", "A sync ran moments ago – try again in a minute."), "error"];
-    case "running":
-      return [L("Synchronizacja już trwa – odśwież za chwilę.", "A sync is already running – refresh in a moment."), "error"];
-    default:
-      return [L("Synchronizacja nie powiodła się. Szczegóły w panelu synchronizacji.", "Sync failed. See the sync panel for details."), "error"];
-  }
-}
-
-function resultText(r: SyncResult): string {
-  return L(
-    `Na Facebooku: ${r.listed}; nowe: ${r.added}, zmienione: ${r.updated}, do kosza: ${r.binned}${r.conflicts ? `, zajęte przez wydarzenia dodane ręcznie: ${r.conflicts}` : ""}.`,
-    `On Facebook: ${r.listed}; new: ${r.added}, changed: ${r.updated}, to the Bin: ${r.binned}${r.conflicts ? `, held by manual events: ${r.conflicts}` : ""}.`,
-  );
-}
 
 class EventsView extends View {
   private tab: Tab = "upcoming";

@@ -300,29 +300,35 @@ func (a *App) ownSecretName(org, name string) bool {
 // stored under a new secret name, and the user tokens are dropped. A token
 // stored before (turning Autosync on again, e.g. before the data access
 // expires) is replaced and its secret deleted.
-func (a *App) CompleteAutosync(ctx context.Context, p domain.Principal, org, code, redirectURI string) error {
+//
+// Once it is on, one Sync runs at once with the token just issued, still in
+// memory, so no secret is read for it. It claims the lease with the "Sync
+// now" interval like any run, so it never runs beside the timer's; the
+// timer's schedule is unchanged and syncs again AutosyncInterval after it.
+// Its outcome is in the AutosyncOn; Autosync stays on whatever it is.
+func (a *App) CompleteAutosync(ctx context.Context, p domain.Principal, org, code, redirectURI string) (AutosyncOn, error) {
 	if err := a.StartAutosync(ctx, p, org); err != nil {
-		return err
+		return AutosyncOn{}, err
 	}
 	ctx = context.WithoutCancel(ctx)
 	conn, err := a.connection(ctx, org)
 	if err != nil {
-		return err
+		return AutosyncOn{}, err
 	}
 	userToken, err := a.Social.UserToken(ctx, code, redirectURI)
 	if err != nil {
-		return fmt.Errorf("meta login: %w", err)
+		return AutosyncOn{}, fmt.Errorf("meta login: %w", err)
 	}
 	token, page, expires, err := a.Events.LongLivedPageToken(ctx, userToken, conn.PageID)
 	if err != nil {
-		return err
+		return AutosyncOn{}, err
 	}
 	name := a.secretName(org)
 	if err := a.Secrets.Set(ctx, name, token); err != nil {
-		return fmt.Errorf("store token: %w", err)
+		return AutosyncOn{}, fmt.Errorf("store token: %w", err)
 	}
 	var previous string
-	_, _, err = mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
+	on, _, err := mutate(ctx, a.Docs, connectionKey(org), func(c *domain.Connection) error {
 		if c.PageID != conn.PageID {
 			return fmt.Errorf("%w: the connection changed meanwhile", domain.ErrConflict)
 		}
@@ -345,7 +351,7 @@ func (a *App) CompleteAutosync(ctx context.Context, p domain.Principal, org, cod
 		if derr := a.Secrets.Delete(ctx, name); derr != nil && !errors.Is(derr, ports.ErrNotFound) {
 			a.Log.Error("orphaned autosync secret", "org", org, "err", derr)
 		}
-		return err
+		return AutosyncOn{}, err
 	}
 	if previous != "" && a.ownSecretName(org, previous) {
 		if err := a.Secrets.Delete(ctx, previous); err != nil && !errors.Is(err, ports.ErrNotFound) {
@@ -357,7 +363,24 @@ func (a *App) CompleteAutosync(ctx context.Context, p domain.Principal, org, cod
 		details["dataAccessExpiresAt"] = expires
 	}
 	a.audit(ctx, p, "autosync.on", org, conn.PageID, details)
-	return nil
+	var out AutosyncOn
+	out.Sync, out.SyncErr = a.runSync(ctx, p, on, func(ctx context.Context) (string, error) {
+		// A use of the stored token, so it is recorded first as storedToken does (T8).
+		if err := a.auditStrict(ctx, p, "autosync.token_used", org, "", map[string]any{"purpose": "sync", "page": on.PageID}); err != nil {
+			return "", fmt.Errorf("stored token not used, the Audit Log is unavailable: %w", err)
+		}
+		return token, nil
+	}, domain.SyncNowInterval)
+	return out, nil
+}
+
+// AutosyncOn is the Sync that turning Autosync on ran right away: its
+// counts, and its error (domain.ErrTooSoon or domain.ErrConflict when
+// another run was too recent or still holds the lease). Autosync is on
+// whatever SyncErr is.
+type AutosyncOn struct {
+	Sync    domain.SyncResult
+	SyncErr error
 }
 
 // DisableAutosync turns Autosync off and deletes the stored token.
