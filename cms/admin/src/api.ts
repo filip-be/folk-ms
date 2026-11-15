@@ -352,13 +352,17 @@ export interface Labeled {
   label: Text;
   uses: number;
 }
+/** A Form with its optional description (absent when there is none). */
+export interface Form extends Labeled {
+  description?: Text;
+}
 export interface Country extends Labeled {
   regions: Labeled[];
 }
 /** The whole collection with its version; every change sends `etag` back. */
 export interface VideoCollection {
   etag: string;
-  forms: Labeled[];
+  forms: Form[];
   origins: Country[];
   videos: Video[];
 }
@@ -456,11 +460,15 @@ export const api = {
   /** kind: "" for a Video, "forms/" or "origins/" for a list item. */
   moveItem: (org: string, kind: "" | "forms/" | "origins/", id: string, etag: string, to: number) =>
     request<VideoCollection>("POST", `${o(org)}/videos/${kind}${id}/move`, { to }, { "If-Match": etag }),
-  addForm: (org: string, etag: string, label: Text) => request<VideoCollection>("POST", `${o(org)}/videos/forms`, { label }, { "If-Match": etag }),
+  addForm: (org: string, etag: string, label: Text, description: Text) =>
+    request<VideoCollection>("POST", `${o(org)}/videos/forms`, { label, description }, { "If-Match": etag }),
+  /** Replaces a Form's label and description (empty clears it). */
+  updateForm: (org: string, id: string, etag: string, label: Text, description: Text) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/forms/${id}`, { label, description }, { "If-Match": etag }),
   addOrigin: (org: string, etag: string, label: Text, parentId = "") =>
     request<VideoCollection>("POST", `${o(org)}/videos/origins`, { label, parentId }, { "If-Match": etag }),
-  renameItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string, label: Text) =>
-    request<VideoCollection>("PUT", `${o(org)}/videos/${kind}${id}`, { label }, { "If-Match": etag }),
+  renameOrigin: (org: string, id: string, etag: string, label: Text) =>
+    request<VideoCollection>("PUT", `${o(org)}/videos/origins/${id}`, { label }, { "If-Match": etag }),
   removeItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string) =>
     request<VideoCollection>("DELETE", `${o(org)}/videos/${kind}${id}`, undefined, { "If-Match": etag }),
 

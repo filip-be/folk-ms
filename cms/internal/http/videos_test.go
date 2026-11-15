@@ -57,6 +57,22 @@ func TestVideoAPI(t *testing.T) {
 	call("POST", base+"/forms/"+form+"/move", `{}`, 400)
 	call("PUT", base+"/forms/"+form, `{"label":{"pl":""}}`, 422)
 	call("PUT", base+"/forms/"+form, `{"label":{"pl":"Pary"}}`, 200)
+	// A Form's optional description: set, refused without Polish, cleared.
+	call("PUT", base+"/forms/"+form, `{"label":{"pl":"Pary"},"description":{"pl":" Tańce w parach. ","en":"Couple dances."}}`, 200)
+	if d := v.Forms[1].Description; d.PL != "Tańce w parach." || d.EN != "Couple dances." {
+		t.Fatalf("form description: %+v", v.Forms[1])
+	}
+	if body := call("PUT", base+"/forms/"+form, `{"label":{"pl":"Pary"},"description":{"en":"Couple dances."}}`, 422); !strings.Contains(body, `"field":"description.pl"`) {
+		t.Fatalf("description without Polish: %s", body)
+	}
+	if body := call("PUT", base+"/forms/"+form, `{"label":{"pl":"Pary"}}`, 200); strings.Contains(body, `"description"`) {
+		t.Fatalf("description not cleared: %s", body)
+	}
+	call("POST", base+"/forms", `{"label":{"pl":"Łańcuch"},"description":{"pl":"Jeden za drugim."}}`, 200)
+	if d := v.Forms[2].Description; d.PL != "Jeden za drugim." {
+		t.Fatalf("added with description: %+v", v.Forms)
+	}
+	call("POST", base+"/origins", `{"label":{"pl":"Wyspa"},"description":{"pl":"x"}}`, 400) // Origins have no description
 	call("POST", base+"/origins", `{"label":{"pl":"Francja"}}`, 200)
 	country := v.Origins[0].ID
 	call("POST", base+"/origins", `{"label":{"pl":"Bretania"},"parentId":"`+country+`"}`, 200)

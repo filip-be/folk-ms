@@ -52,20 +52,27 @@ func TestVideoCollection(t *testing.T) {
 	if _, err := e.a.GetVideos(e.ctx, modB, "org-a"); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("other organization's moderator: %v", err)
 	}
-	if _, err := e.a.AddForm(e.ctx, modB, "org-a", v.ETag, domain.Text{PL: "Para"}); !errors.Is(err, domain.ErrForbidden) {
+	if _, err := e.a.AddForm(e.ctx, modB, "org-a", v.ETag, domain.Text{PL: "Para"}, domain.Text{}); !errors.Is(err, domain.ErrForbidden) {
 		t.Fatalf("other organization's moderator writes: %v", err)
 	}
 	// Writes need the version the screen loaded.
-	if _, err := e.a.AddForm(e.ctx, modA, "org-a", "", domain.Text{PL: "Para"}); !errors.Is(err, domain.ErrConflict) {
+	if _, err := e.a.AddForm(e.ctx, modA, "org-a", "", domain.Text{PL: "Para"}, domain.Text{}); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("no version: %v", err)
 	}
-	v = must[app.VideoCollectionView](t)(e.a.AddForm(e.ctx, modA, "org-a", v.ETag, domain.Text{PL: "Para", EN: "Pair"}))
+	v = must[app.VideoCollectionView](t)(e.a.AddForm(e.ctx, modA, "org-a", v.ETag, domain.Text{PL: "Para", EN: "Pair"}, domain.Text{}))
 	pair := v.Forms[0].ID
 	if !domain.IsShortID(pair) {
 		t.Fatalf("form id %q", pair)
 	}
+	v = must[app.VideoCollectionView](t)(e.a.UpdateForm(e.ctx, modA, "org-a", pair, v.ETag, domain.Text{PL: "Para", EN: "Pair"}, domain.Text{PL: "Tańce w parach."}))
+	if v.Forms[0].Description.PL != "Tańce w parach." || v.Forms[0].Label.EN != "Pair" {
+		t.Fatalf("form description: %+v", v.Forms[0])
+	}
+	if s := e.videoSnapshot(t, "org-a"); len(s.Forms) != 1 || s.Forms[0].Description == nil || s.Forms[0].Description.PL != "Tańce w parach." {
+		t.Fatalf("form description in snapshot: %+v", s.Forms)
+	}
 	// A second screen still holding "new" conflicts instead of overwriting.
-	if _, err := e.a.AddForm(e.ctx, modA, "org-a", app.NewVideosETag, domain.Text{PL: "Koło"}); !errors.Is(err, domain.ErrConflict) {
+	if _, err := e.a.AddForm(e.ctx, modA, "org-a", app.NewVideosETag, domain.Text{PL: "Koło"}, domain.Text{}); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("stale new: %v", err)
 	}
 	stale := v.ETag
@@ -73,7 +80,7 @@ func TestVideoCollection(t *testing.T) {
 	france := v.Origins[0].ID
 	v = must[app.VideoCollectionView](t)(e.a.AddOrigin(e.ctx, modA, "org-a", v.ETag, france, domain.Text{PL: "Bretania"}))
 	brittany := v.Origins[0].Regions[0].ID
-	if _, err := e.a.AddForm(e.ctx, modA, "org-a", stale, domain.Text{PL: "Koło"}); !errors.Is(err, domain.ErrConflict) {
+	if _, err := e.a.AddForm(e.ctx, modA, "org-a", stale, domain.Text{PL: "Koło"}, domain.Text{}); !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("stale version: %v", err)
 	}
 
@@ -141,7 +148,7 @@ func TestVideoCollection(t *testing.T) {
 
 	// The Audit Log records each change; a deleted Video keeps its title and link there.
 	actions := strings.Join(e.auditActions(t), " ")
-	for _, want := range []string{"form.add", "origin.add", "video.add", "video.update", "video.move", "video.hide", "video.delete", "origin.remove", "form.remove", "origin.rename"} {
+	for _, want := range []string{"form.add", "form.update", "origin.add", "video.add", "video.update", "video.move", "video.hide", "video.delete", "origin.remove", "form.remove", "origin.rename"} {
 		if !strings.Contains(actions, want) {
 			t.Errorf("audit has no %s: %s", want, actions)
 		}
