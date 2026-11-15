@@ -53,6 +53,8 @@ code {
   display: inline-flex; align-items: center; gap: var(--space-10); min-width: 0;
   font-size: var(--text-l); line-height: var(--leading-l); font-weight: var(--weight-bold); letter-spacing: var(--tracking-headline);
   color: var(--text); text-decoration: none;
+
+  & .brand-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
 .brand-mark {
   display: inline-grid; place-items: center; flex: none; width: var(--mark-size); height: var(--mark-size);
@@ -71,11 +73,6 @@ code {
   & .drawer-close { display: none; }
 }
 .org-switch select { margin: 0; }
-.org-name {
-  margin: 0; padding: 0 var(--space-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: var(--text-xs); line-height: var(--leading-xs); font-weight: var(--weight-semibold);
-  letter-spacing: var(--tracking-caps); text-transform: uppercase; color: var(--muted);
-}
 .side-nav {
   flex: 1;
 
@@ -138,7 +135,7 @@ main#view {
 
     & .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     & .sidebar-head { flex-direction: column; padding: 0; }
-    & .org-switch, & .org-name, & .nav-group summary .icon:last-child { display: none; }
+    & .org-switch, & .nav-group summary .icon:last-child { display: none; }
     & .side-nav, & .sidebar-foot { align-self: stretch; }
     & .nav-item { justify-content: center; padding: 0; }
     & .nav-tree { margin: var(--space-2) 0 0; padding: 0; border: none; }

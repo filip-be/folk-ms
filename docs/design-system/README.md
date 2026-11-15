@@ -63,7 +63,7 @@ Weights: `--weight-regular` 400, `--weight-medium` 500, `--weight-semibold` 600,
 
 ### App shell
 
-The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the page: the brand and collapse button, the Organization switcher, the sections with line icons ([`icons.ts`](../../cms/admin/src/icons.ts)), a collapsible **Administration** group whose items hang off a tree line, and at the bottom the signed-in user, the theme switch, the language switch and Sign out.
+The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the page: the brand and collapse button, the Organization switcher (only for people with more than one site), the sections with line icons ([`icons.ts`](../../cms/admin/src/icons.ts)), a collapsible **Administration** group whose items hang off a tree line, and at the bottom the signed-in user, the theme switch, the language switch and Sign out. The brand names the selected site (organization), with its first letter in the mark, not the CMS.
 
 - **Wide screens (768px and up).** The sidebar is sticky and full height. The collapse button folds it to a 72px icon rail; labels stay in the DOM for screen readers and show as tooltips. The choice is kept per browser (`localStorage`, `folkms.nav`), as is a folded Administration group (`folkms.nav.admin`).
 - **Narrow screens (below 768px).** A top bar with a menu button and the brand replaces the sidebar, which becomes an off-canvas drawer over a scrim. Opening it moves focus to the current page's item (or the first item) and makes the page inert; Escape, the close button or the scrim closes it and returns focus to the menu button. The rail is never used on phones.
