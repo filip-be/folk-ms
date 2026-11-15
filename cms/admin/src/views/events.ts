@@ -141,7 +141,7 @@ class EventsView extends View {
     this.set(html`
       <div class="toolbar">
         <h1>${L("Wydarzenia", "Events")}</h1>
-        <a class="button" href="/app/orgs/${this.org}/events/new">${icon("plus")}${L("Dodaj współorganizowane wydarzenie", "Add co-hosted event")}</a>
+        <a class="button" href="/app/orgs/${this.org}/events/new">${icon("plus")}${L("Importuj wydarzenie ręcznie", "Import event manually")}</a>
       </div>
       ${connectionBanners(this.conn, this.org)}
       ${this.syncPanel()}

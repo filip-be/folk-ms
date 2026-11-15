@@ -148,7 +148,7 @@ How Sync and Autosync work: [Sync](docs/sync/README.md) and [Social posting](doc
 2. On the Event list, *Sync now* imports the page's upcoming Facebook Events (not past ones). With Autosync off, every *Sync now* asks for a Meta sign-in; it runs at most once a minute.
 3. Optionally, turn **Autosync** on under *Social media*: hourly Sync, and posting without a Meta sign-in each time. It stores a Facebook page token in Key Vault, so read the warning first. It needs a CMS sign-in in the last 15 minutes (the CMS asks you to sign in again otherwise) and a Meta sign-in by someone with a role on the page. Meta ends the token's data access 90 days later: from 14 days before, a "reconnect before" banner asks someone to turn Autosync on again, which issues a new token.
 4. Turning Autosync off deletes the token at once; so do replacing or disconnecting the page, and the Super Admin removing the person who turned it on from the Organization. In each case the person who turned it on should also remove the app on Facebook under *Settings → Business integrations*, since a page token cannot revoke itself. A "needs reconnect" banner means Graph rejected the token (password changed, page role lost, app removed): turn Autosync on again.
-5. Co-hosted Facebook Events another page created cannot be synced: add each with *Add co-hosted event* (a Manual Event) and keep it up to date by hand.
+5. Co-hosted Facebook Events another page created cannot be synced: add each with *Import event manually* (a Manual Event) and keep it up to date by hand.
 
 ### Key Vault and token incident response
 

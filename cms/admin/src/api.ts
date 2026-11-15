@@ -313,6 +313,12 @@ export interface AuditEntry {
   details?: Record<string, unknown>;
 }
 
+/** Up to 50 Audit Log lines, newest first; next continues it. */
+export interface AuditPage {
+  entries: AuditEntry[];
+  next?: string;
+}
+
 // ── Video Collection (wideopomoc) ─────────────────────────────────────
 export type VideoProvider = "youtube" | "vimeo";
 export interface VideoLink {
@@ -465,5 +471,6 @@ export const api = {
   invite: (email: string, orgs: string[]) => request<Invitation>("POST", "/api/invitations", { email, orgs }),
   revokeInvitation: (id: string) => request<Invitation>("POST", `/api/invitations/${id}/revoke`),
   auditDays: () => request<string[]>("GET", "/api/audit"),
-  audit: (day: string) => request<AuditEntry[]>("GET", `/api/audit/${day}`),
+  auditPage: (day = "", cursor = "") =>
+    request<AuditPage>("GET", `/api/audit/entries?${new URLSearchParams({ day, cursor })}`),
 };

@@ -1411,3 +1411,67 @@ func TestAutosyncOffDeletesOnlyItsOwnSecret(t *testing.T) {
 		t.Fatalf("org-b's secret deleted: %v", err)
 	}
 }
+
+func TestAuditPage(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa", "admin@example.org"))
+	mod := domain.Principal{User: &domain.User{ID: "m"}}
+	if _, err := e.a.ReadAuditPage(e.ctx, mod, "", ""); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("moderator: %v", err)
+	}
+	// 30 lines on 2026-10-01, none on 10-02, 40 on 10-03, plus the sign-in on 11-01.
+	write := func(day string, n int) {
+		for i := range n {
+			line := fmt.Sprintf(`{"time":"%sT00:00:00Z","actor":"x","action":"%s/%d"}`, day, day, i)
+			if err := e.a.Audit.Append(e.ctx, day, []byte(line+"\n")); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	write("2026-10-01", 30)
+	write("2026-10-03", 40)
+	signIns := len(must[[]app.AuditEntry](t)(e.a.ReadAudit(e.ctx, sa, "2026-11-01")))
+
+	var all []string
+	cursor, pages := "", 0
+	for {
+		p := must[app.AuditPage](t)(e.a.ReadAuditPage(e.ctx, sa, "", cursor))
+		pages++
+		if len(p.Entries) > app.AuditPageSize || (p.Next != "" && len(p.Entries) != app.AuditPageSize) {
+			t.Fatalf("page %d: %d entries, next %q", pages, len(p.Entries), p.Next)
+		}
+		for _, a := range p.Entries {
+			all = append(all, a.Action)
+		}
+		if cursor = p.Next; cursor == "" {
+			break
+		}
+		if pages == 1 {
+			write("2026-11-01", 5) // new lines do not shift later pages
+		}
+	}
+	if len(all) != signIns+70 || all[signIns] != "2026-10-03/39" || all[len(all)-1] != "2026-10-01/0" {
+		t.Fatalf("%d entries: %v", len(all), all)
+	}
+	seen := map[string]bool{}
+	for _, a := range all[signIns:] {
+		if seen[a] {
+			t.Fatalf("duplicate %s", a)
+		}
+		seen[a] = true
+	}
+
+	// One day.
+	p := must[app.AuditPage](t)(e.a.ReadAuditPage(e.ctx, sa, "2026-10-03", ""))
+	if len(p.Entries) != 40 || p.Next != "" || p.Entries[0].Action != "2026-10-03/39" {
+		t.Fatalf("day: %d %q", len(p.Entries), p.Next)
+	}
+	if p := must[app.AuditPage](t)(e.a.ReadAuditPage(e.ctx, sa, "2026-10-02", "")); len(p.Entries) != 0 || p.Next != "" {
+		t.Fatalf("empty day: %+v", p)
+	}
+	for _, c := range [][2]string{{"x", ""}, {"", "2026-09-09:1"}, {"", "2026-10-01:-1"}, {"", "2026-10-01:a"}} {
+		if _, err := e.a.ReadAuditPage(e.ctx, sa, c[0], c[1]); !hasProblem(err, map[bool]string{true: "day", false: "cursor"}[c[0] != ""]) {
+			t.Fatalf("%v: %v", c, err)
+		}
+	}
+}

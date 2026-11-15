@@ -394,6 +394,11 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.AuditDays(r.Context(), p)
 		return ok(w, v, err)
 	}))
+	m.Handle("GET /api/audit/entries", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		q := r.URL.Query()
+		v, err := s.App.ReadAuditPage(r.Context(), p, q.Get("day"), q.Get("cursor"))
+		return ok(w, v, err)
+	}))
 	m.Handle("GET /api/audit/{day}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
 		v, err := s.App.ReadAudit(r.Context(), p, r.PathValue("day"))
 		return ok(w, v, err)
