@@ -268,7 +268,12 @@ details.more {
 }
 
 /* ── Forms ───────────────────────────────────────────────────────────── */
-.field { margin-bottom: var(--space-16); }
+.field {
+  margin-bottom: var(--space-16);
+
+  /* A hint below the control keeps the label-to-control gap from it. */
+  & > :is(input, select, textarea) ~ p:not(.field-error) { margin-top: var(--space-6); }
+}
 .field label, label { display: block; font-size: var(--text-s); font-weight: var(--weight-medium); color: var(--text-secondary); }
 input, select, textarea {
   width: 100%; min-height: var(--control-height); margin-top: var(--space-6); padding: var(--space-8) var(--space-12);

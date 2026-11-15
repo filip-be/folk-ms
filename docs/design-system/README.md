@@ -93,7 +93,7 @@ Every button has exactly one role, picked by what it does, not by how prominent 
 
 ### Forms
 
-- **Labels.** A field is `<div class="field"><label for=…>…</label><input id=…>…</div>`. Use the `for` pattern, not a label wrapped around the control: the required mark and the error message are placed relative to it.
+- **Labels.** A field is `<div class="field"><label for=…>…</label><input id=…>…</div>`. Use the `for` pattern, not a label wrapped around the control: the required mark and the error message are placed relative to it. A hint goes after the control as `<p class="muted small" id="…-hint">`, referenced by the control's `aria-describedby`; `.field` spaces it from the control as the label is.
 - **Required.** Give the control `required`. A `.field` whose label precedes a required control shows a red asterisk after the label automatically; for a group (checkboxes in a `fieldset`) or any other label, add `class="required"` to the `legend` or `label`. A form with required fields shows a `<p class="required-note">` key ("required").
 - **Validation errors** appear right below their field as `.field-error` (alert icon and message), with `aria-invalid` and `aria-describedby` on the control and a red border; editing the field clears it. `ui.ts` does this for both sources:
   - The browser's checks (`required`, `type=email|url`, `maxlength`) on a form without `novalidate`: the native bubble is replaced by the same inline message, in the admin UI language.

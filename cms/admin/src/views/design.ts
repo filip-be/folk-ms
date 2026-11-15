@@ -90,7 +90,8 @@ class DesignView extends View {
         <div class="grid">
           <div class="field"><label for="ds-name">${L("Nazwa", "Name")}</label><input id="ds-name" required placeholder="${L("Wpisz nazwę", "Enter a name")}"></div>
           <div class="field"><label for="ds-role">${L("Rola", "Role")}</label><select id="ds-role"><option>${L("Wybierz rolę", "Select role")}</option></select></div>
-          <div class="field"><label for="ds-desc">${L("Opis", "Description")}</label><textarea id="ds-desc" rows="1"></textarea></div>
+          <div class="field"><label for="ds-desc">${L("Opis", "Description")}</label><textarea id="ds-desc" rows="1" aria-describedby="ds-desc-hint"></textarea>
+            <p class="muted small" id="ds-desc-hint">${L("Podpowiedź pod polem, z odstępem od niego.", "A hint below the field, spaced from it.")}</p></div>
           <div class="field"><label for="ds-invalid">${L("Z błędem", "With an error")}</label><input id="ds-invalid" required type="email" value="anna@"></div>
           <div class="field"><label for="ds-readonly">${L("Tylko do odczytu", "Read-only")}</label><input id="ds-readonly" readonly value="${L("można skopiować", "can be copied")}"></div>
           <div class="field"><label for="ds-disabled">${L("Wyłączone", "Disabled")}</label><select id="ds-disabled" disabled><option>${L("Niedostępne", "Unavailable")}</option></select></div>
