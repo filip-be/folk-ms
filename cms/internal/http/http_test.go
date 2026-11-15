@@ -163,6 +163,23 @@ func (h *harness) connect(t *testing.T, c *http.Client) {
 	}
 }
 
+// setFlag turns a Feature Flag on or off as the Super Admin, through the API.
+func (h *harness) setFlag(t *testing.T, flag string, on bool) {
+	t.Helper()
+	email := h.idp.email
+	h.idp.email = "admin@example.org"
+	defer func() { h.idp.email = email }()
+	c := h.client(t)
+	h.signIn(t, c)
+	body := `{"enabled":false}`
+	if on {
+		body = `{"enabled":true}`
+	}
+	if resp, b := h.do(t, c, "PUT", "/api/feature-flags/"+flag, body, h.same()); resp.StatusCode != 200 {
+		t.Fatalf("set %s: %d %s", flag, resp.StatusCode, b)
+	}
+}
+
 func (h *harness) meID(t *testing.T, c *http.Client) string {
 	t.Helper()
 	_, b := h.do(t, c, "GET", "/api/me", "", nil)
@@ -707,6 +724,7 @@ func TestPostOutcomesMatchAdmin(t *testing.T) {
 
 func TestFacebookSignIn(t *testing.T) {
 	h := newHarness(t)
+	h.setFlag(t, string(domain.FeatureFacebookSignIn), true)
 	admin := h.client(t)
 	h.signIn(t, admin)
 	if resp, body := h.do(t, admin, "POST", "/api/invitations", `{"email":"ola@example.org","orgs":["org-a"]}`,
@@ -817,6 +835,7 @@ func TestWritesAreRateLimited(t *testing.T) {
 // from that user's own session (T14).
 func TestFacebookIdentityIsLinkedFromASession(t *testing.T) {
 	h := newHarness(t)
+	h.setFlag(t, string(domain.FeatureFacebookSignIn), true)
 	admin := h.client(t)
 	h.signIn(t, admin)
 	if resp, body := h.do(t, admin, "POST", "/api/invitations", `{"email":"bob@example.org","orgs":["org-a"]}`, h.same()); resp.StatusCode != 200 {
@@ -868,6 +887,7 @@ func TestClientIPBuckets(t *testing.T) {
 // button starts it from this origin.
 func TestCrossSiteLoginNeedsAClick(t *testing.T) {
 	h := newHarness(t)
+	h.setFlag(t, string(domain.FeatureFacebookSignIn), true)
 	c := h.client(t)
 	resp, body := h.do(t, c, "GET", "/auth/login?provider=facebook&return=/app/events", "", map[string]string{"Sec-Fetch-Site": "cross-site"})
 	if resp.StatusCode != 200 || h.fb.logins != 0 || !strings.Contains(body, `href="/auth/login?provider=facebook&amp;return=/app/events"`) {

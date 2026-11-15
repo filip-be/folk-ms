@@ -1411,3 +1411,61 @@ func TestAutosyncOffDeletesOnlyItsOwnSecret(t *testing.T) {
 		t.Fatalf("org-b's secret deleted: %v", err)
 	}
 }
+
+// Feature Flags are off by default; only the Super Admin, with a Recent
+// sign-in, reads or changes them, and each change is in the Audit Log.
+func TestFeatureFlags(t *testing.T) {
+	e := newEnv(t)
+	sa := must[domain.Principal](t)(e.signIn(t, "sa-sub", "admin@example.org"))
+	must[*domain.Invitation](t)(e.a.CreateInvitation(e.ctx, sa, "ola@example.org", []string{"org-a"}))
+	ola := must[domain.Principal](t)(e.signIn(t, "ola-sub", "ola@example.org"))
+
+	if e.a.FeatureEnabled(e.ctx, domain.FeatureFacebookSignIn) {
+		t.Fatal("facebook sign-in is off by default")
+	}
+	flags := must[[]app.FeatureFlagView](t)(e.a.FeatureFlags(e.ctx, sa))
+	if len(flags) != len(domain.FeatureFlagDefs()) || flags[0].Key != domain.FeatureFacebookSignIn || flags[0].Enabled || flags[0].ChangedAt != nil {
+		t.Fatalf("defaults: %+v", flags)
+	}
+
+	// A Moderator can neither read nor change them.
+	if _, err := e.a.FeatureFlags(e.ctx, ola); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("moderator reads: %v", err)
+	}
+	if _, err := e.a.SetFeatureFlag(e.ctx, ola, string(domain.FeatureFacebookSignIn), true); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("moderator sets: %v", err)
+	}
+	// The Super Admin needs a Recent sign-in, and only known flags exist.
+	if _, err := e.a.SetFeatureFlag(e.ctx, stale(sa), string(domain.FeatureFacebookSignIn), true); !errors.Is(err, domain.ErrRecentSignIn) {
+		t.Fatalf("without a recent sign-in: %v", err)
+	}
+	if _, err := e.a.SetFeatureFlag(e.ctx, sa, "appleSignIn", true); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown flag: %v", err)
+	}
+	if e.a.FeatureEnabled(e.ctx, domain.FeatureFacebookSignIn) {
+		t.Fatal("refused changes changed nothing")
+	}
+
+	flags = must[[]app.FeatureFlagView](t)(e.a.SetFeatureFlag(e.ctx, sa, string(domain.FeatureFacebookSignIn), true))
+	if !flags[0].Enabled || flags[0].ChangedByEmail != "admin@example.org" || flags[0].ChangedAt == nil || !e.a.FeatureEnabled(e.ctx, domain.FeatureFacebookSignIn) {
+		t.Fatalf("turned on: %+v", flags)
+	}
+	// Setting the same value again records nothing.
+	must[[]app.FeatureFlagView](t)(e.a.SetFeatureFlag(e.ctx, sa, string(domain.FeatureFacebookSignIn), true))
+	must[[]app.FeatureFlagView](t)(e.a.SetFeatureFlag(e.ctx, sa, string(domain.FeatureFacebookSignIn), false))
+	if e.a.FeatureEnabled(e.ctx, domain.FeatureFacebookSignIn) {
+		t.Fatal("turned off again")
+	}
+	var changes []any
+	for _, a := range must[[]app.AuditEntry](t)(e.a.ReadAudit(e.ctx, sa, e.clock.t.Format(time.DateOnly))) {
+		if a.Action == "feature_flag.changed" {
+			if a.Target != string(domain.FeatureFacebookSignIn) || a.ActorEmail != "admin@example.org" {
+				t.Fatalf("audit entry: %+v", a)
+			}
+			changes = append(changes, a.Details["enabled"])
+		}
+	}
+	if fmt.Sprint(changes) != "[false true]" { // newest first
+		t.Fatalf("audited changes: %v", changes)
+	}
+}

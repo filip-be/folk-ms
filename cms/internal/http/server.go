@@ -94,6 +94,7 @@ func (s *Server) Handler() http.Handler {
 
 	auth := http.NewServeMux()
 	auth.HandleFunc("GET /auth/login", s.login)
+	auth.HandleFunc("GET /auth/methods", s.methods)
 	auth.HandleFunc("GET /auth/callback", s.callback)
 	auth.HandleFunc("POST /auth/logout", s.logout)
 	auth.HandleFunc("GET /auth/meta/callback", s.metaCallback)
@@ -162,7 +163,7 @@ func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 }
 
 // pathParams are the wildcards of the API routes.
-var pathParams = []string{"org", "id", "day", "action"}
+var pathParams = []string{"org", "id", "day", "action", "flag"}
 
 // safeSegment reports whether a path value is a plain name: ids,
 // Organization ids, dates and actions never need more.

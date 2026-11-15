@@ -408,7 +408,7 @@ table.audit td.small { max-width: 30rem; word-break: break-word; }
   background: var(--surface-sunken); color: var(--text-secondary); text-decoration: none;
 
   &.info { background: var(--info-soft); color: var(--info); }
-  &.published, &.posted, &.bound { background: var(--ok-soft); color: var(--ok); }
+  &.published, &.posted, &.bound, &.on { background: var(--ok-soft); color: var(--ok); }
   &.draft, &.pending, &.warn { background: var(--warn-soft); color: var(--warn); }
   &.binned, &.failed, &.revoked, &.expired { background: var(--danger-soft); color: var(--danger); }
 }

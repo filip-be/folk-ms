@@ -417,3 +417,30 @@ func TestCheckImage(t *testing.T) {
 		t.Fatal("nil is no image")
 	}
 }
+
+func TestFeatureFlagsDefaultsAndUnknown(t *testing.T) {
+	var none *FeatureFlags
+	if none.Enabled(FeatureFacebookSignIn) {
+		t.Fatal("nothing stored: the default, off")
+	}
+	f := &FeatureFlags{Values: map[FeatureFlag]FeatureFlagValue{"retired": {Enabled: true}}}
+	if f.Enabled("retired") {
+		t.Fatal("a stored value of an unknown flag is ignored")
+	}
+	if _, err := f.Set("retired", true, "u", "", time.Now()); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("unknown flag: %v", err)
+	}
+	if changed, err := f.Set(FeatureFacebookSignIn, false, "u", "", time.Now()); changed || err != nil {
+		t.Fatalf("off to off: %v %v", changed, err)
+	}
+	if changed, err := f.Set(FeatureFacebookSignIn, true, "u", "a@b.c", time.Now()); !changed || err != nil || !f.Enabled(FeatureFacebookSignIn) {
+		t.Fatalf("on: %v %v", changed, err)
+	}
+	seen := map[FeatureFlag]bool{}
+	for _, d := range FeatureFlagDefs() {
+		if seen[d.Key] || d.Key == "" || d.Name.PL == "" || d.Name.EN == "" || d.Description.PL == "" || d.Description.EN == "" {
+			t.Fatalf("flag definition: %+v", d)
+		}
+		seen[d.Key] = true
+	}
+}

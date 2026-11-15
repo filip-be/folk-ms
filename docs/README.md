@@ -36,5 +36,5 @@ A Moderator creates the event on the Organization's Facebook page; **Sync** turn
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email, 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email (amended by 0011), 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault, 0011 Facebook sign-in behind a Feature Flag
 - [Root README](../README.md): local setup and operations runbooks

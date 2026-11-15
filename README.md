@@ -139,6 +139,7 @@ The Super Admin is whoever first signs in with the Google account whose email eq
 4. Under *App settings → Advanced → Security*, switch on **Require App Secret**. Graph then refuses any call without `appsecret_proof`, so a stolen Facebook page token is useless without the app secret ([ADR 0010](docs/architecture/adr/0010-autosync-keeps-a-page-token-in-key-vault.md), T2). The CMS signs every call, so nothing else changes.
 5. Keep the app in Standard Access. For every Moderator who will connect a Facebook page, run "Sync now", turn Autosync on, post Social Posts or sign in with Facebook: *App roles → Add people → Tester*; they accept the invitation in their Facebook developer settings. Their Meta account needs a role on the Organization's Facebook page that allows posting, and access to its Instagram account; the Facebook page must be linked to an Instagram professional account for Instagram posts.
 6. Put the app id and secret into `META_APP_ID` / `META_APP_SECRET`.
+7. Facebook sign-in to the CMS is off until the Super Admin turns it on at *Administration → Feature flags*, once the Meta app lets Moderators sign in with Facebook ([ADR 0011](docs/architecture/adr/0011-facebook-sign-in-behind-a-feature-flag.md)). Connecting a Facebook page, Sync and Social Posts do not need it.
 
 ### Connecting a Facebook page and Autosync
 

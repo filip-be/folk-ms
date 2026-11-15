@@ -83,7 +83,7 @@ export function renderShell(me: Me, org: string): void {
   const collapsed = stored(NAV_KEY) === "collapsed";
   const item = (href: string, name: IconName, label: string, key: string) =>
     html`<li><a class="nav-item" href="${href}" title="${label}" ${section === key ? raw('aria-current="page"') : ""}>${icon(name)}<span class="label">${label}</span></a></li>`;
-  const adminOpen = stored(ADMIN_KEY) !== "closed" || ["access", "audit", "design"].includes(section);
+  const adminOpen = stored(ADMIN_KEY) !== "closed" || ["access", "audit", "features", "design"].includes(section);
   const app = document.getElementById("app")!;
   app.className = "app";
   app.dataset.nav = collapsed ? "collapsed" : "expanded";
@@ -118,6 +118,7 @@ export function renderShell(me: Me, org: string): void {
                 <ul class="nav-tree">
                   ${item("/app/access", "users", L("Moderatorzy", "Moderators"), "access")}
                   ${item("/app/audit", "log", L("Audyt", "Audit log"), "audit")}
+                  ${item("/app/features", "toggle", L("Flagi funkcji", "Feature flags"), "features")}
                   ${item("/app/design", "palette", L("Design system", "Design system"), "design")}
                 </ul>
               </details></li>`
@@ -131,7 +132,7 @@ export function renderShell(me: Me, org: string): void {
         </div>
         ${themeButton()}
         ${langSwitch(true)}
-        ${me.superAdmin
+        ${me.superAdmin || !me.signInMethods.includes("facebook")
           ? ""
           : html`<a class="nav-item" href="/auth/login?provider=facebook&return=${encodeURIComponent(location.pathname)}" title="${L("Połącz logowanie przez Facebooka z tym kontem", "Link Facebook sign-in to this account")}">${icon("link")}<span class="label">${L("Połącz z Facebookiem", "Link Facebook")}</span></a>`}
         <button type="button" class="nav-item" id="logout" title="${L("Wyloguj", "Sign out")}">${icon("logout")}<span class="label">${L("Wyloguj", "Sign out")}</span></button>
