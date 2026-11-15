@@ -51,7 +51,7 @@ The landscape image representing an Event on Sites and in Facebook Social Posts;
 An optional square/portrait image (e.g. a poster) used for Instagram Social Posts. When absent, a crop of the Cover Image is used.
 
 **Bin**
-Where Events go when Facebook confirms their Facebook Event is gone, or when a Moderator removes a Manual Event. The Super Admin can restore Events from the Bin for 30 days, after which the Event and its Social Post records are gone; the Audit Log still remembers them. Nothing in the Bin is removed from Facebook or Instagram.
+Where Events go when Facebook confirms their Facebook Event is gone, or when a Moderator removes a Manual Event or an Event from a former Facebook page. The Super Admin can restore Events from the Bin for 30 days, after which the Event and its Social Post records are gone; the Audit Log still remembers them. Nothing in the Bin is removed from Facebook or Instagram.
 
 ## Site delivery
 

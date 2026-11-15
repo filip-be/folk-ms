@@ -131,7 +131,7 @@ func (s *Server) routes(m *http.ServeMux) {
 			v, err := s.App.DismissTextFlag(ctx, p, org, id)
 			return ok(w, v, err)
 		case "delete":
-			v, err := s.App.RemoveManualEvent(ctx, p, org, id)
+			v, err := s.App.RemoveEvent(ctx, p, org, id)
 			return ok(w, v, err)
 		case "restore":
 			v, err := s.App.RestoreEvent(ctx, p, org, id)

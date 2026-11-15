@@ -5,7 +5,7 @@
 import { api, ApiError, type EventView, type ExtrasInput, type Location, type OverrideField, type OverrideInput } from "../api.ts";
 import { L } from "../i18n.ts";
 import { FIELD_LABEL, flagBadges } from "../patterns.ts";
-import { busy, facebookEventUrl, fmtDateTime, fmtTime, html, showError, t, toast, type Raw } from "../ui.ts";
+import { busy, facebookEventUrl, fmtDateTime, fmtTime, html, navigate, showError, t, toast, type Raw } from "../ui.ts";
 import { View } from "../view.ts";
 import { binnedBanner, enLabel, imageBlock, localDate, permalinks, publicUrl, readOnly, sharedActions, textField, upload } from "./eventParts.ts";
 import type { ManualView } from "./manual.ts";
@@ -66,11 +66,12 @@ export class EventScreen extends View {
       <a href="/app/orgs/${this.org}/events" class="muted small">← ${L("Wydarzenia", "Events")}</a>
       <div class="toolbar">
         <div><h1>${t(v.effective.name) || L("(bez nazwy)", "(no name)")}</h1>${flagBadges(v.flags, v.event.binReason)}</div>
-        <div class="actions">${sharedActions(this.me, this.org, v)}</div>
+        <div class="actions">${sharedActions(this.me, this.org, v)}
+          ${v.flags.formerPage && !binned ? html`<button type="button" class="danger" id="remove">${L("Przenieś do kosza", "Move to the Bin")}</button>` : ""}</div>
       </div>
       ${binnedBanner(this.me, v)}
       ${v.flags.formerPage
-        ? html`<div class="banner info" role="status"><p>${L("To wydarzenie pochodzi ze strony na Facebooku, która nie jest już połączona. Synchronizacja go nie aktualizuje; ukryj je, jeśli nie jest potrzebne.", "This event comes from a Facebook page that is no longer connected. Sync does not update it; hide it if it is not wanted.")}</p></div>`
+        ? html`<div class="banner info" role="status"><p>${L("To wydarzenie pochodzi ze strony na Facebooku, która nie jest już połączona. Synchronizacja go nie aktualizuje; ukryj je lub przenieś do kosza, jeśli nie jest potrzebne.", "This event comes from a Facebook page that is no longer connected. Sync does not update it; hide it or move it to the Bin if it is not wanted.")}</p></div>`
         : ""}
       ${changed.length
         ? html`<div class="banner warn" role="status"><p>${L("Facebook zmienił pola, które nadpisałeś:", "Facebook changed fields you overrode:")} <strong>${changed.map((f) => FIELD_LABEL[f]).join(", ")}</strong>.
@@ -287,10 +288,18 @@ export class EventScreen extends View {
     });
   }
 
-  private async action(name: "hide" | "show" | "dismiss-text" | "restore", control: HTMLInputElement | HTMLButtonElement): Promise<void> {
+  private async action(name: "hide" | "show" | "dismiss-text" | "delete" | "restore", control: HTMLInputElement | HTMLButtonElement): Promise<void> {
+    if (name === "delete" && !confirm(L("Przenieść wydarzenie do kosza? Zniknie ze strony. Posty na Facebooku i Instagramie pozostaną.", "Move the event to the Bin? It leaves the Site. Facebook and Instagram posts stay."))) return;
     control.disabled = true;
     try {
       const v = await api.eventAction(this.org, this.v.event.id, name);
+      if (name === "delete") {
+        this.extrasDirty = false;
+        this.drafts.clear();
+        toast(L("Przeniesiono do kosza", "Moved to the Bin"));
+        navigate(`/app/orgs/${this.org}/events`);
+        return;
+      }
       this.rerender(v);
       toast(
         {
@@ -367,6 +376,7 @@ export class EventScreen extends View {
     });
     this.on("#hidden", "change", (_e, el) => void this.action((el as HTMLInputElement).checked ? "hide" : "show", el as HTMLInputElement));
     this.on("#dismiss-text", "click", (_e, el) => void this.action("dismiss-text", el as HTMLButtonElement));
+    this.on("#remove", "click", (_e, el) => void this.action("delete", el as HTMLButtonElement));
     this.on("[data-action=restore]", "click", (_e, el) => void this.action("restore", el as HTMLButtonElement));
     this.addEventListener("input", (e) => {
       const target = e.target as HTMLElement;
