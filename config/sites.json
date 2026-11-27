@@ -19,7 +19,11 @@
         "id": "celtycki-wroclaw",
         "baseUrl": "https://ambitious-desert-0e234de03.4.azurestaticapps.net",
         "origins": ["https://ambitious-desert-0e234de03.4.azurestaticapps.net", "http://localhost:5174"],
-        "permalinkTemplate": "/{lang}/events/{shortId}-{slug}"
+        "permalinkTemplate": "/{lang}/events/{shortId}-{slug}",
+        "tunes": {
+          "tunePermalinkTemplate": "/{lang}/tunes/{shortId}-{slug}",
+          "setPermalinkTemplate": "/{lang}/sets/{shortId}-{slug}"
+        }
       }
     }
   ]

@@ -105,3 +105,15 @@ func TestDecompressionBomb(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+// A Tune's Attachment keeps its shape (portrait scans too) and may be small.
+func TestAttachment(t *testing.T) {
+	out, err := Processor{}.Process(pngOf(300, 900), ports.ImageAttachment)
+	if err != nil || len(out) != 1 || out[0].Width != 300 || out[0].Height != 900 || out[0].Name != "480" {
+		t.Fatalf("small portrait: %+v %v", out, err)
+	}
+	out, err = Processor{}.Process(pngOf(1000, 1400), ports.ImageAttachment)
+	if err != nil || len(out) != 2 || out[1].Width != 960 || out[1].Height != 1344 {
+		t.Fatalf("variants: %d %v", len(out), err)
+	}
+}

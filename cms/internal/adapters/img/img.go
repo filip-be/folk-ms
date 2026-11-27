@@ -89,7 +89,7 @@ func (Processor) Process(data []byte, kind ports.ImageKind) ([]ports.ImageRendit
 	if cfg.Width <= 0 || cfg.Height <= 0 || int64(cfg.Width)*int64(cfg.Height) > MaxPixels {
 		return nil, ErrTooManyPx
 	}
-	if cfg.Width < MinWidth {
+	if cfg.Width < MinWidth && kind != ports.ImageAttachment {
 		return nil, ErrTooSmall
 	}
 	// One large decode at a time per instance: a 50 Mpx image takes about
@@ -141,6 +141,17 @@ func (Processor) Process(data []byte, kind ports.ImageKind) ([]ports.ImageRendit
 			return nil, err
 		}
 		out = append(out, prev, ig)
+	case ports.ImageAttachment:
+		for _, tw := range CoverWidths {
+			if tw > w && tw != CoverWidths[0] {
+				continue
+			}
+			r, err := render(src, b, min(tw, w), strconv.Itoa(tw))
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, r)
+		}
 	default:
 		return nil, fmt.Errorf("img: unknown kind %q", kind)
 	}
