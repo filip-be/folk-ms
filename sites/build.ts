@@ -1,9 +1,11 @@
 // Builds one Site: bun sites/build.ts <site-id>
 // SNAPSHOT_URL and VIDEOS_URL set where the Site reads its snapshots, events.json
-// and videos.json (both default to the local CMS). Output: sites/<site-id>/dist,
-// deployed to its Static Web App.
+// and videos.json (both default to the local CMS); the Tune Collection's
+// tunes.json and tunes/<id>.json are read from SNAPSHOT_URL's folder. Output:
+// sites/<site-id>/dist, deployed to its Static Web App.
 import { cpSync, copyFileSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { swaConfig } from "./swa-config.ts";
 
 const site = process.argv[2];
 if (!site || !/^[a-z0-9-]+$/.test(site)) {
@@ -26,7 +28,11 @@ const result = await Bun.build({
   naming: { entry: "main.js", chunk: "chunks/[name]-[hash].[ext]" },
   minify: true,
   target: "browser",
-  define: { __SNAPSHOT_URL__: JSON.stringify(snapshotUrl), __VIDEOS_URL__: JSON.stringify(videosUrl) },
+  define: {
+    __SNAPSHOT_URL__: JSON.stringify(snapshotUrl),
+    __VIDEOS_URL__: JSON.stringify(videosUrl),
+    __TUNES_BASE__: JSON.stringify(new URL("./", snapshotUrl).href),
+  },
 });
 if (!result.success) {
   console.error(result.logs);
@@ -42,7 +48,8 @@ for (const f of readdirSync(join(dir, "src"))) {
     }
   } else if (!f.endsWith(".ts")) copyFileSync(join(dir, "src", f), join(out, f));
 }
-copyFileSync(join(dir, "staticwebapp.config.json"), join(out, "staticwebapp.config.json"));
+// The CSP names the storage origin, known only now (sites/swa-config.ts).
+await Bun.write(join(out, "staticwebapp.config.json"), swaConfig(readFileSync(join(dir, "staticwebapp.config.json"), "utf8"), snapshotUrl));
 // A Site with the Tune Collection ("tunes" in config/sites.json) serves the
 // instrument samples from its own origin under /sounds/ (ADR 0012).
 const config = JSON.parse(readFileSync(join(import.meta.dir, "..", "config", "sites.json"), "utf8")) as {
