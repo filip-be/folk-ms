@@ -150,6 +150,10 @@ func TestIncipit(t *testing.T) {
 			"X:1\nM:4/4\nL:1/8\nK:G\nGABc dBAG|]\n"},
 		{"body key change kept", "X:1\nT:Change\nM:4/4\nL:1/4\nK:G\nGABc|\nK:D\nDEFG|ABcd|\n", 2,
 			"X:1\nM:4/4\nL:1/4\nK:G\nGABc|\nK:D\nDEFG|]\n"},
+		{"no final bar line", "X:1\nM:4/4\nL:1/8\nK:G\nGABc dBAG\n", 2,
+			"X:1\nM:4/4\nL:1/8\nK:G\nGABc dBAG|]\n"},
+		{"meter change closes a full bar that ends the incipit", "X:1\nM:4/4\nL:1/4\nK:G\nGABc|dcBA\nM:3/4\nGAB|\n", 2,
+			"X:1\nM:4/4\nL:1/4\nK:G\nGABc|dcBA|]\n"},
 		{"more than eight is eight", "X:1\nM:2/4\nL:1/8\nK:G\nGA|B2 B2|c2 c2|d2 d2|e2 e2|f2 f2|g2 g2|a2 a2|b2 b2|c'2 c'2|\n", 20,
 			"X:1\nM:2/4\nL:1/8\nK:G\nGA|B2 B2|c2 c2|d2 d2|e2 e2|f2 f2|g2 g2|a2 a2|b2 b2|]\n"},
 	}

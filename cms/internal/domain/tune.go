@@ -235,9 +235,12 @@ type TuneCollection struct {
 	Tunes       []Tune        `json:"tunes"`
 	Sets        []TuneSet     `json:"sets"`
 	// Retired holds the ids of removed items, so an id is never reused.
-	Retired   []string  `json:"retired,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt,omitzero"`
-	UpdatedBy string    `json:"updatedBy,omitempty"`
+	Retired []string `json:"retired,omitempty"`
+	// RemovedTunes holds the ids of removed Tunes: every snapshot rebuild
+	// deletes their files again (an older rebuild may have rewritten one).
+	RemovedTunes []string  `json:"removedTunes,omitempty"`
+	UpdatedAt    time.Time `json:"updatedAt,omitzero"`
+	UpdatedBy    string    `json:"updatedBy,omitempty"`
 }
 
 // seedID is the id of a seeded list entry: the same on every load of a
@@ -834,6 +837,7 @@ func (c *TuneCollection) RemoveTune(id string, rev int, confirm bool, by string,
 	out := RemovedTune{Tune: c.Tunes[i]}
 	c.Tunes = slices.Delete(c.Tunes, i, i+1)
 	c.retire(id)
+	c.RemovedTunes = append(c.RemovedTunes, id)
 	for j := 0; j < len(c.Sets); j++ {
 		s := &c.Sets[j]
 		k := slices.Index(s.TuneIDs, id)
@@ -958,9 +962,12 @@ func (c *TuneCollection) RemoveAttachment(tuneID, id string, by string, now time
 // Content-Disposition and the Site: letters, digits, spaces, dots, hyphens
 // and underscores, at most 100 characters, with the given extension.
 func SafeFileName(name, ext string) string {
-	name = strings.TrimSuffix(strings.TrimSpace(name), "."+ext)
+	name = strings.TrimSpace(name)
 	if i := strings.LastIndexAny(name, `/\`); i >= 0 {
 		name = name[i+1:]
+	}
+	if len(name) > len(ext) && strings.EqualFold(name[len(name)-len(ext)-1:], "."+ext) {
+		name = name[:len(name)-len(ext)-1]
 	}
 	var b strings.Builder
 	for _, r := range Fold(name) {
@@ -971,7 +978,11 @@ func SafeFileName(name, ext string) string {
 			b.WriteRune('-')
 		}
 	}
-	s := strings.Trim(b.String(), ".-_")
+	s := b.String()
+	for strings.Contains(s, "--") {
+		s = strings.ReplaceAll(s, "--", "-")
+	}
+	s = strings.Trim(s, ".-_")
 	if len(s) > 100 {
 		s = s[:100]
 	}

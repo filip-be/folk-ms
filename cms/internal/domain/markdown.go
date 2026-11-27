@@ -197,11 +197,14 @@ func closing(s string, from int, delim string) int {
 			j++
 			continue
 		}
-		if !strings.HasPrefix(s[j:], delim) || s[j-1] == ' ' || s[j-1] == '\n' {
+		if !strings.HasPrefix(s[j:], delim) {
 			continue
 		}
 		if len(delim) == 1 && j+1 < len(s) && s[j+1] == delim[0] {
 			j++ // part of a "**" or "__"
+			continue
+		}
+		if s[j-1] == ' ' || s[j-1] == '\n' {
 			continue
 		}
 		if delim[0] == '_' && j+len(delim) < len(s) && isWordByte(s[j+len(delim)]) {

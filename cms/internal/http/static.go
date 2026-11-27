@@ -13,8 +13,12 @@ import (
 	"strings"
 )
 
-// Go's built-in MIME table lacks web fonts; the system table may lack them too.
-func init() { _ = mime.AddExtensionType(".woff2", "font/woff2") }
+// Go's built-in MIME table lacks web fonts and may lack MP3 (the piano
+// samples under /app/sounds/); the system table may lack them too.
+func init() {
+	_ = mime.AddExtensionType(".woff2", "font/woff2")
+	_ = mime.AddExtensionType(".mp3", "audio/mpeg")
+}
 
 type asset struct {
 	data []byte
@@ -99,6 +103,11 @@ func (s *Server) publicFiles() http.Handler {
 		}
 		if strings.HasPrefix(p, "media/") {
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			// Tune Attachments open in the browser, as Storage serves them
+			// (the local store keeps no Content-Disposition).
+			if parts := strings.Split(p, "/"); len(parts) == 5 && parts[2] == "tunes" {
+				w.Header().Set("Content-Disposition", "inline")
+			}
 		} else {
 			w.Header().Set("Cache-Control", "public, max-age=60")
 		}

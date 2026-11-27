@@ -201,7 +201,9 @@ func (c *TuneCollection) Published() PublishedTunes {
 	return p
 }
 
-func (c *TuneCollection) snapSet(org *Organization, s *TuneSet, ids []string) SnapSet {
+// SetSlug is the readable part of a published Set's Permalink: from its
+// name, else from its visible Tunes' names (ids).
+func (c *TuneCollection) SetSlug(s *TuneSet, ids []string) string {
 	var names []string
 	for _, id := range ids {
 		if t, ok := c.Tune(id); ok {
@@ -212,7 +214,11 @@ func (c *TuneCollection) snapSet(org *Organization, s *TuneSet, ids []string) Sn
 	if title == "" {
 		title = strings.Join(names, " / ")
 	}
-	slug := slugOr(title, "set")
+	return slugOr(title, "set")
+}
+
+func (c *TuneCollection) snapSet(org *Organization, s *TuneSet, ids []string) SnapSet {
+	slug := c.SetSlug(s, ids)
 	return SnapSet{ID: s.ID, Slug: slug, Name: optBi(s.Name), TuneIDs: append([]string{}, ids...),
 		Permalink: map[Lang]string{PL: org.SetPermalink(s.ID, slug, PL), EN: org.SetPermalink(s.ID, slug, EN)}}
 }

@@ -147,13 +147,13 @@ func stripComment(s string) string {
 // ABCHeader holds the header fields of one tune, up to and including its
 // first K: line.
 type ABCHeader struct {
-	Titles   []string
-	Rhythm   string
-	Origin   string
-	Composer string
-	Key      string
-	Meter    string
-	Unit     string
+	Titles   []string `json:"titles"`
+	Rhythm   string   `json:"rhythm,omitempty"`
+	Origin   string   `json:"origin,omitempty"`
+	Composer string   `json:"composer,omitempty"`
+	Key      string   `json:"key,omitempty"`
+	Meter    string   `json:"meter,omitempty"`
+	Unit     string   `json:"unit,omitempty"`
 }
 
 var fieldRe = regexp.MustCompile(`^([A-Za-z]):(.*)$`)
@@ -259,8 +259,17 @@ const (
 	MaxIncipitBars     = 8
 )
 
-// rat is a small non-negative rational (a duration in whole notes).
+// rat is a small non-negative rational (a duration in whole notes). The
+// zero value (d == 0) reads as 0.
 type rat struct{ n, d int }
+
+// norm makes the zero value a proper 0/1, so arithmetic on it works.
+func (a rat) norm() rat {
+	if a.d == 0 {
+		return rat{0, 1}
+	}
+	return a
+}
 
 func gcd(a, b int) int {
 	for b != 0 {
@@ -283,9 +292,13 @@ func mk(n, d int) rat {
 	return rat{n / g, d / g}
 }
 
-func (a rat) add(b rat) rat { return mk(a.n*b.d+b.n*a.d, a.d*b.d) }
-func (a rat) mul(b rat) rat { return mk(a.n*b.n, a.d*b.d) }
+func (a rat) add(b rat) rat {
+	a, b = a.norm(), b.norm()
+	return mk(a.n*b.d+b.n*a.d, a.d*b.d)
+}
+func (a rat) mul(b rat) rat { a, b = a.norm(), b.norm(); return mk(a.n*b.n, a.d*b.d) }
 func (a rat) less(b rat) bool {
+	a, b = a.norm(), b.norm()
 	return a.n*b.d < b.n*a.d
 }
 func (a rat) zero() bool { return a.n == 0 }
@@ -356,7 +369,7 @@ func tuneParts(abc string) (header, body []string) {
 // tune: X:, M:, L: and K: of the header and the opening of the body, ended
 // with a final bar line. A short first bar (shorter than the meter) is a
 // pickup and does not count. ok is false when the text has no K: or no
-// notes before its first bar line.
+// notes.
 func Incipit(abc string, bars int) (string, bool) {
 	if bars <= 0 {
 		bars = DefaultIncipitBars
@@ -387,6 +400,7 @@ func Incipit(abc string, bars int) (string, bool) {
 	}
 	c := &barCounter{st: st, want: bars}
 	var out strings.Builder
+lines:
 	for _, line := range body {
 		trim := strings.TrimSpace(line)
 		if trim == "" || strings.HasPrefix(trim, "%") {
@@ -395,7 +409,12 @@ func Incipit(abc string, bars int) (string, bool) {
 		if m := fieldRe.FindStringSubmatch(trim); m != nil {
 			switch m[1] {
 			case "M":
-				c.st.setMeter(m[2])
+				if c.meterChange(m[2]) {
+					music := strings.TrimRight(out.String(), " \t\n\\")
+					out.Reset()
+					out.WriteString(music + "|]")
+					break lines
+				}
 				out.WriteString("M:" + strings.TrimSpace(stripComment(m[2])) + "\n")
 			case "L":
 				c.st.setUnit(m[2])
@@ -412,7 +431,9 @@ func Incipit(abc string, bars int) (string, bool) {
 		}
 		out.WriteString("\n")
 	}
-	if c.counted == 0 && !c.done {
+	// A tune that ends without a bar line, or with its pickup, still has
+	// an opening.
+	if c.counted == 0 && !c.done && !c.notes {
 		return "", false
 	}
 	music := strings.TrimSpace(out.String())
@@ -436,6 +457,7 @@ type barCounter struct {
 	counted int // full bars counted
 	first   bool
 	done    bool
+	notes   bool // a note, rest or chord was read
 	// tuplet in progress: notes left and the factor.
 	tupLeft int
 	tupF    rat
@@ -471,6 +493,7 @@ func length(num, slashes, den string) rat {
 
 // note adds one note, rest or chord of length f (in units).
 func (c *barCounter) note(f rat) {
+	c.notes = true
 	d := c.st.unit.mul(f)
 	if c.tupLeft > 0 {
 		d = d.mul(c.tupF)
@@ -492,6 +515,19 @@ func (c *barCounter) barLine() bool {
 	}
 	c.counted++
 	return c.counted >= c.want
+}
+
+// meterChange applies a new meter. A meter change mid-music closes a bar
+// that is already full (a line written without its last bar line); it
+// reports whether that completed the incipit.
+func (c *barCounter) meterChange(v string) bool {
+	full := !c.bar.zero() && !c.st.meter.zero() && !c.bar.less(c.st.meter)
+	if full && c.barLine() {
+		c.done = true
+		return true
+	}
+	c.st.setMeter(v)
+	return false
 }
 
 // line consumes one music line and returns the text to keep; done is true
@@ -528,7 +564,10 @@ func (c *barCounter) line(s string) (string, bool) {
 			field := s[i+1 : i+j]
 			switch field[0] {
 			case 'M':
-				c.st.setMeter(field[2:])
+				if c.meterChange(field[2:]) {
+					out.WriteString("|]")
+					return out.String(), true
+				}
 			case 'L':
 				c.st.setUnit(field[2:])
 			}

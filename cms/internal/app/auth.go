@@ -299,6 +299,8 @@ type OrgInfo struct {
 	ID      string      `json:"id"`
 	Name    domain.Text `json:"name"`
 	SiteURL string      `json:"siteUrl"`
+	// Tunes: the Organization keeps a Tune Collection (the admin shows Tunes).
+	Tunes bool `json:"tunes"`
 }
 
 // Me returns the principal's profile and Organizations.
@@ -307,7 +309,7 @@ func (a *App) Me(p domain.Principal) Me {
 		PublicURL: strings.TrimSuffix(a.Pub.URL(""), "/")}
 	for _, o := range a.orgs {
 		if p.CanManageOrg(o.ID) {
-			m.Orgs = append(m.Orgs, OrgInfo{ID: o.ID, Name: o.Name, SiteURL: o.Site.BaseURL})
+			m.Orgs = append(m.Orgs, OrgInfo{ID: o.ID, Name: o.Name, SiteURL: o.Site.BaseURL, Tunes: o.HasTunes()})
 		}
 	}
 	return m

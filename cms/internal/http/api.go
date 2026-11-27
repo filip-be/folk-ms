@@ -21,11 +21,16 @@ const (
 )
 
 func decode(w http.ResponseWriter, r *http.Request, v any) error {
+	return decodeLimit(w, r, v, maxJSON)
+}
+
+// decodeLimit decodes a JSON body of at most limit bytes.
+func decodeLimit(w http.ResponseWriter, r *http.Request, v any, limit int64) error {
 	ct := r.Header.Get("Content-Type")
 	if !strings.HasPrefix(ct, "application/json") {
 		return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano JSON", "bad request: JSON expected")}
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxJSON))
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, limit))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
 		if _, ok := err.(*http.MaxBytesError); ok {
@@ -59,6 +64,29 @@ func decodeMove(w http.ResponseWriter, r *http.Request) (int, error) {
 		return 0, &badRequest{msg: msg("nieprawidłowe żądanie: brak pozycji", "bad request: missing position")}
 	}
 	return *in.To, nil
+}
+
+// readUpload takes the one upload slot of the instance before the body is
+// read, so waiting uploads hold no file in memory (T15), and reads the body
+// (at most maxImage). It answers nil data (and has written 429) when the
+// slot stays busy; otherwise the caller calls release.
+func (s *Server) readUpload(w http.ResponseWriter, r *http.Request) ([]byte, func(), error) {
+	select {
+	case s.uploads <- struct{}{}:
+	case <-r.Context().Done():
+		return nil, nil, r.Context().Err()
+	case <-time.After(uploadWait):
+		w.Header().Set("Retry-After", "10")
+		writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("trwa przesyłanie innego obrazu – spróbuj za chwilę", "another image is being uploaded – try again in a moment")})
+		return nil, nil, nil
+	}
+	release := func() { <-s.uploads }
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImage))
+	if err != nil {
+		release()
+		return nil, nil, err
+	}
+	return data, release, nil
 }
 
 func ok(w http.ResponseWriter, v any, err error) error {
@@ -186,22 +214,11 @@ func (s *Server) routes(m *http.ServeMux) {
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "image/") {
 			return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano pliku obrazu", "bad request: image file expected")}
 		}
-		// One upload at a time per instance, taken before the body is read,
-		// so waiting uploads hold no image in memory (T15).
-		select {
-		case s.uploads <- struct{}{}:
-			defer func() { <-s.uploads }()
-		case <-r.Context().Done():
-			return r.Context().Err()
-		case <-time.After(uploadWait):
-			w.Header().Set("Retry-After", "10")
-			writeJSON(w, http.StatusTooManyRequests, errorBody{Error: "rate_limited", Message: msg("trwa przesyłanie innego obrazu – spróbuj za chwilę", "another image is being uploaded – try again in a moment")})
-			return nil
-		}
-		data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxImage))
-		if err != nil {
+		data, release, err := s.readUpload(w, r)
+		if data == nil || err != nil {
 			return err
 		}
+		defer release()
 		v, err := s.App.UploadImage(r.Context(), p, r.PathValue("org"), ports.ImageKind(r.URL.Query().Get("kind")), data)
 		return ok(w, v, err)
 	}))
@@ -319,6 +336,8 @@ func (s *Server) routes(m *http.ServeMux) {
 		v, err := s.App.MoveOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.Header.Get("If-Match"), to)
 		return ok(w, v, err)
 	}))
+
+	s.tuneRoutes(m)
 
 	// Social Account Connection.
 	m.Handle("GET /api/orgs/{org}/social", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
@@ -451,5 +470,275 @@ func (s *Server) routes(m *http.ServeMux) {
 	}))
 	m.Handle("/api/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, s.Log, domain.ErrNotFound)
+	}))
+}
+
+// maxTunesJSON bounds the ABC import's requests: a 1 MB file grows when
+// escaped as JSON.
+const maxTunesJSON = 4 << 20
+
+// rev is the item revision a change was made on, sent as If-Match.
+func rev(r *http.Request) int { return app.ParseRev(r.Header.Get("If-Match")) }
+
+// tuneRoutes serves the Tune Collection (only Organizations with the
+// opt-in; the others answer 404). A change names the revision of the item
+// it changes in If-Match (a decimal); a Tune change answers the Tune, the
+// other changes the collection.
+func (s *Server) tuneRoutes(m *http.ServeMux) {
+	const base = "/api/orgs/{org}/tunes"
+	m.Handle("GET "+base, s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.GetTunes(r.Context(), p, r.PathValue("org"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base, s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.TuneInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.CreateTune(r.Context(), p, r.PathValue("org"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("GET "+base+"/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.GetTune(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.TuneInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.UpdateTune(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), in)
+		return ok(w, v, err)
+	}))
+	// ?confirm=true removes a Tune that is in Sets (409 needs_confirmation without).
+	m.Handle("DELETE "+base+"/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveTune(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), r.URL.Query().Get("confirm") == "true")
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/{id}/{action}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		switch a := r.PathValue("action"); a {
+		case "hide", "show":
+			v, err := s.App.SetTuneHidden(r.Context(), p, r.PathValue("org"), r.PathValue("id"), a == "hide")
+			return ok(w, v, err)
+		}
+		return domain.ErrNotFound
+	}))
+
+	// Attachments: the raw file is the body (image/* or application/pdf),
+	// its name in ?name= or X-File-Name.
+	m.Handle("POST "+base+"/{id}/attachments", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		ct := r.Header.Get("Content-Type")
+		if !strings.HasPrefix(ct, "image/") && !strings.HasPrefix(ct, "application/pdf") {
+			return &badRequest{msg: msg("nieprawidłowe żądanie: oczekiwano obrazu albo pliku PDF", "bad request: image or PDF file expected")}
+		}
+		name := r.URL.Query().Get("name")
+		if name == "" {
+			name = r.Header.Get("X-File-Name")
+		}
+		data, release, err := s.readUpload(w, r)
+		if data == nil || err != nil {
+			return err
+		}
+		defer release()
+		v, err := s.App.UploadTuneAttachment(r.Context(), p, r.PathValue("org"), r.PathValue("id"), name, ct, data)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/{id}/attachments/{aid}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Caption domain.Bi `json:"caption"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.SetAttachmentCaption(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("aid"), in.Caption)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/{id}/attachments/{aid}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveAttachment(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("aid"), to)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE "+base+"/{id}/attachments/{aid}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveAttachment(r.Context(), p, r.PathValue("org"), r.PathValue("id"), r.PathValue("aid"))
+		return ok(w, v, err)
+	}))
+
+	// Previews: nothing is saved.
+	m.Handle("POST "+base+"/markdown-preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Text string `json:"text"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.PreviewMarkdown(r.Context(), p, r.PathValue("org"), in.Text)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/abc-preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			ABC  string `json:"abc"`
+			Bars int    `json:"bars"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.PreviewABC(r.Context(), p, r.PathValue("org"), in.ABC, in.Bars)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/import-preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Text string `json:"text"`
+		}
+		if err := decodeLimit(w, r, &in, maxTunesJSON); err != nil {
+			return err
+		}
+		v, err := s.App.PreviewImport(r.Context(), p, r.PathValue("org"), in.Text)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/link-preview", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Link string `json:"link"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.PreviewRecordingLink(r.Context(), p, r.PathValue("org"), in.Link)
+		return ok(w, v, err)
+	}))
+	// Import: the chosen candidates, created Hidden in one write.
+	m.Handle("POST "+base+"/import", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Tunes []domain.TuneInput `json:"tunes"`
+		}
+		if err := decodeLimit(w, r, &in, maxTunesJSON); err != nil {
+			return err
+		}
+		v, err := s.App.ImportTunes(r.Context(), p, r.PathValue("org"), in.Tunes)
+		return ok(w, v, err)
+	}))
+
+	// Sets.
+	m.Handle("POST "+base+"/sets", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.SetInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddTuneSet(r.Context(), p, r.PathValue("org"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/sets/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.SetInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.UpdateTuneSet(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE "+base+"/sets/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveTuneSet(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/sets/{id}/{action}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		switch a := r.PathValue("action"); a {
+		case "hide", "show":
+			v, err := s.App.SetTuneSetHidden(r.Context(), p, r.PathValue("org"), r.PathValue("id"), a == "hide")
+			return ok(w, v, err)
+		}
+		return domain.ErrNotFound
+	}))
+
+	// Lists: Tune Types, Instruments, Origins.
+	m.Handle("POST "+base+"/types", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.TuneTypeInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddTuneType(r.Context(), p, r.PathValue("org"), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/types/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in domain.TuneTypeInput
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.UpdateTuneType(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), in)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE "+base+"/types/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveTuneType(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/types/{id}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveTuneType(r.Context(), p, r.PathValue("org"), r.PathValue("id"), to)
+		return ok(w, v, err)
+	}))
+	type biLabel struct {
+		Label domain.Bi `json:"label"`
+	}
+	m.Handle("POST "+base+"/instruments", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in biLabel
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddInstrument(r.Context(), p, r.PathValue("org"), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/instruments/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in biLabel
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.UpdateInstrument(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE "+base+"/instruments/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveInstrument(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/instruments/{id}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveInstrument(r.Context(), p, r.PathValue("org"), r.PathValue("id"), to)
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/origins", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in struct {
+			Label    domain.Bi `json:"label"`
+			ParentID string    `json:"parentId"`
+		}
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.AddTuneOrigin(r.Context(), p, r.PathValue("org"), in.ParentID, in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("PUT "+base+"/origins/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		var in biLabel
+		if err := decode(w, r, &in); err != nil {
+			return err
+		}
+		v, err := s.App.RenameTuneOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), rev(r), in.Label)
+		return ok(w, v, err)
+	}))
+	m.Handle("DELETE "+base+"/origins/{id}", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		v, err := s.App.RemoveTuneOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"))
+		return ok(w, v, err)
+	}))
+	m.Handle("POST "+base+"/origins/{id}/move", s.h(func(w http.ResponseWriter, r *http.Request, p domain.Principal) error {
+		to, err := decodeMove(w, r)
+		if err != nil {
+			return err
+		}
+		v, err := s.App.MoveTuneOrigin(r.Context(), p, r.PathValue("org"), r.PathValue("id"), to)
+		return ok(w, v, err)
 	}))
 }
