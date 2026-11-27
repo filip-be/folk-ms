@@ -7,6 +7,7 @@ import { icon, ICON_NAMES } from "../icons.ts";
 import { autosyncLostBanner, autosyncWarning, bindSortable, flagBadges, grip, moveButtons, reconnectBanner, reconnectBeforeBanner, switchControl } from "../patterns.ts";
 import { html, recentSignInBanner, setFieldError } from "../ui.ts";
 import { View } from "../view.ts";
+import { playButton, Sheet } from "./tuneParts.ts";
 
 const STEPS = ["25", "50", "100", "200", "300", "400", "500", "600", "700", "800", "900"];
 const SCALES: [string, string[]][] = [
@@ -32,6 +33,8 @@ const WEIGHTS = [
   ["bold", "Bold"],
 ];
 const SORTABLE = ["Solo", "Para", "Łańcuch"];
+/** A short reel for the sheet sample. */
+const SAMPLE_ABC = "X:1\nT:The Silver Spear\nR:reel\nM:4/4\nL:1/8\nK:D\nA|FA (3AAA BAFA|dfed BddB|FA (3AAA BAFA|dfed B2 dB:|";
 const SPACES = [2, 4, 6, 8, 10, 12, 16, 20, 24, 32, 40, 48, 64];
 
 class DesignView extends View {
@@ -144,6 +147,23 @@ class DesignView extends View {
           (name, i) => html`<li data-id="${name}" draggable="true">${grip()}<div class="row-main"><strong>${name}</strong> <span class="muted small">${L("w 2 filmach", "in 2 videos")}</span></div>
             <span class="row-actions"><button type="button">${L("Zmień nazwę", "Rename")}</button><button type="button" class="link danger" ${i === 0 ? html`disabled title="${L("Używana w 2 filmach", "Used in 2 videos")}"` : ""}>${L("Usuń", "Remove")}</button>${moveButtons("ds", name, i, SORTABLE.length, name)}</span></li>`,
         )}</ol>
+        <h3>${L("Melodie: nuty i odtwarzanie", "Tunes: sheet music and playback")}</h3>
+        <p class="muted small">${L("Zapis ABC rysowany przez abcjs, z przyciskiem Odtwórz / Zatrzymaj (fortepian). Pod spodem: propozycja z ABC różna od formularza (nie blokuje zapisu).", "ABC drawn by abcjs, with a Play / Stop button (piano). Below: the ABC's proposal differing from the form (it does not block saving).")}</p>
+        <div class="sheet-head"><h3>${L("Podgląd", "Preview")}</h3>${playButton("ds-play")}</div>
+        <div class="abc-sheet" id="ds-sheet"></div>
+        <div class="banner warn abc-notice"><p>${L("Różnica z zapisem ABC: tonacja w formularzu ", "Differs from the ABC: the form's Key ")}<strong>${L("G dur", "G major")}</strong>, ${L("w ABC", "the ABC's")} <strong>${L("D dur", "D major")}</strong>.</p>
+          <span class="actions"><button type="button" class="secondary">${L("Użyj tonacji D dur", "Use Key D major")}</button></span></div>
+        <fieldset><legend>${L("Pasuje do / Trudna na (instrument nie może być w obu)", "Suits / Tricky on (an instrument cannot be in both)")}</legend>
+          <label class="chip"><input type="checkbox" checked> ${L("Flet", "Flute")}</label>
+          <label class="chip" title="${L("Zaznaczone jako „pasuje do”", "Ticked as “suits”")}"><input type="checkbox" disabled> ${L("Flet (w drugiej grupie)", "Flute (in the other group)")}</label>
+        </fieldset>
+        <h3>${L("Lista bez kolejności", "List without an order")}</h3>
+        <ul class="item-list"><li><div class="row-main"><strong>Silver Spear / Mountain Road</strong><div class="muted small">The Silver Spear → The Mountain Road</div>
+            <span class="badges"><span class="badge warn">${L("nieopublikowany: mniej niż 2 widoczne melodie", "not published: fewer than 2 visible tunes")}</span></span></div>
+          <span class="row-actions"><button type="button">${L("Edytuj", "Edit")}</button><button type="button">${L("Ukryj", "Hide")}</button><button type="button" class="link danger">${L("Usuń", "Remove")}</button></span></li></ul>
+        <h3>${L("Problemy w wierszu importu", "Problems in an import row")}</h3>
+        <ul class="candidate-problems"><li>${icon("alert")}<span>${L("brak tonacji (K:)", "no key (K:)")}</span></li></ul>
+        <details class="abc-source"><summary>${L("Zapis ABC", "ABC")}</summary><pre>${SAMPLE_ABC}</pre></details>
         <h3>${L("Ikony", "Icons")}</h3>
         <ul class="icons">${ICON_NAMES.map((n) => html`<li>${icon(n)}<span class="small muted">${n}</span></li>`)}</ul>
       </section>
@@ -173,6 +193,7 @@ class DesignView extends View {
         down!.dataset.to = String(i + 1);
       });
     });
+    void new Sheet(this.$("#ds-sheet"), this.querySelector<HTMLButtonElement>("#ds-play")).render(SAMPLE_ABC, { bpm: 112, beat: "1/4" });
     setFieldError(this.$("#ds-invalid"), L("podaj poprawny adres e-mail", "enter a valid email address"));
     this.querySelectorAll<HTMLElement>("[data-space]").forEach((el) => el.style.setProperty("--bar", `var(${el.dataset.space})`));
   }

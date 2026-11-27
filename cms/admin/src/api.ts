@@ -212,6 +212,8 @@ export interface OrgInfo {
   id: string;
   name: Text;
   siteUrl: string;
+  /** The Organization keeps a Tune Collection (the admin shows Tunes). */
+  tunes?: boolean;
 }
 export interface Me {
   id: string;
@@ -403,6 +405,201 @@ export interface LinkPreview {
   thumbnailUrl: string;
 }
 
+// ── Tune Collection ──────────────────────────────────────────────────
+// Every Tune, Set and list entry has its own revision (rev): a change sends
+// the revision of the item it changes (If-Match) and is refused (conflict)
+// only when that item changed meanwhile.
+
+/** Bilingual text where either language may be written first (absent when empty). */
+export interface Bi {
+  pl?: string;
+  en?: string;
+}
+/** A Tune's name or an Other Name as musicians know it, with an optional translation. */
+export interface TuneName {
+  name: string;
+  translation?: Bi;
+}
+export interface TuneKey {
+  tonic: string;
+  mode: string;
+}
+export interface TuneLabeled {
+  id: string;
+  label: Bi;
+  rev: number;
+  uses: number;
+}
+/** A Tune Type with the Time Signature and Playback Tempo it proposes. */
+export interface TuneType extends TuneLabeled {
+  meter: string;
+  tempo: number;
+}
+export interface TuneCountry extends TuneLabeled {
+  regions: TuneLabeled[];
+}
+export interface TuneSummary {
+  id: string;
+  name: TuneName;
+  otherNames: TuneName[];
+  typeId: string;
+  key: TuneKey;
+  meter: string;
+  /** The Playback Tempo in effect. */
+  tempo: number;
+  originId?: string;
+  composer?: string;
+  suits: string[];
+  tricky: string[];
+  hasTranscription: boolean;
+  recordings: number;
+  attachments: number;
+  setIds: string[];
+  hidden: boolean;
+  rev: number;
+  updatedAt: string;
+}
+export interface TuneSet {
+  id: string;
+  name: Bi;
+  /** The name, else the Tunes' names. */
+  title: Bi;
+  tuneIds: string[];
+  hidden: boolean;
+  /** Shown on the Site: not Hidden, with at least two visible Tunes. */
+  published: boolean;
+  permalink?: Record<Lang, string>;
+  rev: number;
+  updatedAt: string;
+}
+export interface TuneCollection {
+  types: TuneType[];
+  instruments: TuneLabeled[];
+  origins: TuneCountry[];
+  /** Alphabetical, ignoring a leading article. */
+  tunes: TuneSummary[];
+  sets: TuneSet[];
+  modes: string[];
+}
+export interface Recording {
+  /** What the form sends back to keep the Recording. */
+  link: string;
+  label?: string;
+  kind: "video" | "link";
+  provider?: VideoProvider;
+  videoId?: string;
+  start?: string;
+  url: string;
+  embedUrl?: string;
+  thumbnailUrl?: string;
+  host?: string;
+}
+export interface TuneAttachment {
+  id: string;
+  kind: "image" | "pdf";
+  name: string;
+  size: number;
+  caption: Bi;
+  /** The PDF, or the largest image width. */
+  url: string;
+  width?: number;
+  height?: number;
+  variants?: { width: number; height: number; url: string }[];
+  addedAt: string;
+  addedBy: string;
+}
+/** A Set the Tune is in; emptiedOnRemove: removing the Tune removes the Set too. */
+export interface TuneSetRef {
+  id: string;
+  title: Bi;
+  tunes: number;
+  hidden: boolean;
+  emptiedOnRemove: boolean;
+}
+export interface AbcProposal {
+  key?: TuneKey;
+  meter?: string;
+}
+export interface TuneView {
+  id: string;
+  name: TuneName;
+  otherNames: TuneName[];
+  typeId: string;
+  key: TuneKey;
+  meter: string;
+  /** The Tune's own Playback Tempo (0: the Tune Type's). */
+  tempo: number;
+  effectiveTempo: number;
+  tempoBeat: string;
+  originId?: string;
+  composer?: string;
+  suits: string[];
+  tricky: string[];
+  abc: string;
+  incipitBars: number;
+  incipit?: string;
+  abcProposal?: AbcProposal;
+  keyDiffers: boolean;
+  meterDiffers: boolean;
+  recordings: Recording[];
+  description: Bi;
+  attachments: TuneAttachment[];
+  sets: TuneSetRef[];
+  hidden: boolean;
+  permalink?: Record<Lang, string>;
+  rev: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface RecordingInput {
+  link: string;
+  label: string;
+}
+export interface TuneInput {
+  name: TuneName;
+  otherNames: TuneName[];
+  typeId: string;
+  key: TuneKey;
+  meter: string;
+  /** 0: the Tune Type's. */
+  tempo: number;
+  originId: string;
+  composer: string;
+  suits: string[];
+  tricky: string[];
+  abc: string;
+  incipitBars: number;
+  recordings: RecordingInput[];
+  description: Bi;
+}
+export interface AbcPreview {
+  header: { titles?: string[]; rhythm?: string; origin?: string; composer?: string; key?: string; meter?: string; unit?: string };
+  proposal: AbcProposal;
+  bars: number;
+  incipit?: string;
+  /** The text has a K: line and notes. */
+  valid: boolean;
+}
+export interface ImportCandidate {
+  index: number;
+  name: TuneName;
+  otherNames: TuneName[];
+  /** The Tune Type whose label matches R: ("" or absent when none does). */
+  typeId?: string;
+  rhythm?: string;
+  key?: TuneKey;
+  meter?: string;
+  originId?: string;
+  /** The O: text, matched or not. */
+  origin?: string;
+  composer?: string;
+  abc: string;
+  /** Names of Tunes (or earlier candidates) with the same name. */
+  duplicate?: string[];
+  problems?: FieldError[];
+}
+export type TuneListKind = "types" | "instruments" | "origins";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -432,6 +629,9 @@ async function request<T>(method: string, path: string, body?: unknown, headers:
 }
 
 const o = (org: string) => `/api/orgs/${encodeURIComponent(org)}`;
+const t = (org: string) => `${o(org)}/tunes`;
+/** The item revision a Tune Collection change is made on. */
+const ifMatch = (rev: number) => ({ "If-Match": String(rev) });
 
 export const api = {
   me: () => request<Me>("GET", "/api/me"),
@@ -490,6 +690,40 @@ export const api = {
     request<VideoCollection>("PUT", `${o(org)}/videos/origins/${id}`, { label }, { "If-Match": etag }),
   removeItem: (org: string, kind: "forms/" | "origins/", id: string, etag: string) =>
     request<VideoCollection>("DELETE", `${o(org)}/videos/${kind}${id}`, undefined, { "If-Match": etag }),
+
+  tunes: (org: string) => request<TuneCollection>("GET", t(org)),
+  tune: (org: string, id: string) => request<TuneView>("GET", `${t(org)}/${id}`),
+  createTune: (org: string, v: TuneInput) => request<TuneView>("POST", t(org), v),
+  updateTune: (org: string, id: string, rev: number, v: TuneInput) => request<TuneView>("PUT", `${t(org)}/${id}`, v, ifMatch(rev)),
+  /** confirm: also when the Tune is in Sets (else 409 needs_confirmation). */
+  removeTune: (org: string, id: string, rev: number, confirm: boolean) =>
+    request<TuneCollection>("DELETE", `${t(org)}/${id}${confirm ? "?confirm=true" : ""}`, undefined, ifMatch(rev)),
+  tuneAction: (org: string, id: string, action: "hide" | "show") => request<TuneView>("POST", `${t(org)}/${id}/${action}`),
+  uploadAttachment: (org: string, id: string, file: File) =>
+    request<TuneView>("POST", `${t(org)}/${id}/attachments?name=${encodeURIComponent(file.name)}`, file, { "Content-Type": file.type || "application/octet-stream" }),
+  setAttachmentCaption: (org: string, id: string, aid: string, caption: Bi) => request<TuneView>("PUT", `${t(org)}/${id}/attachments/${aid}`, { caption }),
+  moveAttachment: (org: string, id: string, aid: string, to: number) => request<TuneView>("POST", `${t(org)}/${id}/attachments/${aid}/move`, { to }),
+  removeAttachment: (org: string, id: string, aid: string) => request<TuneView>("DELETE", `${t(org)}/${id}/attachments/${aid}`),
+  markdownPreview: (org: string, text: string) => request<{ html: string }>("POST", `${t(org)}/markdown-preview`, { text }),
+  abcPreview: (org: string, abc: string, bars: number) => request<AbcPreview>("POST", `${t(org)}/abc-preview`, { abc, bars }),
+  importPreview: (org: string, text: string) => request<{ candidates: ImportCandidate[] }>("POST", `${t(org)}/import-preview`, { text }),
+  recordingPreview: (org: string, link: string) => request<Recording>("POST", `${t(org)}/link-preview`, { link }),
+  /** Creates the chosen Tunes, all Hidden. */
+  importTunes: (org: string, tunes: TuneInput[]) => request<TuneCollection>("POST", `${t(org)}/import`, { tunes }),
+  addSet: (org: string, name: Bi, tuneIds: string[]) => request<TuneCollection>("POST", `${t(org)}/sets`, { name, tuneIds }),
+  updateSet: (org: string, id: string, rev: number, name: Bi, tuneIds: string[]) =>
+    request<TuneCollection>("PUT", `${t(org)}/sets/${id}`, { name, tuneIds }, ifMatch(rev)),
+  removeSet: (org: string, id: string, rev: number) => request<TuneCollection>("DELETE", `${t(org)}/sets/${id}`, undefined, ifMatch(rev)),
+  setAction: (org: string, id: string, action: "hide" | "show") => request<TuneCollection>("POST", `${t(org)}/sets/${id}/${action}`),
+  addTuneType: (org: string, label: Bi, meter: string, tempo: number) => request<TuneCollection>("POST", `${t(org)}/types`, { label, meter, tempo }),
+  updateTuneType: (org: string, id: string, rev: number, label: Bi, meter: string, tempo: number) =>
+    request<TuneCollection>("PUT", `${t(org)}/types/${id}`, { label, meter, tempo }, ifMatch(rev)),
+  addInstrument: (org: string, label: Bi) => request<TuneCollection>("POST", `${t(org)}/instruments`, { label }),
+  updateInstrument: (org: string, id: string, rev: number, label: Bi) => request<TuneCollection>("PUT", `${t(org)}/instruments/${id}`, { label }, ifMatch(rev)),
+  addTuneOrigin: (org: string, label: Bi, parentId = "") => request<TuneCollection>("POST", `${t(org)}/origins`, { label, parentId }),
+  renameTuneOrigin: (org: string, id: string, rev: number, label: Bi) => request<TuneCollection>("PUT", `${t(org)}/origins/${id}`, { label }, ifMatch(rev)),
+  removeTuneListItem: (org: string, kind: TuneListKind, id: string) => request<TuneCollection>("DELETE", `${t(org)}/${kind}/${id}`),
+  moveTuneListItem: (org: string, kind: TuneListKind, id: string, to: number) => request<TuneCollection>("POST", `${t(org)}/${kind}/${id}/move`, { to }),
 
   users: () => request<User[]>("GET", "/api/users"),
   setUserOrgs: (id: string, orgs: string[]) => request<User>("PUT", `/api/users/${id}/orgs`, { orgs }),
