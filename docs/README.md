@@ -12,10 +12,11 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | Admin SPA | TypeScript UI for Moderators in Polish or English, built with Bun and embedded into the CMS binary | [`cms/admin/`](../cms/admin/) |
 | Storage | Private container `cms` for the CMS's documents; public container `pub` for snapshots and media | [`infra/azure/`](../infra/azure/) |
 | Secret store | Key Vault (a `0600` file store locally or on a VPS) for the Meta app secret, `SESSION_KEY` and the Facebook page tokens of Organizations with Autosync on | [`infra/azure/`](../infra/azure/), [`cms/internal/adapters/keyvault/`](../cms/internal/adapters/keyvault/) |
-| Contract | JSON Schemas of the snapshots (`events.json`, `videos.json`), shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
+| Contract | JSON Schemas of the snapshots (`events.json`, `videos.json`, `tunes.json`, `tunes/<id>.json`), shared fixtures and the TypeScript reader used by Sites | [`contract/`](../contract/) |
 | Sites | One static website per Organization, each with its own design | [`sites/`](../sites/) |
 | Site config | The fixed list of Organizations and Sites | [`config/sites.json`](../config/sites.json) |
-| External services | Google and Facebook (sign-in), Meta Graph API (Sync and Social Posts), Vimeo oEmbed (thumbnails of Vimeo Videos) | |
+| External services | Google and Facebook (sign-in), Meta Graph API (Sync and Social Posts), Vimeo oEmbed (thumbnails of Vimeo Videos and Recordings) | |
+| Vendored code | abcjs (music notation and playback) and the FluidR3 GM instrument samples, checked by checksum ([ADR 0012](architecture/adr/0012-abcjs-vendored-for-notation.md)) | [`vendor/`](../vendor/) |
 
 ## Capabilities
 
@@ -25,16 +26,17 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | [Event management](event-management/README.md) | Overrides and CMS-only fields of synced Events, Hide, Manual Events, images and the Bin |
 | [Site delivery](site-delivery/README.md) | The per-Site snapshot, its contract, and how Sites read it |
 | [Video Collection](video-collection/README.md) | Each Organization's ordered instructional dance Videos with their Forms and Origins, published as `videos.json` and shown on the Bal Folk Poznań Site |
+| [Tune Collection](tune-collection/README.md) | The catalogue of Tunes an Organization that holds sessions keeps (opt-in, Celtycki Wrocław only): Transcriptions in ABC drawn and played with abcjs, Incipits, Recordings, Attachments and Sets, published as a catalogue and one file per Tune |
 | [Social posting](social-posting/README.md) | The Social Account Connection and its Autosync switch, and posting Events to Facebook and Instagram with a Meta sign-in or the stored token |
 | [Access](access/README.md) | Sign-in, Super Admin, Moderators and Invitations, the Audit Log, the admin UI language |
 | [Design system](design-system/README.md) | Colours, type, spacing, components and the collapsible app shell of the admin SPA, on desktop and phone; based on the work of [Felipe Cardona](https://dribbble.com/felipecardona/) |
 | [Platform](platform/README.md) | Hosting, ports and adapters, dependency policy, infrastructure, CI/CD, local development, cost, open risks |
 
-A Moderator creates the event on the Organization's Facebook page; **Sync** turns it into an Event, through the Facebook page of the Social Account Connection. **Event management** is what Moderators do in the CMS: add English text, Summary, Price and a Social Image, override a Facebook value, hide an Event, or enter a Manual Event for a co-hosted Facebook Event Sync cannot read. Every change feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Events on the Site can be announced through **Social posting**, because a Social Post links to the Event's Permalink. The **Video Collection** is a second, independent list Moderators keep (videos of dances), published the same way as its own snapshot. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
+A Moderator creates the event on the Organization's Facebook page; **Sync** turns it into an Event, through the Facebook page of the Social Account Connection. **Event management** is what Moderators do in the CMS: add English text, Summary, Price and a Social Image, override a Facebook value, hide an Event, or enter a Manual Event for a co-hosted Facebook Event Sync cannot read. Every change feeds **Site delivery**, which rebuilds the Organization's snapshot that its Site reads without touching the CMS. Events on the Site can be announced through **Social posting**, because a Social Post links to the Event's Permalink. The **Video Collection** is a second, independent list Moderators keep (videos of dances), published the same way as its own snapshot. The **Tune Collection** is a third, opt-in for Organizations that hold sessions: the tunes played there, published as a catalogue and one file per Tune. **Access** decides who may do any of this, per Organization. **Platform** describes where it all runs and how it is built.
 
 ## Read next
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email (amended by 0011), 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault, 0011 Facebook sign-in behind a Feature Flag
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email (amended by 0011), 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault, 0011 Facebook sign-in behind a Feature Flag, 0012 abcjs vendored for notation
 - [Root README](../README.md): local setup and operations runbooks
