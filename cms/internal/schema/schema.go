@@ -1,5 +1,5 @@
 // Package schema is a minimal JSON Schema (draft 2020-12) validator for the
-// keyword subset used by contract/events.schema.json. Keywords outside
+// keyword subset used by the schemas in contract/. Keywords outside
 // SupportedKeywords are rejected at compile time, so the schema cannot silently
 // rely on something this validator ignores.
 package schema
@@ -20,7 +20,8 @@ var SupportedKeywords = map[string]bool{
 	"$schema": true, "$id": true, "$ref": true, "$defs": true,
 	"title": true, "description": true,
 	"type": true, "enum": true, "properties": true, "required": true,
-	"additionalProperties": true, "items": true, "minItems": true,
+	"additionalProperties": true, "items": true, "minItems": true, "maxItems": true,
+	"minProperties": true, "anyOf": true,
 	"minLength": true, "maxLength": true, "pattern": true, "format": true,
 	"minimum": true, "maximum": true,
 }
@@ -41,6 +42,9 @@ type node struct {
 	addlSchema *node
 	items      *node
 	minItems   *int
+	maxItems   *int
+	minProps   *int
+	anyOf      []*node
 	minLength  *int
 	maxLength  *int
 	pattern    *regexp.Regexp
@@ -94,6 +98,11 @@ func Compile(data []byte) (*Schema, error) {
 		}
 		if err := check(n.addlSchema); err != nil {
 			return err
+		}
+		for _, a := range n.anyOf {
+			if err := check(a); err != nil {
+				return err
+			}
 		}
 		return check(n.items)
 	}
@@ -179,6 +188,23 @@ func compileNode(m map[string]any, path string) (*node, error) {
 		}
 		n.items = c
 	}
+	if a, ok := m["anyOf"]; ok {
+		list, ok := a.([]any)
+		if !ok || len(list) == 0 {
+			return nil, fmt.Errorf("schema: anyOf must be a non-empty array at %s", path)
+		}
+		for i, v := range list {
+			am, ok := v.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("schema: anyOf/%d at %s is not an object", i, path)
+			}
+			c, err := compileNode(am, fmt.Sprintf("%s/anyOf/%d", path, i))
+			if err != nil {
+				return nil, err
+			}
+			n.anyOf = append(n.anyOf, c)
+		}
+	}
 	intKw := func(k string) (*int, error) {
 		v, ok := m[k]
 		if !ok {
@@ -193,6 +219,12 @@ func compileNode(m map[string]any, path string) (*node, error) {
 	}
 	var err error
 	if n.minItems, err = intKw("minItems"); err != nil {
+		return nil, err
+	}
+	if n.maxItems, err = intKw("maxItems"); err != nil {
+		return nil, err
+	}
+	if n.minProps, err = intKw("minProperties"); err != nil {
 		return nil, err
 	}
 	if n.minLength, err = intKw("minLength"); err != nil {
@@ -264,6 +296,20 @@ func (s *Schema) validate(n *node, v any, path string, probs *[]string, depth in
 	if n.ref != "" {
 		s.validate(s.defs[n.ref], v, path, probs, depth+1)
 	}
+	if len(n.anyOf) > 0 {
+		ok := false
+		for _, a := range n.anyOf {
+			var sub []string
+			s.validate(a, v, path, &sub, depth+1)
+			if len(sub) == 0 {
+				ok = true
+				break
+			}
+		}
+		if !ok {
+			fail("matches none of anyOf")
+		}
+	}
 	if len(n.types) > 0 {
 		ok := false
 		for _, t := range n.types {
@@ -296,6 +342,9 @@ func (s *Schema) validate(n *node, v any, path string, probs *[]string, depth in
 				fail("missing required property %q", r)
 			}
 		}
+		if n.minProps != nil && len(x) < *n.minProps {
+			fail("expected at least %d properties", *n.minProps)
+		}
 		keys := make([]string, 0, len(x))
 		for k := range x {
 			keys = append(keys, k)
@@ -316,6 +365,9 @@ func (s *Schema) validate(n *node, v any, path string, probs *[]string, depth in
 	case []any:
 		if n.minItems != nil && len(x) < *n.minItems {
 			fail("expected at least %d items", *n.minItems)
+		}
+		if n.maxItems != nil && len(x) > *n.maxItems {
+			fail("expected at most %d items", *n.maxItems)
 		}
 		if n.items != nil {
 			for i, it := range x {
