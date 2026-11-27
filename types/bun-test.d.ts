@@ -43,10 +43,12 @@ declare const Bun: {
     minify?: boolean;
     external?: string[];
     target?: string;
-    naming?: string;
+    naming?: string | { entry?: string; chunk?: string; asset?: string };
+    splitting?: boolean;
     sourcemap?: string;
     define?: Record<string, string>;
-  }): Promise<{ success: boolean; logs: unknown[] }>;
+  }): Promise<{ success: boolean; logs: unknown[]; outputs: { path: string; kind: string }[] }>;
+  CryptoHasher: new (algorithm: "sha256") => { update(data: string | Uint8Array): { digest(encoding: "hex"): string } };
   file(path: string): Blob & { exists(): Promise<boolean> };
   write(path: string, data: string | Uint8Array): Promise<number>;
   serve(options: { port: number; fetch(req: Request): Response | Promise<Response> }): { port: number };
@@ -58,6 +60,12 @@ declare module "node:fs" {
   export function rmSync(path: string, opts?: { force?: boolean; recursive?: boolean }): void;
   export function existsSync(path: string): boolean;
   export function mkdtempSync(prefix: string): string;
+  export function readFileSync(path: string): Uint8Array;
+  export function writeFileSync(path: string, data: string | Uint8Array): void;
+  export function cpSync(from: string, to: string, opts?: { recursive?: boolean; filter?: (src: string) => boolean }): void;
+}
+declare module "node:path" {
+  export function dirname(path: string): string;
 }
 declare module "node:os" {
   export function tmpdir(): string;
