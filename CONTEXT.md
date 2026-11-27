@@ -119,7 +119,7 @@ _Avoid_: "region" alone (a region is one kind of Origin).
 ## Tune Collection
 
 **Tune Collection**
-An Organization's catalogue of the tunes played at its sessions, shown on its Site. Every Organization has one, possibly empty. Belongs to exactly one Organization; its Moderators keep it.
+An Organization's catalogue of the tunes played at its sessions, shown on its Site. Only Organizations that hold sessions have one (Celtycki Wrocław does, Bal Folk Poznań does not). Belongs to exactly one Organization; its Moderators keep it.
 _Avoid_: "repertoire", "tunebook" (until defined).
 
 **Tune**
