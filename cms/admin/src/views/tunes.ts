@@ -289,7 +289,7 @@ class TunesView extends View {
     const ty = kind === "types" ? (item as TuneType) : undefined;
     if (this.renaming !== item.id) {
       return html`<div class="row-main"><strong>${biBoth(item.label)}</strong>
-        ${ty ? html` <span class="muted small">${ty.meter} · ♩ ${ty.tempo}</span>` : ""}
+        ${ty ? html` <span class="muted small">${ty.meter} · ${L(`tempo ${ty.tempo}`, `tempo ${ty.tempo}`)} ·</span>` : ""}
         <span class="muted small">${tuneUsesText(item.uses)}</span></div>`;
     }
     const id = `rename-${item.id}`;

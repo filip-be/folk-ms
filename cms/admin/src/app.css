@@ -680,7 +680,9 @@ ul.item-list {
   & .row-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-8); margin-left: auto; }
 }
 .list-section { margin-bottom: var(--space-32); }
-.field.narrow-field { flex: 0 1 8rem; max-width: 10rem; }
+.field.narrow-field { flex: 0 1 8rem; max-width: 16rem; }
+/* A list form's problem summary takes its own row above the fields. */
+.label-form .problems-slot:not(:empty) { flex-basis: 100%; }
 ol.sortable.set-tunes {
   box-shadow: none;
 
@@ -748,6 +750,8 @@ button.play[aria-pressed=true] { border-color: var(--action); color: var(--accen
   &.uploading { opacity: .5; pointer-events: none; }
   & ol.sortable { box-shadow: none; }
   & ol.sortable > li { align-items: flex-start; }
+  /* contain: a scan is shown whole; the border marks a white page on the card. */
+  & img.thumb { object-fit: contain; border: 1px solid var(--line); }
   & .caption-pair .field { margin: var(--space-8) 0 0; }
 }
 .file-thumb {

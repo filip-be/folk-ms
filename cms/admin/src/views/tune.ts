@@ -365,6 +365,8 @@ class TuneEditor extends View {
     input.value = "";
     if (!file || !this.v) return;
     if (!ATTACHMENT_TYPES.includes(file.type)) {
+      // After this change event reaches the document, whose listener clears the field's error.
+      await new Promise((r) => setTimeout(r));
       setFieldError(input, L("dodaj obraz (JPEG, PNG, WebP) albo plik PDF; HEIC (iPhone) zapisz najpierw jako JPEG", "add an image (JPEG, PNG, WebP) or a PDF file; save HEIC (iPhone) as JPEG first"));
       return;
     }

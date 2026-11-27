@@ -12,7 +12,7 @@ import { loadAbcjs, synthOptions, type MidiBuffer, type TuneObject } from "../..
 export const biText = (b?: Bi): string => (lang === "en" ? b?.en || b?.pl : b?.pl || b?.en) || "";
 
 /** Both languages of a list label, as the lists show it: "pl / en". */
-export const biBoth = (b: Bi): string => [b.pl, b.en].filter(Boolean).join(" / ");
+export const biBoth = (b: Bi): string => (b.pl && b.en && b.pl !== b.en ? `${b.pl} / ${b.en}` : b.pl || b.en || "");
 
 /** A Tune's name with its translation in the UI language, if any. */
 export function nameText(n: TuneName): string {
