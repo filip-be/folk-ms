@@ -1,0 +1,11 @@
+FluidR3 GM soundfont by Frank Wen, released under the Creative Commons
+Attribution 3.0 license (CC BY 3.0, https://creativecommons.org/licenses/by/3.0/).
+
+Rendered to per-note MP3 files by Benjamin Gleitzman's midi-js-soundfonts
+(https://github.com/gleitz/midi-js-soundfonts, commit 044fab8e1456bfafc5776e86dfd6bb8697149aef,
+FluidR3_GM/). This folder holds only the instruments acoustic_grand_piano,
+flute, violin and accordion, notes G3 to D7, unchanged.
+
+Sites and the admin that play these samples show the credit:
+"Instrument sounds: FluidR3 GM by Frank Wen, CC BY 3.0."
+Fetched by scripts/fetch-samples.ts; checksums in SHA256SUMS. See ADR 0012.

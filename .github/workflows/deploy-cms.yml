@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [cms/**, config/sites.json, contract/**]
+    paths: [cms/**, config/sites.json, contract/**, notation/**, package.json, package-lock.json]
 
 permissions:
   contents: read
@@ -29,6 +29,8 @@ jobs:
       - name: Test
         working-directory: cms
         run: go test -count=1 ./...
+      - name: abcjs for the admin build (runtime npm packages only)
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
       - name: Package
         run: cms/deploy/package.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

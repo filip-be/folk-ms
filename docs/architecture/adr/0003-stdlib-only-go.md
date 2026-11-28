@@ -1,6 +1,6 @@
 # 0003. Minimal supply chain: stdlib-only Go, no npm runtime dependencies
 
-- Status: accepted; the pinned toolchains, the exact `typescript` version, the vendoring and the actions-only Dependabot scope are superseded by [ADR 0007](0007-latest-toolchains-and-dependabot-cooldown.md)
+- Status: accepted; the pinned toolchains, the exact `typescript` version, the vendoring and the actions-only Dependabot scope are superseded by [ADR 0007](0007-latest-toolchains-and-dependabot-cooldown.md); abcjs is a second exception to the zero runtime npm dependencies, [ADR 0013](0013-abcjs-from-npm.md)
 - Date: 2026-11-07
 
 ## Context
@@ -13,6 +13,7 @@ The CMS holds Facebook page tokens and decides who may publish for an Organizati
 - **TypeScript:** zero runtime npm dependencies. Bun (pinned, downloaded and SHA-256-verified by `tools/fetch.sh`) bundles, tests and serves. The only npm package is the dev-only type-checker `typescript`, at an exact version with lockfile integrity, installed with `npm ci --ignore-scripts`. TypeScript 7 ships its native compiler as platform packages under the `@typescript/` scope from the same publisher; that is accepted.
 - **GitHub Actions:** only `actions/*`, pinned by commit SHA; Dependabot updates actions only. Azure sign-in uses the runner's preinstalled Azure CLI with the workflow's OIDC token (`.github/scripts/az-login.sh`) instead of a third-party action.
 - **Exception:** deploying to Static Web Apps uses `@azure/static-web-apps-cli` at an exact version through `npx`, in `deploy-site.yml` only. It never ships to visitors; replace it if Static Web Apps gains a plain upload API.
+- **Exception ([ADR 0013](0013-abcjs-from-npm.md)):** `abcjs`, the music notation library of the Tune Collection, is the one runtime npm dependency, at an exact version, loaded lazily on Tune screens and pages only.
 
 ## Alternatives
 
