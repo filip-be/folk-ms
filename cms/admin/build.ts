@@ -10,7 +10,7 @@ rmSync(join(out, "chunks"), { recursive: true, force: true });
 const result = await Bun.build({
   entrypoints: [join(dir, "src", "main.ts")],
   outdir: out,
-  // Splitting puts lazily imported code (abcjs, ADR 0013) in chunks/, loaded
+  // Splitting puts lazily imported code (abcjs, ADR 0012) in chunks/, loaded
   // only by the screens that import() it; index.html still loads app.js.
   splitting: true,
   naming: { entry: "app.js", chunk: "chunks/[name]-[hash].[ext]" },
