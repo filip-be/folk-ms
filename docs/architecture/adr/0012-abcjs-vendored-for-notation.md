@@ -1,8 +1,8 @@
 # 0012. abcjs vendored for music notation and playback
 
-- Status: accepted
+- Status: accepted; for abcjs superseded by [ADR 0013](0013-abcjs-from-npm.md), which installs it from npm (the vendoring, the wrapper's own types and the deliberate upgrades). The samples decision, self-hosted FluidR3 GM samples under `vendor/soundfonts/`, remains in force, as do the CSP and samples consequences
 - Date: 2026-11-27
-- A narrow exception to [ADR 0003](0003-stdlib-only-go.md) (zero runtime npm dependencies); [ADR 0007](0007-latest-toolchains-and-dependabot-cooldown.md) does not apply to it
+- A narrow exception to [ADR 0003](0003-stdlib-only-go.md) (zero runtime npm dependencies); [ADR 0007](0007-latest-toolchains-and-dependabot-cooldown.md) did not apply to it until ADR 0013
 
 ## Context
 

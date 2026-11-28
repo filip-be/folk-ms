@@ -7,6 +7,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 for tool in go bun; do
   command -v "$tool" >/dev/null || { echo "$tool is not on PATH; see README.md#local-development" >&2; exit 1; }
 done
+[ -d "$root/node_modules/abcjs" ] || { echo "abcjs is not installed: run npm ci --ignore-scripts at the repository root; see README.md#local-development" >&2; exit 1; }
 bun "$root/cms/admin/build.ts"
 cd "$root/cms"
 export FOLKMS_ENV=local DATA_DIR="$root/.data" SITES_CONFIG="$root/config/sites.json"

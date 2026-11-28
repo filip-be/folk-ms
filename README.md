@@ -13,13 +13,15 @@ The admin UI's [design system](docs/design-system/README.md) was originally defi
 | [`cms/`](cms/) | The CMS: one Go binary with the embedded admin SPA ([`cms/admin/`](cms/admin/)) |
 | [`contract/`](contract/) | Snapshot JSON Schema, fixtures and the TypeScript reader Sites use |
 | [`sites/`](sites/) | One static Site skeleton per Organization |
+| [`notation/`](notation/) | The lazily loaded abcjs wrapper the admin SPA and the Sites share |
+| [`vendor/`](vendor/) | The instrument samples of the Tune Collection |
 | [`config/sites.json`](config/sites.json) | The fixed list of Organizations and Sites |
 | [`infra/azure/`](infra/azure/) | Bicep |
 | [`docs/`](docs/) | Capability articles and [ADRs](docs/architecture/adr/) |
 
 ## Local development
 
-Prerequisites, on `PATH` and kept up to date: Go (at least the `go` version in [`cms/go.mod`](cms/go.mod)), Bun, Git Bash (Windows) or any POSIX shell, Node.js/npm (only for the type-checker), Docker (only for Azurite tests). CI uses the latest Go and Bun; see [ADR 0007](docs/architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md).
+Prerequisites, on `PATH` and kept up to date: Go (at least the `go` version in [`cms/go.mod`](cms/go.mod)), Bun, Git Bash (Windows) or any POSIX shell, Node.js/npm (`npm ci --ignore-scripts` once after cloning and after each Dependabot upgrade: installs abcjs, which the admin and Site builds bundle, and the type-checker), Docker (only for Azurite tests). CI uses the latest Go and Bun; see [ADR 0007](docs/architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md).
 
 On Windows:
 
@@ -45,7 +47,7 @@ curl -fsSL https://bun.sh/install | bash
 echo 'export PATH="/usr/local/go/bin:$HOME/.bun/bin:$PATH"' >> ~/.bashrc && exec bash
 ```
 
-Then `go version` and `bun --version` should both work. For the type-checker, install Node.js LTS (e.g. via nvm); for Azurite, use Docker Desktop with WSL integration or Docker Engine.
+Then `go version` and `bun --version` should both work. For npm (abcjs and the type-checker), install Node.js LTS (e.g. via nvm) and run `npm ci --ignore-scripts`; for Azurite, use Docker Desktop with WSL integration or Docker Engine.
 
 Run the CMS at http://localhost:8080/app/ with filesystem storage in `.data/`, a dev sign-in page that accepts any email (`admin@example.org` is the Super Admin), Social Posts recorded instead of sent, and Sync reading canned Facebook Events from a fake Facebook page:
 

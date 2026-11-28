@@ -10,7 +10,7 @@
 //                               Attachments, Sets, Share and Print.
 //   /<lang>/sets/<id>-<slug>    a Set: its Tunes in order, with sheets, play, print.
 // Snapshot text is escaped (esc); the one exception is a Tune's description,
-// which the CMS renders to safe HTML (PLAN decision 12). abcjs (ADR 0012) loads
+// which the CMS renders to safe HTML (PLAN decision 12). abcjs (ADR 0013) loads
 // only on these pages; the samples are served by the Site under /sounds/.
 
 import { httpsUrl, t, type Lang } from "../../contract/client/src/index.ts";
@@ -48,7 +48,7 @@ import {
   type TuneSet,
   type TunesSnapshot,
 } from "../../contract/client/src/tunes.ts";
-import { INSTRUMENTS, loadAbcjs, SOUNDFONT_CREDIT, synthOptions, type Instrument, type MidiBuffer } from "../../vendor/abcjs/abcjs.ts";
+import { INSTRUMENTS, loadAbcjs, SOUNDFONT_CREDIT, synthOptions, type Instrument, type MidiBuffer } from "../../notation/abcjs.ts";
 import { esc, LoadError, type Module, type Page } from "./site.ts";
 
 const L = {

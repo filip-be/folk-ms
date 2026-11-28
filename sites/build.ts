@@ -22,7 +22,7 @@ const videosUrl = process.env.VIDEOS_URL ?? `http://localhost:8080/pub/sites/${s
 const result = await Bun.build({
   entrypoints: [join(dir, "src", "main.ts")],
   outdir: out,
-  // Splitting puts lazily imported code (abcjs, ADR 0012) in chunks/, loaded
+  // Splitting puts lazily imported code (abcjs, ADR 0013) in chunks/, loaded
   // only by the pages that import() it; index.html still loads main.js.
   splitting: true,
   naming: { entry: "main.js", chunk: "chunks/[name]-[hash].[ext]" },

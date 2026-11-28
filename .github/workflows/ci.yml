@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bun (latest release, checksum-verified)
         run: .github/scripts/setup-bun.sh
-      - name: TypeScript type-checker (the only npm package)
+      - name: npm packages (abcjs, and the dev-only type-checker)
         run: npm ci --ignore-scripts --no-audit --no-fund
       - run: npx tsc -b tsconfig.json
       - name: Tests (contract reader, Site routes vs config/sites.json, CSS tokens)

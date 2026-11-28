@@ -50,9 +50,9 @@ All store adapters run one shared contract suite ([`storetest`](../../cms/intern
 See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md) for what may be depended on and [ADR 0007](../architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md) for how versions are kept current. In short:
 
 - **Go:** standard library and `golang.org/x/*` only, fetched as modules and verified by `go.sum`, checked with `govulncheck` in CI. CI builds with the latest stable Go. No Azure SDK, no Meta SDK and no OIDC or JWT libraries.
-- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with Bun; CI installs the latest release with [`.github/scripts/setup-bun.sh`](../../.github/scripts/setup-bun.sh). Zero npm runtime dependencies; the one third-party runtime library, abcjs for the Tune Collection, is vendored with a checksum, not installed ([ADR 0012](../architecture/adr/0012-abcjs-vendored-for-notation.md)). The only npm package is the dev-only `typescript` type-checker, locked with integrity in `package-lock.json` and installed with `npm ci --ignore-scripts`.
+- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with Bun; CI installs the latest release with [`.github/scripts/setup-bun.sh`](../../.github/scripts/setup-bun.sh). One runtime npm dependency, abcjs for the Tune Collection, at an exact version and loaded lazily as its own chunk ([ADR 0013](../architecture/adr/0013-abcjs-from-npm.md)); otherwise only the dev-only `typescript` type-checker. Both are locked with integrity in `package-lock.json` and installed with `npm ci --ignore-scripts`, which CI runs before every TypeScript build (`--omit=dev` in the deploy workflows).
 - **GitHub Actions:** only `actions/*`, pinned by commit SHA.
-- **Updates:** Dependabot updates the actions, `typescript` and the Go modules with a 7-day cooldown ([`.github/dependabot.yml`](../../.github/dependabot.yml)). Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
+- **Updates:** Dependabot updates the actions, the npm packages (`abcjs`, `typescript`) and the Go modules with a 7-day cooldown ([`.github/dependabot.yml`](../../.github/dependabot.yml)). Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
 
 ### Infrastructure and CI/CD
 

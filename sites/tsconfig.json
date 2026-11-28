@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.base.json",
   "compilerOptions": { "composite": true, "rootDir": "..", "emitDeclarationOnly": true, "noEmit": false, "outDir": "../node_modules/.tsbuild/sites" },
-  "include": ["*.ts", "shared/**/*.ts", "*/src/**/*.ts", "../contract/client/src/**/*.ts", "../vendor/abcjs/*.ts", "../types/*.d.ts"]
+  "include": ["*.ts", "shared/**/*.ts", "*/src/**/*.ts", "../contract/client/src/**/*.ts", "../notation/*.ts", "../types/*.d.ts"]
 }

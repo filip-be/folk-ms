@@ -16,7 +16,8 @@ This documentation is organized by capability. Terms are defined in [CONTEXT.md]
 | Sites | One static website per Organization, each with its own design | [`sites/`](../sites/) |
 | Site config | The fixed list of Organizations and Sites | [`config/sites.json`](../config/sites.json) |
 | External services | Google and Facebook (sign-in), Meta Graph API (Sync and Social Posts), Vimeo oEmbed (thumbnails of Vimeo Videos and Recordings) | |
-| Vendored code | abcjs (music notation and playback) and the FluidR3 GM instrument samples, checked by checksum ([ADR 0012](architecture/adr/0012-abcjs-vendored-for-notation.md)) | [`vendor/`](../vendor/) |
+| Notation | abcjs from npm (music notation and playback, [ADR 0013](architecture/adr/0013-abcjs-from-npm.md)) behind one lazily loaded wrapper shared by the admin SPA and the Sites | [`notation/`](../notation/) |
+| Vendored samples | The FluidR3 GM instrument samples, checked by checksum ([ADR 0012](architecture/adr/0012-abcjs-vendored-for-notation.md)) | [`vendor/`](../vendor/) |
 
 ## Capabilities
 
@@ -38,5 +39,5 @@ A Moderator creates the event on the Organization's Facebook page; **Sync** turn
 
 - [CONTEXT.md](../CONTEXT.md): the glossary
 - [Platform](platform/README.md): start here before changing anything
-- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email (amended by 0011), 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault, 0011 Facebook sign-in behind a Feature Flag, 0012 abcjs vendored for notation
+- [ADRs](architecture/adr/): 0001 snapshot delivery, 0002 blob documents, 0003 dependency policy, 0004 hosting, 0005 Meta sign-in for every post (amended by 0010), 0006 Facebook Events through a Handoff and Autofill (superseded), 0007 latest toolchains and Dependabot cooldown, 0008 Facebook sign-in matched by email (amended by 0011), 0009 Facebook Events are the source of Events, 0010 Autosync keeps a page token in Key Vault, 0011 Facebook sign-in behind a Feature Flag, 0012 abcjs vendored for notation (superseded by 0013 for abcjs; samples still in force), 0013 abcjs from npm
 - [Root README](../README.md): local setup and operations runbooks

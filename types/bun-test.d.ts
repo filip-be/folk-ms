@@ -1,5 +1,5 @@
 // Minimal ambient types for the parts of Bun's runtime this repository uses
-// (we avoid @types/bun to keep TypeScript the only npm package).
+// (we avoid @types/bun to keep TypeScript the only dev npm package).
 declare module "bun:test" {
   interface Matchers {
     toBe(v: unknown): void;
@@ -23,7 +23,7 @@ interface ImportMeta {
 }
 declare module "node:fs" {
   export function readFileSync(path: string, enc: "utf8"): string;
-  export function readdirSync(path: string): string[];
+  export function readdirSync(path: string, options?: { recursive?: boolean; encoding: "utf8" }): string[];
 }
 declare module "node:path" {
   export function join(...parts: string[]): string;
