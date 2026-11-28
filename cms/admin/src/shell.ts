@@ -114,6 +114,7 @@ export function renderShell(me: Me, org: string): void {
         <ul>
           ${item(`/app/orgs/${org}/events`, "calendar", L("Wydarzenia", "Events"), "events")}
           ${item(`/app/orgs/${org}/videos`, "video", L("Wideopomoc", "Video help"), "videos")}
+          ${me.orgs.find((o) => o.id === org)?.tunes ? item(`/app/orgs/${org}/tunes`, "music", L("Melodie", "Tunes"), "tunes") : ""}
           ${item(`/app/orgs/${org}/social`, "social", L("Social media", "Social media"), "social")}
           ${me.superAdmin
             ? html`<li><details class="nav-group" id="nav-admin" ${adminOpen ? "open" : ""}>
@@ -143,12 +144,12 @@ export function renderShell(me: Me, org: string): void {
     </aside>
     <div class="scrim" id="scrim"></div>
     <main id="view" tabindex="-1"></main>`.value;
-  bind(app);
+  bind(app, me);
 }
 
 const collapseLabel = (collapsed: boolean) => (collapsed ? L("Rozwiń menu", "Expand menu") : L("Zwiń menu", "Collapse menu"));
 
-function bind(app: HTMLElement): void {
+function bind(app: HTMLElement, me: Me): void {
   const sidebar = document.getElementById("sidebar")!;
   const openBtn = document.getElementById("drawer-open") as HTMLButtonElement;
   const collapseBtn = document.getElementById("nav-collapse") as HTMLButtonElement;
@@ -189,7 +190,9 @@ function bind(app: HTMLElement): void {
 
   document.getElementById("org-select")?.addEventListener("change", (e) => {
     const id = (e.target as HTMLSelectElement).value;
-    const rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|videos|social)/)?.[1] ?? "events";
+    let rest = location.pathname.match(/^\/app\/orgs\/[^/]+\/(events|videos|social|tunes)/)?.[1] ?? "events";
+    // Only Organizations with a Tune Collection have the Tunes section.
+    if (rest === "tunes" && !me.orgs.find((o) => o.id === id)?.tunes) rest = "events";
     navigate(`/app/orgs/${id}/${rest}`);
   });
   document.getElementById("theme-toggle")!.addEventListener("click", (e) => {

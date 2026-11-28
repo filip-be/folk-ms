@@ -12,6 +12,8 @@ import "./views/post.ts";
 import "./views/social.ts";
 import "./views/videos.ts";
 import "./views/video.ts";
+import "./views/tunes.ts";
+import "./views/tune.ts";
 import "./views/access.ts";
 import "./views/audit.ts";
 import "./views/features.ts";
@@ -22,6 +24,8 @@ interface Route {
   tag: string;
   names: string[];
   superAdmin?: boolean;
+  /** Only for Organizations with a Tune Collection. */
+  tunes?: boolean;
 }
 
 const routes: Route[] = [
@@ -33,6 +37,9 @@ const routes: Route[] = [
   { re: /^\/app\/orgs\/([^/]+)\/videos\/?$/, tag: "folk-videos", names: ["org"] },
   { re: /^\/app\/orgs\/([^/]+)\/videos\/new$/, tag: "folk-video", names: ["org"] },
   { re: /^\/app\/orgs\/([^/]+)\/videos\/([a-z2-7]{8})$/, tag: "folk-video", names: ["org", "id"] },
+  { re: /^\/app\/orgs\/([^/]+)\/tunes\/?$/, tag: "folk-tunes", names: ["org"], tunes: true },
+  { re: /^\/app\/orgs\/([^/]+)\/tunes\/new$/, tag: "folk-tune", names: ["org"], tunes: true },
+  { re: /^\/app\/orgs\/([^/]+)\/tunes\/([a-z2-7]{8})$/, tag: "folk-tune", names: ["org", "id"], tunes: true },
   { re: /^\/app\/access$/, tag: "folk-access", names: [], superAdmin: true },
   { re: /^\/app\/audit$/, tag: "folk-audit", names: [], superAdmin: true },
   { re: /^\/app\/features$/, tag: "folk-features", names: [], superAdmin: true },
@@ -76,7 +83,8 @@ function route(moveFocus = false): void {
     const params: Record<string, string> = {};
     r.names.forEach((n, i) => (params[n] = decodeURIComponent(m[i + 1]!)));
     if (params.org) {
-      if (!me.orgs.some((o) => o.id === params.org)) break;
+      const org = me.orgs.find((o) => o.id === params.org);
+      if (!org || (r.tunes && !org.tunes)) break;
       try {
         localStorage.setItem(ORG_KEY, params.org);
       } catch {
