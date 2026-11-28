@@ -240,8 +240,24 @@ func NewPublicStore(root, baseURL string) *PublicStore {
 // Root returns the directory (for serving it locally).
 func (s *PublicStore) Root() string { return s.d.root }
 
-func (s *PublicStore) Put(_ context.Context, path string, data []byte, _, _ string, etag string) (string, error) {
+// Put ignores the content type, cache control and disposition: the local
+// server derives them from the path (see httpapi.publicFiles).
+func (s *PublicStore) Put(_ context.Context, path string, data []byte, _, _ string, etag string, _ ...ports.PutOption) (string, error) {
 	return s.d.put(path, data, etag)
+}
+
+func (s *PublicStore) Delete(_ context.Context, path string) error {
+	p, err := s.d.path(path)
+	if err != nil {
+		return err
+	}
+	s.d.mu.Lock()
+	defer s.d.mu.Unlock()
+	err = os.Remove(p)
+	if errors.Is(err, fs.ErrNotExist) {
+		return ports.ErrNotFound
+	}
+	return err
 }
 
 func (s *PublicStore) Get(_ context.Context, path string) (ports.Document, error) {

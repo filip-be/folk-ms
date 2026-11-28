@@ -64,6 +64,16 @@ func ParseSites(data []byte) ([]*domain.Organization, error) {
 		if !strings.HasPrefix(t, "/{lang}/") || !strings.Contains(t, "{shortId}") {
 			return nil, fmt.Errorf("sites: %s: permalinkTemplate must start with /{lang}/ and contain {shortId}", o.ID)
 		}
+		if tt := o.Site.Tunes; tt != nil {
+			for _, t := range []string{tt.TunePermalinkTemplate, tt.SetPermalinkTemplate} {
+				if !strings.HasPrefix(t, "/{lang}/") || !strings.Contains(t, "{shortId}") {
+					return nil, fmt.Errorf("sites: %s: tune and set permalink templates must start with /{lang}/ and contain {shortId}", o.ID)
+				}
+			}
+			if tt.TunePermalinkTemplate == tt.SetPermalinkTemplate || tt.TunePermalinkTemplate == t || tt.SetPermalinkTemplate == t {
+				return nil, fmt.Errorf("sites: %s: event, tune and set permalink templates must differ", o.ID)
+			}
+		}
 		for _, origin := range o.Site.Origins {
 			if u, err := url.Parse(origin); err != nil || u.Host == "" || u.Path != "" {
 				return nil, fmt.Errorf("sites: %s: bad origin %q", o.ID, origin)

@@ -17,6 +17,7 @@ type entry struct {
 	etag         string
 	contentType  string
 	cacheControl string
+	disposition  string
 }
 
 type store struct {
@@ -40,7 +41,7 @@ func (s *store) get(key string) (ports.Document, error) {
 	return ports.Document{Key: key, Data: slices.Clone(e.data), ETag: e.etag}, nil
 }
 
-func (s *store) put(key string, data []byte, ct, cc, etag string) (string, error) {
+func (s *store) put(key string, data []byte, ct, cc, etag string, opts ...ports.PutOption) (string, error) {
 	if !ports.ValidKey(key) {
 		return "", ports.ErrInvalidKey
 	}
@@ -55,7 +56,7 @@ func (s *store) put(key string, data []byte, ct, cc, etag string) (string, error
 	}
 	s.n++
 	tag := fmt.Sprintf(`"m%d"`, s.n)
-	s.docs[key] = entry{data: slices.Clone(data), etag: tag, contentType: ct, cacheControl: cc}
+	s.docs[key] = entry{data: slices.Clone(data), etag: tag, contentType: ct, cacheControl: cc, disposition: ports.ApplyPutOptions(opts).ContentDisposition}
 	return tag, nil
 }
 
@@ -117,8 +118,42 @@ func NewPublicStore(baseURL string) *PublicStore {
 	return &PublicStore{s: newStore(), BaseURL: strings.TrimRight(baseURL, "/")}
 }
 
-func (p *PublicStore) Put(_ context.Context, path string, data []byte, ct, cc, etag string) (string, error) {
-	return p.s.put(path, data, ct, cc, etag)
+func (p *PublicStore) Put(_ context.Context, path string, data []byte, ct, cc, etag string, opts ...ports.PutOption) (string, error) {
+	return p.s.put(path, data, ct, cc, etag, opts...)
+}
+
+func (p *PublicStore) Delete(_ context.Context, path string) error {
+	if !ports.ValidKey(path) {
+		return ports.ErrInvalidKey
+	}
+	p.s.mu.Lock()
+	defer p.s.mu.Unlock()
+	if _, ok := p.s.docs[path]; !ok {
+		return ports.ErrNotFound
+	}
+	delete(p.s.docs, path)
+	return nil
+}
+
+// Paths lists the stored paths with a prefix, sorted (for tests).
+func (p *PublicStore) Paths(prefix string) []string {
+	p.s.mu.Lock()
+	defer p.s.mu.Unlock()
+	var out []string
+	for k := range p.s.docs {
+		if strings.HasPrefix(k, prefix) {
+			out = append(out, k)
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// Disposition returns the stored Content-Disposition (for tests).
+func (p *PublicStore) Disposition(path string) string {
+	p.s.mu.Lock()
+	defer p.s.mu.Unlock()
+	return p.s.docs[path].disposition
 }
 
 func (p *PublicStore) Get(_ context.Context, path string) (ports.Document, error) {

@@ -165,6 +165,27 @@ func PublicStore(t *testing.T, newStore func(t *testing.T) ports.PublicStore) {
 	if u := s.URL("media/a.jpg"); u == "" || u[len(u)-len("media/a.jpg"):] != "media/a.jpg" {
 		t.Fatalf("url %q", u)
 	}
+	// A file with a Content-Disposition, then deleted.
+	pdf := "media/x/tunes/abcdefgh/0123456789abcdef.pdf"
+	if _, err := s.Put(ctx, pdf, []byte("%PDF-1.7"), "application/pdf", "public, max-age=31536000, immutable", "",
+		ports.WithContentDisposition(`inline; filename="a.pdf"`)); err != nil {
+		t.Fatal(err)
+	}
+	if d, err := s.Get(ctx, pdf); err != nil || string(d.Data) != "%PDF-1.7" {
+		t.Fatalf("get pdf: %s %v", d.Data, err)
+	}
+	if err := s.Delete(ctx, pdf); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	if _, err := s.Get(ctx, pdf); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("deleted file: %v", err)
+	}
+	if err := s.Delete(ctx, pdf); !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("delete missing: %v", err)
+	}
+	if err := s.Delete(ctx, "media/../x.json"); !errors.Is(err, ports.ErrInvalidKey) {
+		t.Fatalf("delete bad path: %v", err)
+	}
 }
 
 // AppendLog runs the AppendLog contract.
