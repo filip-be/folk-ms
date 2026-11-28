@@ -1,11 +1,14 @@
 {
   "name": "folk-ms",
   "private": true,
-  "description": "Dev-only: the TypeScript type-checker. No runtime npm dependencies anywhere in this repository.",
+  "description": "One runtime npm dependency, abcjs, bundled into the admin and the Tune pages of the Sites (ADR 0012); otherwise dev-only: the TypeScript type-checker.",
   "scripts": {
     "typecheck": "tsc -b tsconfig.json"
   },
   "devDependencies": {
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "abcjs": "6.7.3"
   }
 }

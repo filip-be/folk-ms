@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [sites/**, contract/client/**, config/sites.json]
+    paths: [sites/**, contract/client/**, config/sites.json, notation/**, package.json, package-lock.json]
 
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
       - id: ids
         run: echo "ids=$(jq -c '[.organizations[].site.id]' config/sites.json)" >> "$GITHUB_OUTPUT"
 
-  # Bun and the Site build run without an environment or OIDC token.
+  # Bun, npm ci and the Site build run without an environment or OIDC token.
   build:
     needs: sites
     runs-on: ubuntu-24.04
@@ -31,6 +31,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Bun (latest release, checksum-verified)
         run: .github/scripts/setup-bun.sh
+      - name: abcjs for the Site build (runtime npm packages only)
+        run: npm ci --ignore-scripts --omit=dev --no-audit --no-fund
       - name: Test routes against config/sites.json
         run: bun test sites
       - name: Build
