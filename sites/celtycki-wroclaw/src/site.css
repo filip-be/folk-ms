@@ -4,17 +4,25 @@
   color-scheme: light dark;
 
   /* Spacing: --space-N is N × .1rem */
+  --space-2: .2rem;
+  --space-5: .5rem;
   --space-10: 1rem;
+  --space-20: 2rem;
 
   /* Type */
   --font-sans: system-ui, sans-serif;
   --text-base: 16px;
+  --text-small: .875rem;
   --leading: 1.5;
 
   /* Shape and layout */
   --radius-sm: 6px;
   --page-width: 960px;
   --card-min-width: 260px;
+  --incipit-width: 22rem;
+  --player-width: 480px;
+  --pdf-height: 70vh;
+  --border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
 
   font: var(--text-base)/var(--leading) var(--font-sans);
 }
@@ -32,4 +40,80 @@ header {
 }
 .dates {
   & li.cancelled .when { text-decoration: line-through; }
+}
+
+/* Tune Collection (sites/shared/tunes.ts) */
+.chips {
+  display: flex; flex-wrap: wrap; gap: var(--space-5); border: 0; padding: 0;
+
+  & .chip[aria-pressed="true"] { font-weight: bold; text-decoration: underline; }
+}
+.selects, .tune-toolbar, .tune-actions, .playback {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-5) var(--space-10);
+}
+.tune-list {
+  list-style: none; padding: 0; margin: var(--space-10) 0;
+}
+.tune-row {
+  display: grid; grid-template-columns: auto 1fr minmax(0, var(--incipit-width)) auto; align-items: center;
+  gap: var(--space-10); padding: var(--space-5) 0; border-bottom: var(--border);
+
+  & h3, & h4, & h5 { margin: 0; }
+  & .names, & .meta { margin: 0; font-size: var(--text-small); }
+  & iframe { grid-column: 1 / -1; width: 100%; aspect-ratio: 16 / 9; border: 0; }
+}
+@media (max-width: 640px) {
+  .tune-row { grid-template-columns: auto 1fr; }
+  .tune-row .incipit { grid-column: 1 / -1; }
+}
+.incipit, .sheet, .print-sheet { color: inherit; }
+.facts {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr)); gap: var(--space-5) var(--space-10);
+
+  & dt { font-weight: bold; }
+  & dd { margin: 0; }
+}
+.translation { font-weight: normal; }
+.credit, .hint, .status { font-size: var(--text-small); }
+.recordings {
+  & ul { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width), 1fr)); gap: var(--space-10); }
+  & .play-video { padding: 0; border: 0; background: none; cursor: pointer; width: 100%; }
+  & img { width: 100%; height: auto; border-radius: var(--radius-sm); }
+  & iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--radius-sm); }
+}
+.attachment {
+  margin: var(--space-10) 0;
+
+  & img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+  & iframe { width: 100%; height: var(--pdf-height); border: var(--border); border-radius: var(--radius-sm); }
+}
+.pdf-card {
+  display: inline-flex; gap: var(--space-5); padding: var(--space-5) var(--space-10); border: var(--border); border-radius: var(--radius-sm);
+
+  & .pdf-open { font-weight: bold; }
+}
+.set-tunes {
+  padding-left: var(--space-20);
+
+  & .set-tune { margin-bottom: var(--space-20); }
+}
+.print-layout { display: none; }
+/* "Print / Save as PDF": the layout of the chosen sheets replaces the page
+   while the print dialog is open (abcjs measures text, so it is drawn visible). */
+html.printing {
+  & header, & main > :not(.print-layout) { display: none; }
+  & .print-layout { display: block; }
+}
+.print-tune {
+  margin-bottom: var(--space-20);
+
+  & h2 { margin: 0; }
+  & .print-facts { margin: var(--space-2) 0 var(--space-5); }
+}
+@media print {
+  :root { color-scheme: light; }
+  body { max-width: none; padding: 0; }
+  .print-tune { break-inside: avoid; }
+  /* Printing without the button: the sheet and details, no controls or media. */
+  header, button, select, input, .playback, .tune-actions, .tune-filters, .tune-toolbar, .recordings, .attachments, .back, .credit, iframe { display: none; }
 }
