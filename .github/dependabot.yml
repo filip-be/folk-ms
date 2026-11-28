@@ -1,5 +1,5 @@
 # Dependabot updates GitHub Actions, the npm packages (abcjs, the one runtime
-# dependency, see ADR 0013; and the type-checker) and Go modules.
+# dependency, see ADR 0012; and the type-checker) and Go modules.
 # The cooldown holds a new release back for a week, so a malicious publish has
 # time to be found and pulled before it reaches this repository. Security
 # updates are not held back. Go and Bun themselves are not managed here: CI

@@ -1,4 +1,4 @@
-// abcjs comes from npm (ADR 0013): the one runtime dependency, pinned exactly in
+// abcjs comes from npm (ADR 0012): the one runtime dependency, pinned exactly in
 // package.json and with integrity in package-lock.json, and import()ed only by
 // notation/abcjs.ts so it stays a lazy chunk. The vendored instrument samples
 // (ADR 0012) are the reviewed ones, checked against their SHA256SUMS.
