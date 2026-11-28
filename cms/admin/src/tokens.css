@@ -140,6 +140,9 @@
   --accent: light-dark(var(--primary-600), var(--primary-300));  /* links, focus, selection */
   --accent-text: light-dark(var(--white), var(--black));
   --accent-soft: light-dark(var(--primary-50), var(--primary-900));
+  /* A Tune's sheet music (abcjs draws in currentColor). */
+  --sheet-bg: light-dark(var(--white), var(--neutral-950));
+  --sheet-ink: light-dark(var(--black), var(--neutral-100));
   --brand: light-dark(var(--secondary-500), var(--secondary-400)); /* the folk-ms mark */
   --brand-text: var(--white);
   --avatar-bg: light-dark(var(--secondary-100), var(--secondary-800));

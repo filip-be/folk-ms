@@ -1,5 +1,5 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "composite": true, "rootDir": "../..", "emitDeclarationOnly": true, "noEmit": false, "outDir": "../../node_modules/.tsbuild/admin" },
-  "include": ["src/**/*.ts", "build.ts", "../../types/*.d.ts"]
+  "include": ["src/**/*.ts", "build.ts", "../../notation/*.ts", "../../types/*.d.ts"]
 }
