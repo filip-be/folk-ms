@@ -168,7 +168,7 @@ func (c *Client) get(ctx context.Context, container, name string) (ports.Documen
 	return ports.Document{Key: name, Data: data, ETag: resp.Header.Get("ETag")}, nil
 }
 
-func (c *Client) put(ctx context.Context, container, name string, data []byte, contentType, cacheControl, etag string) (string, error) {
+func (c *Client) put(ctx context.Context, container, name string, data []byte, contentType, cacheControl, etag string, opts ...ports.PutOption) (string, error) {
 	if err := checkName(name); err != nil {
 		return "", err
 	}
@@ -178,6 +178,9 @@ func (c *Client) put(ctx context.Context, container, name string, data []byte, c
 	h.Set("x-ms-blob-content-type", contentType)
 	if cacheControl != "" {
 		h.Set("x-ms-blob-cache-control", cacheControl)
+	}
+	if d := ports.ApplyPutOptions(opts).ContentDisposition; d != "" {
+		h.Set("x-ms-blob-content-disposition", d)
 	}
 	condHeaders(h, etag, true)
 	resp, _, err := c.do(ctx, http.MethodPut, blobPath(container, name), nil, h, data)
@@ -285,8 +288,12 @@ func NewPublicStore(c *Client, container, publicURL string) *PublicStore {
 	return &PublicStore{c: c, container: container, publicURL: strings.TrimRight(publicURL, "/")}
 }
 
-func (s *PublicStore) Put(ctx context.Context, path string, data []byte, contentType, cacheControl, etag string) (string, error) {
-	return s.c.put(ctx, s.container, path, data, contentType, cacheControl, etag)
+func (s *PublicStore) Put(ctx context.Context, path string, data []byte, contentType, cacheControl, etag string, opts ...ports.PutOption) (string, error) {
+	return s.c.put(ctx, s.container, path, data, contentType, cacheControl, etag, opts...)
+}
+
+func (s *PublicStore) Delete(ctx context.Context, path string) error {
+	return s.c.delete(ctx, s.container, path, "")
 }
 
 func (s *PublicStore) Get(ctx context.Context, path string) (ports.Document, error) {

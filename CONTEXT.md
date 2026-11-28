@@ -113,5 +113,58 @@ How a dance is danced (solo, pair, chain, circle, …), from the Organization's 
 _Avoid_: "type", "category".
 
 **Origin**
-Where a dance comes from: a country, or a region of a country, from the Organization's bilingual list. A Video has at most one Origin; a country includes its regions. An Origin cannot be removed while a Video (or, for a country, one of its regions) uses it.
+Where a dance or a Tune comes from: a country, or a region of a country, from a bilingual list the Video Collection and the Tune Collection each keep for themselves. A Video or a Tune has at most one Origin; a country includes its regions. An Origin cannot be removed while a Video or Tune (or, for a country, one of its regions) uses it.
 _Avoid_: "region" alone (a region is one kind of Origin).
+
+## Tune Collection
+
+**Tune Collection**
+An Organization's catalogue of the tunes played at its sessions, shown on its Site. Only Organizations that hold sessions have one (Celtycki Wrocław does, Bal Folk Poznań does not). Belongs to exactly one Organization; its Moderators keep it.
+_Avoid_: "repertoire", "tunebook" (until defined).
+
+**Tune**
+One piece of music in a Tune Collection, shown on its Site so musicians can find it, hear it and share it. Has a name and any number of Other Names, a Tune Type, a Key and a Time Signature, and may have a Transcription, Instruments it Suits or is Tricky on, and Attachments.
+_Avoid_: "song" (tunes are instrumental), "Video" (that is something else).
+
+**Other Name**
+Another name a Tune is known by (an Irish-language title, a regional name). A Tune's name and each Other Name are kept as musicians know them, with an optional Polish and English translation; all of them find the Tune.
+_Avoid_: "alias", "alternative title".
+
+**Transcription**
+A Tune's written notation in ABC, at most one per Tune, from which its sheet music and playback come. A Tune may have none yet. When entered, it proposes the Tune's Key and Time Signature; the Moderator decides them.
+_Avoid_: "setting" (thesession.org's word for one of several versions; a Tune here has one), "notes" (ambiguous).
+
+**Key**
+The key a Tune is played in, as a tonic and a mode (G major, E minor, A dorian, D mixolydian). A Tune that changes key between parts has one Key, the one it starts in; the change shows on its sheet.
+
+**Time Signature**
+The metre a Tune is written in (4/4, 6/8, 9/8, …). Each Tune Type proposes one (reel 4/4, jig 6/8); the Moderator may choose another for a Tune.
+_Avoid_: "rhythm" (ambiguous with Tune Type).
+
+**Playback Tempo**
+How fast the Site plays a Tune's Transcription or Incipit: the Tune Type's default unless the Moderator sets one for the Tune, and the visitor may slow it down or speed it up. Not how fast the session plays it; the musicians decide that.
+
+**Instrument**
+An instrument musicians bring to sessions, from the Organization's bilingual list. A Tune may list Instruments it **Suits** (sits well on it) and Instruments it is **Tricky on** (harder to play there, never forbidden).
+_Avoid_: "discouraged", "not recommended".
+
+**Composer**
+Who wrote a Tune, as free text; "trad." when the Tune is traditional or its composer unknown. Optional.
+
+**Recording**
+A link to someone playing a Tune: a video on YouTube or Vimeo, which plays on the Site (optionally from a start time), or a page elsewhere (SoundCloud, Bandcamp, …), which the Site links to. A Tune may have several, in the order the Moderator sets, each with an optional label (who plays it).
+_Avoid_: "Video" (that is an instructional dance video in the Video Collection).
+
+**Incipit**
+The opening bars of a Tune's Transcription, shown and played in the catalogue so musicians recognise a Tune they cannot name: by default the pickup and the first two bars; the Moderator may choose one to eight. A Tune without a Transcription has none.
+
+**Attachment**
+An image or PDF a Moderator adds to a Tune for more detail (a scan of an old sheet, a photo, a typeset score), shown on the Tune's page in the order the Moderator sets, with an optional bilingual caption.
+
+**Tune Type**
+The dance rhythm a Tune is played in, as Irish musicians name it: reel, jig, slip jig, hornpipe, polka, slide, waltz, …, from the Tune Collection's bilingual list, which starts with the common Irish types. A Tune has exactly one.
+_Avoid_: "Form" (that is how a dance is danced), "rhythm" (ambiguous with the time signature).
+
+**Set**
+A few Tunes played back to back at a session (say three reels), in order, made by a Moderator, with an optional name (otherwise its Tunes' names). A Tune may be in several Sets. Shown on its Site with its own page.
+_Avoid_: "medley", "list"; "selection" (that is what a visitor ticks to print).

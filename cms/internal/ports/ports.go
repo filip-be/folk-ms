@@ -47,11 +47,36 @@ type DocumentStore interface {
 // PublicStore holds publicly readable files: snapshots and media.
 type PublicStore interface {
 	// Put writes a file. etag as for DocumentStore.Put.
-	Put(ctx context.Context, path string, data []byte, contentType, cacheControl, etag string) (string, error)
+	Put(ctx context.Context, path string, data []byte, contentType, cacheControl, etag string, opts ...PutOption) (string, error)
 	// Get returns the file and its ETag (ErrNotFound when missing).
 	Get(ctx context.Context, path string) (Document, error)
+	// Delete removes a file unconditionally (ErrNotFound when missing).
+	Delete(ctx context.Context, path string) error
 	// URL returns the absolute public URL of a path.
 	URL(path string) string
+}
+
+// PutOptions are the optional properties of a public file.
+type PutOptions struct {
+	// ContentDisposition is served with the file, e.g. `inline; filename="a.pdf"`.
+	ContentDisposition string
+}
+
+// PutOption sets a PutOptions field.
+type PutOption func(*PutOptions)
+
+// WithContentDisposition serves the file with a Content-Disposition header.
+func WithContentDisposition(v string) PutOption {
+	return func(o *PutOptions) { o.ContentDisposition = v }
+}
+
+// ApplyPutOptions collects the options of a Put.
+func ApplyPutOptions(opts []PutOption) PutOptions {
+	var o PutOptions
+	for _, f := range opts {
+		f(&o)
+	}
+	return o
 }
 
 // AppendLog is an append-only log made of named segments (one per day).
@@ -125,6 +150,9 @@ type ImageKind string
 const (
 	ImageCover  ImageKind = "cover"
 	ImageSocial ImageKind = "social"
+	// ImageAttachment is a Tune's Attachment: widths 480, 960 and 1600
+	// (never upscaled), not cropped, any size.
+	ImageAttachment ImageKind = "attachment"
 )
 
 // ImageRendition is one encoded JPEG produced from an upload.

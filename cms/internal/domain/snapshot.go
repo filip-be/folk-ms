@@ -25,6 +25,40 @@ type Site struct {
 	BaseURL           string   `json:"baseUrl"`
 	Origins           []string `json:"origins"`
 	PermalinkTemplate string   `json:"permalinkTemplate"`
+	// Tunes opts the Site into the Tune Collection; nil: the Organization
+	// has none.
+	Tunes *SiteTunes `json:"tunes,omitempty"`
+}
+
+// SiteTunes is a Site's opt-in to the Tune Collection, with the Permalink
+// templates of its Tune and Set pages.
+type SiteTunes struct {
+	TunePermalinkTemplate string `json:"tunePermalinkTemplate"`
+	SetPermalinkTemplate  string `json:"setPermalinkTemplate"`
+}
+
+// HasTunes reports whether the Organization keeps a Tune Collection.
+func (o *Organization) HasTunes() bool { return o.Site.Tunes != nil }
+
+func (o *Organization) link(template, shortID, slug string, l Lang) string {
+	p := strings.NewReplacer("{lang}", string(l), "{shortId}", shortID, "{slug}", slug).Replace(template)
+	return strings.TrimRight(o.Site.BaseURL, "/") + p
+}
+
+// TunePermalink builds the absolute Permalink of a Tune (empty without the opt-in).
+func (o *Organization) TunePermalink(shortID, slug string, l Lang) string {
+	if o.Site.Tunes == nil {
+		return ""
+	}
+	return o.link(o.Site.Tunes.TunePermalinkTemplate, shortID, slug, l)
+}
+
+// SetPermalink builds the absolute Permalink of a Set (empty without the opt-in).
+func (o *Organization) SetPermalink(shortID, slug string, l Lang) string {
+	if o.Site.Tunes == nil {
+		return ""
+	}
+	return o.link(o.Site.Tunes.SetPermalinkTemplate, shortID, slug, l)
 }
 
 // Location returns the Organization's time zone.
@@ -44,8 +78,7 @@ func (o *Organization) SetLocation(l *time.Location) { o.loc = l }
 
 // Permalink builds the absolute Permalink of an Event for a language.
 func (o *Organization) Permalink(shortID, slug string, l Lang) string {
-	p := strings.NewReplacer("{lang}", string(l), "{shortId}", shortID, "{slug}", slug).Replace(o.Site.PermalinkTemplate)
-	return strings.TrimRight(o.Site.BaseURL, "/") + p
+	return o.link(o.Site.PermalinkTemplate, shortID, slug, l)
 }
 
 // Snapshot types mirror contract/events.schema.json.
