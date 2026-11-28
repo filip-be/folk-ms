@@ -23,7 +23,7 @@ go test ./...
 go build -tags dev -o cms-dev ./cmd/cms
 ```
 
-The `dev` tag adds the local sign-in stub; production builds leave it out. Build the SPA first (`bun admin/build.ts`) or the binary serves a "not built" notice under `/app/`. `scripts/dev.sh` at the repository root does both and runs it.
+The `dev` tag adds the local sign-in stub; production builds leave it out. Build the SPA first (`npm ci --ignore-scripts` at the repository root for abcjs, then `bun admin/build.ts`) or the binary serves a "not built" notice under `/app/`. `scripts/dev.sh` at the repository root does both and runs it.
 
 ## Configuration
 

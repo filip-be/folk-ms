@@ -34,7 +34,7 @@ The domain and the use cases depend only on ports ([`cms/internal/ports`](../../
 | Port | Azure | VPS or local | Tests |
 | --- | --- | --- | --- |
 | `DocumentStore` (Get/Put with ETag, List by prefix, Delete) | blob REST, managed identity (`azblob`) | files, atomic rename and lock file (`fs`) | `memory` |
-| `PublicStore` (snapshots, media) | blob container `pub` | directory served at `/pub/` | `memory` |
+| `PublicStore` (snapshots, media; Put with an optional Content-Disposition, Delete) | blob container `pub` | directory served at `/pub/` | `memory` |
 | `AppendLog` (Audit Log) | append blobs, one per day | `O_APPEND` file per day | `memory` |
 | `IdentityProvider` | Google (`google`), Facebook (`meta.SignIn`) | Google and Facebook, or the dev OIDC stub for both (`devoidc`, build tag `dev`) | fake |
 | `SocialPublisher` | Meta Graph API (`meta`) | Meta Graph API, or the recorder when `META_APP_ID` is unset | recorder |
@@ -50,9 +50,9 @@ All store adapters run one shared contract suite ([`storetest`](../../cms/intern
 See [ADR 0003](../architecture/adr/0003-stdlib-only-go.md) for what may be depended on and [ADR 0007](../architecture/adr/0007-latest-toolchains-and-dependabot-cooldown.md) for how versions are kept current. In short:
 
 - **Go:** standard library and `golang.org/x/*` only, fetched as modules and verified by `go.sum`, checked with `govulncheck` in CI. CI builds with the latest stable Go. No Azure SDK, no Meta SDK and no OIDC or JWT libraries.
-- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with Bun; CI installs the latest release with [`.github/scripts/setup-bun.sh`](../../.github/scripts/setup-bun.sh). Zero npm runtime dependencies; the only npm package is the dev-only `typescript` type-checker, locked with integrity in `package-lock.json` and installed with `npm ci --ignore-scripts`.
+- **TypeScript** (admin SPA, Sites, contract reader): built, tested and served with Bun; CI installs the latest release with [`.github/scripts/setup-bun.sh`](../../.github/scripts/setup-bun.sh). One runtime npm dependency, abcjs for the Tune Collection, at an exact version and loaded lazily as its own chunk ([ADR 0012](../architecture/adr/0012-abcjs-and-self-hosted-samples.md)); otherwise only the dev-only `typescript` type-checker. Both are locked with integrity in `package-lock.json` and installed with `npm ci --ignore-scripts`, which CI runs before every TypeScript build (`--omit=dev` in the deploy workflows).
 - **GitHub Actions:** only `actions/*`, pinned by commit SHA.
-- **Updates:** Dependabot updates the actions, `typescript` and the Go modules with a 7-day cooldown ([`.github/dependabot.yml`](../../.github/dependabot.yml)). Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
+- **Updates:** Dependabot updates the actions, the npm packages (`abcjs`, `typescript`) and the Go modules with a 7-day cooldown ([`.github/dependabot.yml`](../../.github/dependabot.yml)). Azure sign-in uses the Azure CLI with the workflow's OIDC token, not a third-party action.
 
 ### Infrastructure and CI/CD
 
