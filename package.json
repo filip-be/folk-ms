@@ -1,7 +1,7 @@
 {
   "name": "folk-ms",
   "private": true,
-  "description": "One runtime npm dependency, abcjs, bundled into the admin and the Tune pages of the Sites (ADR 0013); otherwise dev-only: the TypeScript type-checker.",
+  "description": "One runtime npm dependency, abcjs, bundled into the admin and the Tune pages of the Sites (ADR 0012); otherwise dev-only: the TypeScript type-checker.",
   "scripts": {
     "typecheck": "tsc -b tsconfig.json"
   },
