@@ -163,7 +163,7 @@ func (s *Server) principal(r *http.Request) (domain.Principal, error) {
 }
 
 // pathParams are the wildcards of the API routes.
-var pathParams = []string{"org", "id", "day", "action", "flag"}
+var pathParams = []string{"org", "id", "aid", "day", "action", "flag"}
 
 // safeSegment reports whether a path value is a plain name: ids,
 // Organization ids, dates and actions never need more.
@@ -231,7 +231,10 @@ func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	if s.PublicOrigin != "" {
 		img += " " + s.PublicOrigin
 	}
-	csp := "default-src 'self'; img-src " + img + "; connect-src 'self'; script-src 'self'; style-src 'self'; " +
+	// abcjs draws sheets with <style> elements and style attributes, so
+	// styles allow 'unsafe-inline' (scripts stay 'self'); it fetches the
+	// piano samples under /app/sounds/ (connect-src, media-src).
+	csp := "default-src 'self'; img-src " + img + "; connect-src 'self'; media-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
 		"object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
