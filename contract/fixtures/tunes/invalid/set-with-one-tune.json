@@ -1,0 +1,475 @@
+{
+  "schemaVersion": 1,
+  "organization": {
+    "id": "celtycki-wroclaw",
+    "name": {
+      "pl": "Celtycki Wrocław"
+    },
+    "siteId": "celtycki-wroclaw",
+    "baseUrl": "https://celtycki-wroclaw.example",
+    "timezone": "Europe/Warsaw"
+  },
+  "types": [
+    {
+      "id": "typereel",
+      "label": {
+        "pl": "reel",
+        "en": "reel"
+      },
+      "meter": "4/4",
+      "tempo": 180,
+      "tempoBeat": "1/4"
+    },
+    {
+      "id": "typejigg",
+      "label": {
+        "pl": "jig",
+        "en": "jig"
+      },
+      "meter": "6/8",
+      "tempo": 110,
+      "tempoBeat": "3/8"
+    },
+    {
+      "id": "typeslip",
+      "label": {
+        "en": "slip jig"
+      },
+      "meter": "9/8",
+      "tempo": 110,
+      "tempoBeat": "3/8"
+    },
+    {
+      "id": "typepolk",
+      "label": {
+        "pl": "polka",
+        "en": "polka"
+      },
+      "meter": "2/4",
+      "tempo": 140,
+      "tempoBeat": "1/4"
+    },
+    {
+      "id": "typewalc",
+      "label": {
+        "pl": "walc",
+        "en": "waltz"
+      },
+      "meter": "3/4",
+      "tempo": 120,
+      "tempoBeat": "1/4"
+    },
+    {
+      "id": "typemarc",
+      "label": {
+        "pl": "marsz",
+        "en": "march"
+      },
+      "meter": "2/2",
+      "tempo": 90,
+      "tempoBeat": "1/2"
+    }
+  ],
+  "instruments": [
+    {
+      "id": "instwhis",
+      "label": {
+        "pl": "flażolet",
+        "en": "whistle"
+      }
+    },
+    {
+      "id": "instfidd",
+      "label": {
+        "pl": "skrzypce",
+        "en": "fiddle"
+      }
+    },
+    {
+      "id": "instflut",
+      "label": {
+        "pl": "flet",
+        "en": "flute"
+      }
+    },
+    {
+      "id": "instharp",
+      "label": {
+        "pl": "harfa"
+      }
+    }
+  ],
+  "origins": [
+    {
+      "id": "countrie",
+      "label": {
+        "pl": "Irlandia",
+        "en": "Ireland"
+      },
+      "regions": [
+        {
+          "id": "regclare",
+          "label": {
+            "pl": "Clare"
+          }
+        },
+        {
+          "id": "regkerry",
+          "label": {
+            "en": "Kerry"
+          }
+        }
+      ]
+    },
+    {
+      "id": "countrfr",
+      "label": {
+        "pl": "Francja",
+        "en": "France"
+      },
+      "regions": [
+        {
+          "id": "regbreta",
+          "label": {
+            "pl": "Bretania",
+            "en": "Brittany"
+          }
+        }
+      ]
+    },
+    {
+      "id": "countrpl",
+      "label": {
+        "pl": "Polska",
+        "en": "Poland"
+      },
+      "regions": []
+    }
+  ],
+  "tunes": [
+    {
+      "id": "tunbutfl",
+      "slug": "the-butterfly",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunbutfl-the-butterfly",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunbutfl-the-butterfly"
+      },
+      "name": {
+        "name": "The Butterfly",
+        "translation": {
+          "pl": "Motyl"
+        }
+      },
+      "otherNames": [
+        {
+          "name": "An Féileacán",
+          "translation": {
+            "pl": "Motyl",
+            "en": "The Butterfly"
+          }
+        }
+      ],
+      "typeId": "typeslip",
+      "key": {
+        "tonic": "E",
+        "mode": "minor"
+      },
+      "meter": "9/8",
+      "tempo": 110,
+      "tempoBeat": "3/8",
+      "originId": "countrie",
+      "composer": "Tommy Potts",
+      "suits": [
+        "instwhis",
+        "instflut"
+      ],
+      "tricky": [
+        "instharp"
+      ],
+      "incipit": "X:1\nT:The Butterfly\nM:9/8\nL:1/8\nK:Em\nB2E G2E F3|B2E G2E FED|",
+      "hasTranscription": true,
+      "firstRecording": {
+        "kind": "video",
+        "url": "https://www.youtube.com/watch?v=aBcDeFgHiJk&t=42s",
+        "provider": "youtube",
+        "embedUrl": "https://www.youtube-nocookie.com/embed/aBcDeFgHiJk?start=42",
+        "thumbnail": "https://i.ytimg.com/vi/aBcDeFgHiJk/hqdefault.jpg",
+        "start": 42,
+        "label": "Kevin Burke"
+      },
+      "rev": "0123456789abcdef"
+    },
+    {
+      "id": "tunceann",
+      "slug": "na-ceannabhain-bhana",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunceann-na-ceannabhain-bhana",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunceann-na-ceannabhain-bhana"
+      },
+      "name": {
+        "name": "Na Ceannabháin Bhána",
+        "translation": {
+          "en": "The White Bog Cotton"
+        }
+      },
+      "otherNames": [],
+      "typeId": "typepolk",
+      "key": {
+        "tonic": "A",
+        "mode": "mixolydian"
+      },
+      "meter": "2/4",
+      "tempo": 140,
+      "tempoBeat": "1/4",
+      "originId": "regkerry",
+      "composer": "trad.",
+      "suits": [
+        "instfidd"
+      ],
+      "tricky": [],
+      "incipit": "X:1\nT:Na Ceannabháin Bhána\nM:2/4\nL:1/8\nK:Amix\nA>B cA|BG G2|",
+      "hasTranscription": true,
+      "rev": "1a2b3c4d5e6f7081"
+    },
+    {
+      "id": "tuncooly",
+      "slug": "cooley-s",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tuncooly-cooley-s",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tuncooly-cooley-s"
+      },
+      "name": {
+        "name": "Cooley's"
+      },
+      "otherNames": [
+        {
+          "name": "Cooley's Reel"
+        },
+        {
+          "name": "Luttrell's Pass"
+        }
+      ],
+      "typeId": "typereel",
+      "key": {
+        "tonic": "E",
+        "mode": "minor"
+      },
+      "meter": "4/4",
+      "tempo": 180,
+      "tempoBeat": "1/4",
+      "originId": "regclare",
+      "composer": "trad.",
+      "suits": [
+        "instfidd",
+        "instflut"
+      ],
+      "tricky": [],
+      "incipit": "X:1\nT:Cooley's\nM:4/4\nL:1/8\nK:Em\nD|EBBA B2EB|B2AB dBAG|",
+      "hasTranscription": true,
+      "firstRecording": {
+        "kind": "video",
+        "url": "https://www.youtube.com/watch?v=Qq1Ww2Ee3Rr",
+        "provider": "youtube",
+        "embedUrl": "https://www.youtube-nocookie.com/embed/Qq1Ww2Ee3Rr",
+        "thumbnail": "https://i.ytimg.com/vi/Qq1Ww2Ee3Rr/hqdefault.jpg"
+      },
+      "rev": "fedcba9876543210"
+    },
+    {
+      "id": "tundrows",
+      "slug": "drowsy-maggie",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tundrows-drowsy-maggie",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tundrows-drowsy-maggie"
+      },
+      "name": {
+        "name": "Drowsy Maggie"
+      },
+      "otherNames": [],
+      "typeId": "typereel",
+      "key": {
+        "tonic": "E",
+        "mode": "dorian"
+      },
+      "meter": "4/4",
+      "tempo": 200,
+      "tempoBeat": "1/4",
+      "originId": "countrie",
+      "suits": [],
+      "tricky": [
+        "instwhis"
+      ],
+      "hasTranscription": false,
+      "firstRecording": {
+        "kind": "link",
+        "url": "https://soundcloud.com/someone/drowsy-maggie",
+        "host": "soundcloud.com"
+      },
+      "rev": "00ff00ff00ff00ff"
+    },
+    {
+      "id": "tunkessh",
+      "slug": "the-kesh",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunkessh-the-kesh",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunkessh-the-kesh"
+      },
+      "name": {
+        "name": "The Kesh"
+      },
+      "otherNames": [
+        {
+          "name": "The Kesh Jig"
+        },
+        {
+          "name": "Kesh Mountain"
+        }
+      ],
+      "typeId": "typejigg",
+      "key": {
+        "tonic": "G",
+        "mode": "major"
+      },
+      "meter": "6/8",
+      "tempo": 110,
+      "tempoBeat": "3/8",
+      "originId": "countrie",
+      "suits": [
+        "instwhis",
+        "instfidd",
+        "instflut"
+      ],
+      "tricky": [],
+      "incipit": "X:1\nT:The Kesh\nM:6/8\nL:1/8\nK:G\nD|GAG GAB|ABA ABd|",
+      "hasTranscription": true,
+      "rev": "9f8e7d6c5b4a3921"
+    },
+    {
+      "id": "tunbrest",
+      "slug": "marche-de-brest",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunbrest-marche-de-brest",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunbrest-marche-de-brest"
+      },
+      "name": {
+        "name": "Marche de Brest"
+      },
+      "otherNames": [],
+      "typeId": "typemarc",
+      "key": {
+        "tonic": "Bb",
+        "mode": "major"
+      },
+      "meter": "2/2",
+      "tempo": 90,
+      "tempoBeat": "1/2",
+      "originId": "regbreta",
+      "suits": [],
+      "tricky": [],
+      "hasTranscription": false,
+      "rev": "a1b2c3d4e5f60718"
+    },
+    {
+      "id": "tunosemk",
+      "slug": "osemka",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunosemk-osemka",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunosemk-osemka"
+      },
+      "name": {
+        "name": "Ósemka",
+        "translation": {
+          "en": "Figure of Eight"
+        }
+      },
+      "otherNames": [],
+      "typeId": "typewalc",
+      "key": {
+        "tonic": "F#",
+        "mode": "minor"
+      },
+      "meter": "3/4",
+      "tempo": 120,
+      "tempoBeat": "1/4",
+      "originId": "countrpl",
+      "suits": [],
+      "tricky": [],
+      "hasTranscription": false,
+      "rev": "5555aaaa5555aaaa"
+    },
+    {
+      "id": "tunsibhe",
+      "slug": "si-bheag-si-mhor",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/tunes/tunsibhe-si-bheag-si-mhor",
+        "en": "https://celtycki-wroclaw.example/en/tunes/tunsibhe-si-bheag-si-mhor"
+      },
+      "name": {
+        "name": "Sí Bheag, Sí Mhór"
+      },
+      "otherNames": [],
+      "typeId": "typewalc",
+      "key": {
+        "tonic": "D",
+        "mode": "major"
+      },
+      "meter": "3/4",
+      "tempo": 96,
+      "tempoBeat": "1/4",
+      "composer": "Turlough O'Carolan",
+      "suits": [
+        "instharp",
+        "instwhis"
+      ],
+      "tricky": [],
+      "incipit": "X:1\nT:Sí Bheag, Sí Mhór\nM:3/4\nL:1/8\nK:D\nde|f2 e2 d2|B4 A2|",
+      "hasTranscription": true,
+      "rev": "deadbeefcafe0042"
+    }
+  ],
+  "sets": [
+    {
+      "id": "setreelz",
+      "slug": "cooley-s-drowsy-maggie",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/sets/setreelz-cooley-s-drowsy-maggie",
+        "en": "https://celtycki-wroclaw.example/en/sets/setreelz-cooley-s-drowsy-maggie"
+      },
+      "tuneIds": [
+        "tuncooly"
+      ]
+    },
+    {
+      "id": "setjigsl",
+      "slug": "dzigi-na-poczatek",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/sets/setjigsl-dzigi-na-poczatek",
+        "en": "https://celtycki-wroclaw.example/en/sets/setjigsl-dzigi-na-poczatek"
+      },
+      "name": {
+        "pl": "Dżigi na początek",
+        "en": "Jigs to start"
+      },
+      "tuneIds": [
+        "tunkessh",
+        "tunbutfl"
+      ]
+    },
+    {
+      "id": "setwalcz",
+      "slug": "waltzes",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/sets/setwalcz-waltzes",
+        "en": "https://celtycki-wroclaw.example/en/sets/setwalcz-waltzes"
+      },
+      "name": {
+        "en": "Waltzes"
+      },
+      "tuneIds": [
+        "tunsibhe",
+        "tunosemk"
+      ]
+    }
+  ],
+  "updatedAt": "2026-11-20T18:30:00Z"
+}

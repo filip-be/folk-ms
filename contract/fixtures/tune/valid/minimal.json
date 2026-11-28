@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "tundrows",
+  "slug": "drowsy-maggie",
+  "permalink": {
+    "pl": "https://celtycki-wroclaw.example/pl/tunes/tundrows-drowsy-maggie",
+    "en": "https://celtycki-wroclaw.example/en/tunes/tundrows-drowsy-maggie"
+  },
+  "name": {
+    "name": "Drowsy Maggie"
+  },
+  "otherNames": [],
+  "typeId": "typereel",
+  "key": {
+    "tonic": "E",
+    "mode": "dorian"
+  },
+  "meter": "4/4",
+  "tempo": 200,
+  "tempoBeat": "1/4",
+  "suits": [],
+  "tricky": [],
+  "recordings": [],
+  "attachments": [],
+  "sets": []
+}
