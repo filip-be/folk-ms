@@ -1,4 +1,4 @@
-// Lazy access to abcjs, the npm package (ADR 0013). The admin and the Sites import
+// Lazy access to abcjs, the npm package (ADR 0012). The admin and the Sites import
 // this module; it import()s the package's prebuilt dist/abcjs-basic-min.js, so Bun
 // splits abcjs into its own chunk, which loads on the first loadAbcjs() call: only
 // Tune screens and pages download it. The types are the package's own

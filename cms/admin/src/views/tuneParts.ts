@@ -1,6 +1,6 @@
 // Pieces shared by the Tune Collection screens (tunes.ts, tune.ts) and shown
 // on /app/design: bilingual text where either language may come first, Keys,
-// the lists' labels, and the ABC sheet with piano playback (abcjs, ADR 0013).
+// the lists' labels, and the ABC sheet with piano playback (abcjs, ADR 0012).
 
 import type { Bi, TuneCollection, TuneKey, TuneName } from "../api.ts";
 import { icon } from "../icons.ts";
