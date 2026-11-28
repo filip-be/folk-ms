@@ -35,6 +35,50 @@ func TestVideoFixtures(t *testing.T) {
 	checkFixtures(t, loadSchema(t, "videos.schema.json"), filepath.Join(contractDir, "fixtures", "videos"))
 }
 
+// The Tune Collection has two snapshot kinds: the catalogue and one Tune's file.
+func TestTuneFixtures(t *testing.T) {
+	checkFixtures(t, loadSchema(t, "tunes.schema.json"), filepath.Join(contractDir, "fixtures", "tunes"))
+	checkFixtures(t, loadSchema(t, "tune.schema.json"), filepath.Join(contractDir, "fixtures", "tune"))
+}
+
+func TestKeywords(t *testing.T) {
+	s, err := schema.Compile([]byte(`{
+		"type": "object",
+		"properties": {
+			"list": {"type": "array", "maxItems": 2},
+			"bi": {"type": "object", "minProperties": 1},
+			"either": {"anyOf": [{"type": "string", "enum": ["a"]}, {"$ref": "#/$defs/n"}]}
+		},
+		"$defs": {"n": {"type": "integer", "minimum": 1}}
+	}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for doc, want := range map[string]string{
+		`{"list":[1,2]}`:    "",
+		`{"list":[1,2,3]}`:  "at most 2 items",
+		`{"bi":{"pl":"x"}}`: "",
+		`{"bi":{}}`:         "at least 1 properties",
+		`{"either":"a"}`:    "",
+		`{"either":3}`:      "",
+		`{"either":"b"}`:    "matches none of anyOf",
+		`{"either":0}`:      "matches none of anyOf",
+	} {
+		err := s.Validate([]byte(doc))
+		switch {
+		case want == "" && err != nil:
+			t.Errorf("%s: want valid, got %v", doc, err)
+		case want != "" && (err == nil || !strings.Contains(err.Error(), want)):
+			t.Errorf("%s: want %q, got %v", doc, want, err)
+		}
+	}
+	for _, bad := range []string{`{"anyOf":[]}`, `{"anyOf":{}}`, `{"maxItems":-1}`, `{"minProperties":1.5}`, `{"anyOf":[{"$ref":"#/$defs/nope"}]}`} {
+		if _, err := schema.Compile([]byte(bad)); err == nil {
+			t.Errorf("%s: want compile error", bad)
+		}
+	}
+}
+
 func checkFixtures(t *testing.T, s *schema.Schema, dir string) {
 	for _, kind := range []string{"valid", "invalid"} {
 		files, _ := filepath.Glob(filepath.Join(dir, kind, "*.json"))

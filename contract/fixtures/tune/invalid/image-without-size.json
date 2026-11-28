@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 1,
+  "id": "tunbutfl",
+  "slug": "the-butterfly",
+  "permalink": {
+    "pl": "https://celtycki-wroclaw.example/pl/tunes/tunbutfl-the-butterfly",
+    "en": "https://celtycki-wroclaw.example/en/tunes/tunbutfl-the-butterfly"
+  },
+  "name": {
+    "name": "The Butterfly",
+    "translation": {
+      "pl": "Motyl"
+    }
+  },
+  "otherNames": [
+    {
+      "name": "An Féileacán",
+      "translation": {
+        "pl": "Motyl",
+        "en": "The Butterfly"
+      }
+    }
+  ],
+  "typeId": "typeslip",
+  "key": {
+    "tonic": "E",
+    "mode": "minor"
+  },
+  "meter": "9/8",
+  "tempo": 110,
+  "tempoBeat": "3/8",
+  "originId": "countrie",
+  "composer": "Tommy Potts",
+  "suits": [
+    "instwhis",
+    "instflut"
+  ],
+  "tricky": [
+    "instharp"
+  ],
+  "incipit": "X:1\nT:The Butterfly\nM:9/8\nL:1/8\nK:Em\nB2E G2E F3|B2E G2E FED|",
+  "transcription": {
+    "format": "abc",
+    "text": "X:1\nT:The Butterfly\nR:slip jig\nM:9/8\nL:1/8\nK:Em\n|:B2E G2E F3|B2E G2E FED|B2E G2E F3|B2d d2B AFD:|\n|:B2=c d2e f2g|B2c d2e dBA|B2c d2e f2g|e2d B2A AFD:|\n"
+  },
+  "descriptionHtml": {
+    "pl": "<p>Slip jig <strong>Tommy'ego Pottsa</strong>, grany na każdej sesji.</p>\n<ul>\n<li>część A</li>\n<li>część B</li>\n</ul>\n",
+    "en": "<p>A slip jig by <em>Tommy Potts</em>; see <a href=\"https://thesession.org/tunes/10\" rel=\"nofollow noopener ugc\">The Session</a>.</p>\n"
+  },
+  "recordings": [
+    {
+      "kind": "video",
+      "url": "https://www.youtube.com/watch?v=aBcDeFgHiJk&t=42s",
+      "provider": "youtube",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/aBcDeFgHiJk?start=42",
+      "thumbnail": "https://i.ytimg.com/vi/aBcDeFgHiJk/hqdefault.jpg",
+      "start": 42,
+      "label": "Kevin Burke"
+    },
+    {
+      "kind": "video",
+      "url": "https://vimeo.com/123456789/abcdef1234",
+      "provider": "vimeo",
+      "embedUrl": "https://player.vimeo.com/video/123456789?h=abcdef1234",
+      "thumbnail": "https://i.vimeocdn.com/video/987654321-d_640"
+    },
+    {
+      "kind": "link",
+      "url": "https://example.bandcamp.com/track/the-butterfly",
+      "host": "example.bandcamp.com",
+      "label": "Sesja w Pubie"
+    }
+  ],
+  "attachments": [
+    {
+      "id": "attscan2",
+      "kind": "image",
+      "name": "butterfly-scan.jpg",
+      "size": 482113,
+      "caption": {
+        "pl": "Skan starego zapisu"
+      },
+      "height": 1600,
+      "variants": [
+        {
+          "width": 480,
+          "height": 320,
+          "url": "https://storage.example/pub/media/celtycki-wroclaw/tunes/tunbutfl/a1b2c3-480.jpg"
+        },
+        {
+          "width": 960,
+          "height": 640,
+          "url": "https://storage.example/pub/media/celtycki-wroclaw/tunes/tunbutfl/a1b2c3-960.jpg"
+        },
+        {
+          "width": 1600,
+          "height": 1067,
+          "url": "https://storage.example/pub/media/celtycki-wroclaw/tunes/tunbutfl/a1b2c3-1600.jpg"
+        }
+      ]
+    },
+    {
+      "id": "attpdf34",
+      "kind": "pdf",
+      "name": "The Butterfly.pdf",
+      "size": 120334,
+      "caption": {
+        "en": "Typeset score"
+      },
+      "url": "https://storage.example/pub/media/celtycki-wroclaw/tunes/tunbutfl/d4e5f6.pdf"
+    }
+  ],
+  "sets": [
+    {
+      "id": "setjigsl",
+      "slug": "dzigi-na-poczatek",
+      "permalink": {
+        "pl": "https://celtycki-wroclaw.example/pl/sets/setjigsl-dzigi-na-poczatek",
+        "en": "https://celtycki-wroclaw.example/en/sets/setjigsl-dzigi-na-poczatek"
+      },
+      "name": {
+        "pl": "Dżigi na początek",
+        "en": "Jigs to start"
+      },
+      "tuneIds": [
+        "tunkessh",
+        "tunbutfl"
+      ]
+    }
+  ]
+}

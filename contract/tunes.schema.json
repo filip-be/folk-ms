@@ -1,0 +1,730 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://folk-ms/contract/tunes.schema.json",
+  "title": "folk-ms Tune Collection catalogue",
+  "description": "The Tune Collection of one Organization as its Site reads it from pub/sites/<site>/tunes.json: its Tune Types, Instruments and Origins in list order (used or not), the Tunes not Hidden sorted by name (ignoring a leading The/An/A/Na and diacritics), and the Sets not Hidden that keep at least two visible Tunes. Each Tune's full record is in tunes/<id>.json (contract/tune.schema.json). Bilingual texts: either language may be missing (never both); readers show the other.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "organization",
+    "types",
+    "instruments",
+    "origins",
+    "tunes",
+    "sets"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [
+        1
+      ]
+    },
+    "organization": {
+      "$ref": "#/$defs/organization"
+    },
+    "types": {
+      "type": "array",
+      "description": "Tune Types in list order.",
+      "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/tuneType"
+      }
+    },
+    "instruments": {
+      "type": "array",
+      "description": "Instruments in list order.",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/labeled"
+      }
+    },
+    "origins": {
+      "type": "array",
+      "description": "Countries in list order, each with its regions.",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/country"
+      }
+    },
+    "tunes": {
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "$ref": "#/$defs/catalogueTune"
+      }
+    },
+    "sets": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "$ref": "#/$defs/set"
+      }
+    },
+    "updatedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the collection last changed; absent while it was never edited."
+    }
+  },
+  "$defs": {
+    "localizedText": {
+      "type": "object",
+      "required": [
+        "pl"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pl": {
+          "type": "string",
+          "minLength": 1
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "label": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "pl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        },
+        "en": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60
+        }
+      },
+      "description": "A list label: at least one language; readers show the other where one is missing."
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+    },
+    "itemId": {
+      "type": "string",
+      "description": "Id of a Tune, Set, Tune Type, Instrument, country, region or Attachment: 8 characters a–z, 2–7.",
+      "pattern": "^[a-z2-7]{8}$"
+    },
+    "url": {
+      "type": "string",
+      "pattern": "^https?://",
+      "maxLength": 2048
+    },
+    "httpsUrl": {
+      "type": "string",
+      "pattern": "^https://[^\\s\"'<>\\\\]+$",
+      "maxLength": 2048
+    },
+    "slug": {
+      "type": "string",
+      "description": "Lowercase ASCII letters, digits and single hyphens; may change, the id never does.",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 80
+    },
+    "permalink": {
+      "type": "object",
+      "required": [
+        "pl",
+        "en"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "pl": {
+          "$ref": "#/$defs/url"
+        },
+        "en": {
+          "$ref": "#/$defs/url"
+        }
+      },
+      "description": "Absolute Permalink of each language version on the Site."
+    },
+    "meter": {
+      "type": "string",
+      "description": "Time Signature n/d: n from 1 to 32, d a power of two up to 32.",
+      "pattern": "^([1-9]|[12][0-9]|3[0-2])/(1|2|4|8|16|32)$"
+    },
+    "tempo": {
+      "type": "integer",
+      "description": "Playback Tempo: beats (of tempoBeat) a minute.",
+      "minimum": 20,
+      "maximum": 400
+    },
+    "tempoBeat": {
+      "type": "string",
+      "description": "The note a Playback Tempo counts: 3/8 (a dotted quarter) in 3/8, 6/8, 9/8 and 12/8, 1/2 in n/2, else one note of the denominator.",
+      "enum": [
+        "1/1",
+        "1/2",
+        "1/4",
+        "3/8",
+        "1/8",
+        "1/16",
+        "1/32"
+      ]
+    },
+    "organization": {
+      "type": "object",
+      "required": [
+        "id",
+        "name",
+        "siteId",
+        "baseUrl",
+        "timezone"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "$ref": "#/$defs/localizedText"
+        },
+        "siteId": {
+          "$ref": "#/$defs/id"
+        },
+        "baseUrl": {
+          "$ref": "#/$defs/url"
+        },
+        "timezone": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "labeled": {
+      "type": "object",
+      "required": [
+        "id",
+        "label"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/label"
+        }
+      }
+    },
+    "tuneType": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "meter",
+        "tempo",
+        "tempoBeat"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "meter": {
+          "$ref": "#/$defs/meter",
+          "description": "The Time Signature it proposes."
+        },
+        "tempo": {
+          "$ref": "#/$defs/tempo",
+          "description": "Its default Playback Tempo."
+        },
+        "tempoBeat": {
+          "$ref": "#/$defs/tempoBeat"
+        }
+      }
+    },
+    "country": {
+      "type": "object",
+      "required": [
+        "id",
+        "label",
+        "regions"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "label": {
+          "$ref": "#/$defs/label"
+        },
+        "regions": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/labeled"
+          }
+        }
+      }
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "tonic",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "tonic": {
+          "type": "string",
+          "description": "A–G with an optional # or b.",
+          "pattern": "^[A-G][#b]?$"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "major",
+            "minor",
+            "dorian",
+            "mixolydian",
+            "lydian",
+            "phrygian",
+            "locrian"
+          ]
+        }
+      }
+    },
+    "tuneName": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "As musicians know it.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "translation": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "pl": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "description": "Optional Polish and/or English translation."
+        }
+      }
+    },
+    "videoRecording": {
+      "type": "object",
+      "required": [
+        "kind",
+        "url",
+        "provider",
+        "embedUrl",
+        "thumbnail"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "video"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "description": "Canonical watch address, with the start.",
+          "pattern": "^https://(www\\.youtube\\.com/watch\\?v=|vimeo\\.com/)",
+          "maxLength": 2048
+        },
+        "provider": {
+          "type": "string",
+          "enum": [
+            "youtube",
+            "vimeo"
+          ]
+        },
+        "embedUrl": {
+          "type": "string",
+          "description": "Player address for an iframe, with the start.",
+          "pattern": "^https://(www\\.youtube-nocookie\\.com/embed/|player\\.vimeo\\.com/video/)",
+          "maxLength": 2048
+        },
+        "thumbnail": {
+          "type": "string",
+          "pattern": "^https://(i\\.ytimg\\.com|i\\.vimeocdn\\.com)/",
+          "maxLength": 2048
+        },
+        "start": {
+          "type": "integer",
+          "description": "Start time in seconds.",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "label": {
+          "type": "string",
+          "description": "Who plays it.",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "description": "A YouTube or Vimeo video, played on the Site."
+    },
+    "linkRecording": {
+      "type": "object",
+      "required": [
+        "kind",
+        "url",
+        "host"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "link"
+          ]
+        },
+        "url": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "host": {
+          "type": "string",
+          "description": "The page's host without www., shown with the link.",
+          "minLength": 1,
+          "maxLength": 253
+        },
+        "label": {
+          "type": "string",
+          "description": "Who plays it.",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "description": "A page elsewhere (SoundCloud, Bandcamp, …), linked to."
+    },
+    "recording": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/videoRecording"
+        },
+        {
+          "$ref": "#/$defs/linkRecording"
+        }
+      ]
+    },
+    "set": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "permalink",
+        "tuneIds"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "permalink": {
+          "$ref": "#/$defs/permalink"
+        },
+        "name": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "pl": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "description": "The Set's own name; absent: readers join its Tunes' names with \" / \"."
+        },
+        "tuneIds": {
+          "type": "array",
+          "description": "Its visible Tunes, in order.",
+          "minItems": 2,
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/itemId"
+          }
+        }
+      }
+    },
+    "attachmentVariant": {
+      "type": "object",
+      "required": [
+        "width",
+        "height",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      }
+    },
+    "imageAttachment": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "size",
+        "width",
+        "height"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "image"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "caption": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "pl": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          },
+          "description": "Also the image's alt text."
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "variants": {
+          "type": "array",
+          "description": "JPEG renditions, narrowest first.",
+          "items": {
+            "$ref": "#/$defs/attachmentVariant"
+          }
+        }
+      }
+    },
+    "pdfAttachment": {
+      "type": "object",
+      "required": [
+        "id",
+        "kind",
+        "name",
+        "size",
+        "url"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "pdf"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 15728640
+        },
+        "caption": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "pl": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "en": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            }
+          }
+        },
+        "url": {
+          "$ref": "#/$defs/url"
+        }
+      }
+    },
+    "attachment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/imageAttachment"
+        },
+        {
+          "$ref": "#/$defs/pdfAttachment"
+        }
+      ]
+    },
+    "catalogueTune": {
+      "type": "object",
+      "required": [
+        "id",
+        "slug",
+        "permalink",
+        "name",
+        "otherNames",
+        "typeId",
+        "key",
+        "meter",
+        "tempo",
+        "tempoBeat",
+        "suits",
+        "tricky",
+        "hasTranscription",
+        "rev"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/itemId"
+        },
+        "slug": {
+          "$ref": "#/$defs/slug"
+        },
+        "permalink": {
+          "$ref": "#/$defs/permalink"
+        },
+        "name": {
+          "$ref": "#/$defs/tuneName"
+        },
+        "otherNames": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "$ref": "#/$defs/tuneName"
+          }
+        },
+        "typeId": {
+          "$ref": "#/$defs/itemId",
+          "description": "A Tune Type id from the catalogue's types."
+        },
+        "key": {
+          "$ref": "#/$defs/key"
+        },
+        "meter": {
+          "$ref": "#/$defs/meter"
+        },
+        "tempo": {
+          "$ref": "#/$defs/tempo"
+        },
+        "tempoBeat": {
+          "$ref": "#/$defs/tempoBeat"
+        },
+        "originId": {
+          "$ref": "#/$defs/itemId",
+          "description": "A country or region id; absent when the Tune has no Origin."
+        },
+        "composer": {
+          "type": "string",
+          "description": "Free text; \"trad.\" when traditional.",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "suits": {
+          "type": "array",
+          "description": "Instrument ids it suits.",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/itemId"
+          }
+        },
+        "tricky": {
+          "type": "array",
+          "description": "Instrument ids it is tricky on.",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/itemId"
+          }
+        },
+        "incipit": {
+          "type": "string",
+          "description": "The opening bars as ABC, with the header; absent without a Transcription.",
+          "minLength": 1,
+          "maxLength": 16384
+        },
+        "hasTranscription": {
+          "type": "boolean"
+        },
+        "firstRecording": {
+          "$ref": "#/$defs/recording",
+          "description": "Offered where there is no Incipit."
+        },
+        "rev": {
+          "type": "string",
+          "description": "Content hash of the Tune's own file (tunes/<id>.json); changes when it does.",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      }
+    }
+  }
+}
