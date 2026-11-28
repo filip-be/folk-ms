@@ -74,7 +74,7 @@ The shell ([`shell.ts`](../../cms/admin/src/shell.ts)) is a sidebar beside the p
 
 Focused fields get one 2px accent border (`--shadow-focus` thickens the 1px border), never a second ring. Selects draw their chevron with CSS gradients (the CSP allows no `data:` images); with a mouse, browsers that support customizable selects (`appearance: base-select`) also get a styled option list, while touch screens keep the native picker.
 
-Buttons (see below), fields (see [Forms](#forms); `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus, `.toast`, and the sortable list (`ol.sortable` with `moveButtons` and `bindSortable` from `patterns.ts`: Move up / Move down buttons for keyboard and screen readers, drag and drop with a mouse; used by the Video Collection). Each is shown on `/app/design`.
+Buttons (see below), fields (see [Forms](#forms); `.chip`, `label.inline`), `.tabs`, segmented `.lang-tabs`, `table.list` (always inside a `.table-wrap`, which draws the rounded box and scrolls a table wider than the page sideways), `.badge` (neutral, `info`, ok/warn/danger by status), `.banner`, `.problems`, `.card`, `.toolbar`, `details.more` menus, `.toast`, and the sortable list (`ol.sortable` with `moveButtons` and `bindSortable` from `patterns.ts`: Move up / Move down buttons for keyboard and screen readers, drag and drop with a mouse; used by the Video Collection and the Tune Collection), `ul.item-list` (the same box for items with actions but no order of their own, such as Sets), and the Tune patterns below. Each is shown on `/app/design`.
 
 ### Buttons
 
@@ -100,6 +100,17 @@ Every button has exactly one role, picked by what it does, not by how prominent 
   - Problems from the API: `showError(err, summary, form)` calls `markProblems`, which matches each problem's `field` path to a control by `data-field` (space-separated paths) or `name`, falling back to the Polish variant (`title` → `title.pl`). A `data-field` on a `fieldset` marks the group. Given a `summary` element it also lists every problem, each linked to its field (a field in the other language tab is revealed via the `folk:reveal` event). A problem with no matching control is listed only in the summary, so add a `data-field` when a new problem path appears.
 - **Disabled and read-only.** A field the Moderator cannot change, such as a synced Event's Facebook value beside its Override control, is grey (`--disabled-bg`) and flat. Prefer `readonly` for text a Moderator may still want to copy; use `disabled` for selects, checkboxes, radios and buttons. A `label` or `.chip` around a disabled checkbox is greyed (a chip also gets a dashed border). A whole screen that cannot be edited (an Event in the bin) says so in a `.banner` and makes its controls read-only or disabled.
 
+### Tune Collection patterns
+
+Shared by the Tune screens ([`tunes.ts`](../../cms/admin/src/views/tunes.ts), [`tune.ts`](../../cms/admin/src/views/tune.ts)) from [`tuneParts.ts`](../../cms/admin/src/views/tuneParts.ts), styled in `app.css` ("Tune Collection"):
+
+- **Sheet music.** `Sheet` draws ABC into a `.abc-sheet` box with abcjs (loaded lazily, [ADR 0013](../architecture/adr/0013-abcjs-from-npm.md)) in `--sheet-ink` on `--sheet-bg`, which follow the theme (abcjs draws in `currentColor`). Its `playButton` is a neutral Play / Stop toggle (`aria-pressed`) that plays piano from `/app/sounds/`; one sheet plays at a time, and leaving the screen stops it. The editor redraws the sheet 400 ms after typing stops.
+- **Proposal notice.** When the ABC proposes a Key or Time Signature that the form lacks, an `info` banner offers it. When the form's value differs, a `warn` banner says so without blocking Save. Each offer is a `.secondary` "Use …" button.
+- **Either language first.** Tune list labels, Set names, captions and descriptions take Polish, English or both (at least one for a label). `biText` shows the UI language, else the other. Such fields are not `required`; a hint says so.
+- **Exclusive checkbox groups.** Ticking an Instrument under "Suits" disables its chip under "Tricky on" (and the reverse), with a `title` saying why. It is `disabled`, not only faded.
+- **Import rows.** `table.list.import` has a checkbox per candidate. A problem the table cannot fix is listed in `ul.candidate-problems` and disables the row. The ABC source sits in `details.abc-source`. Before sending, each row's cells get `data-field` paths `tunes.<n>.…` for the position the row takes in the request, so problems land in their row.
+- **Attachments** reuse the sortable list with a thumbnail (`object-fit: contain`, bordered) or a `.file-thumb` for a PDF. Unlike the rest of the editor, their changes save at once.
+
 ## Where it lives
 
 | What | Path |
@@ -109,6 +120,7 @@ Every button has exactly one role, picked by what it does, not by how prominent 
 | Shell markup and behaviour | [`cms/admin/src/shell.ts`](../../cms/admin/src/shell.ts) |
 | Icons | [`cms/admin/src/icons.ts`](../../cms/admin/src/icons.ts) |
 | Validation (`markProblems`, `showError`, native checks) | [`cms/admin/src/ui.ts`](../../cms/admin/src/ui.ts) |
+| Tune sheet, playback and labels | [`cms/admin/src/views/tuneParts.ts`](../../cms/admin/src/views/tuneParts.ts) |
 | Live reference (`/app/design`) | [`cms/admin/src/views/design.ts`](../../cms/admin/src/views/design.ts) |
 | Figtree and its licence | [`cms/admin/src/fonts/`](../../cms/admin/src/fonts/) |
 | Token check | [`scripts/styles.test.ts`](../../scripts/styles.test.ts) |

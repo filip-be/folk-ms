@@ -6,8 +6,9 @@ The Site snapshot contract; why it exists and how it is used is in [Site deliver
 | --- | --- |
 | `events.schema.json` | Canonical JSON Schema of `events.json` (draft 2020-12, restricted keyword set) |
 | `videos.schema.json` | Canonical JSON Schema of `videos.json`, the Video Collection ([Video Collection](../docs/video-collection/README.md)) |
-| `fixtures/valid/`, `fixtures/invalid/` | Shared fixtures for the Go and TypeScript sides (`fixtures/videos/` for `videos.json`) |
-| `client/` | Zero-dependency TypeScript readers for Sites (`src/index.ts`, `src/videos.ts`) |
+| `tunes.schema.json`, `tune.schema.json` | Canonical JSON Schemas of the Tune Collection's two snapshot kinds: the catalogue `tunes.json` and one Tune's file `tunes/<id>.json` ([Tune Collection](../docs/tune-collection/README.md)) |
+| `fixtures/valid/`, `fixtures/invalid/` | Shared fixtures for the Go and TypeScript sides (`fixtures/videos/` for `videos.json`, `fixtures/tunes/` and `fixtures/tune/` for the Tune Collection, each with `valid/` and `invalid/`) |
+| `client/` | Zero-dependency TypeScript readers for Sites (`src/index.ts`, `src/videos.ts`, `src/tunes.ts`) |
 
 Tests: `bun test contract` (reader) and `go test ./internal/schema/ ./internal/domain/` in `cms/` (schema, fixtures, builder output).
 
@@ -16,3 +17,5 @@ When changing the schema: use only keywords listed in `cms/internal/schema/schem
 Schema version 2 is such a breaking change: Events come from Facebook Events (or Manual Events), so the `venues` map, `recurrence`, `kind` and `publishedAt` are gone. Each Event has `updatedAt` and one or more Occurrences; each Occurrence carries its own optional `location` (`name`, optional `address` and `mapUrl`), `online` (present only when true) and a required `facebookEventUrl`. A repeating Facebook Event is one Event with several Occurrences, any of which may be cancelled; multi-day is derived from an Occurrence's dates. `price` has an optional `text` and an optional tickets `url`. The reader refuses any other `schemaVersion`, so the CMS and the Sites deploy together.
 
 An optional property added later for Sites to show is additive: `schemaVersion` stays, because the reader ignores unknown properties. Deploy the Sites before or with the CMS that starts writing it.
+
+The Tune Collection's catalogue and Tune file share one `schemaVersion` (1): `TuneSnapshotSchemaVersion` in `cms/internal/domain/tune_snapshot.go`, `TUNES_SCHEMA_VERSION` in `client/src/tunes.ts`. Change both schemas, both fixture folders, the builder and the reader together; built snapshots are validated against the schemas in `cms/internal/domain/tune_schema_test.go`.
